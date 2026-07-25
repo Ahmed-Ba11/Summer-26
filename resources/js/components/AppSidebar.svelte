@@ -1,11 +1,11 @@
 <script lang="ts">
     import { Link } from '@inertiajs/svelte';
-    import BookOpen from 'lucide-svelte/icons/book-open';
-    import FolderGit2 from 'lucide-svelte/icons/folder-git-2';
-    import LayoutGrid from 'lucide-svelte/icons/layout-grid';
     import type { Snippet } from 'svelte';
+    import LayoutGrid from 'lucide-svelte/icons/layout-grid';
+    import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
+    import TrendingUp from 'lucide-svelte/icons/trending-up';
+    import Target from 'lucide-svelte/icons/target';
     import AppLogo from '@/components/AppLogo.svelte';
-    import NavFooter from '@/components/NavFooter.svelte';
     import NavMain from '@/components/NavMain.svelte';
     import NavUser from '@/components/NavUser.svelte';
     import {
@@ -18,7 +18,6 @@
         SidebarMenuItem,
     } from '@/components/ui/sidebar';
     import { toUrl } from '@/lib/utils';
-    import { dashboard } from '@/routes';
     import type { NavItem } from '@/types';
 
     let {
@@ -29,22 +28,24 @@
 
     const mainNavItems: NavItem[] = [
         {
-            title: 'Dashboard',
-            href: dashboard(),
+            title: 'لوحة التحكم',
+            href: '/dashboard',
             icon: LayoutGrid,
         },
-    ];
-
-    const footerNavItems: NavItem[] = [
         {
-            title: 'Repository',
-            href: 'https://github.com/laravel/svelte-starter-kit',
-            icon: FolderGit2,
+            title: 'المصاريف',
+            href: '/expenses',
+            icon: ArrowRightLeft,
         },
         {
-            title: 'Documentation',
-            href: 'https://laravel.com/docs/starter-kits#svelte',
-            icon: BookOpen,
+            title: 'الدخل',
+            href: '/income',
+            icon: TrendingUp,
+        },
+        {
+            title: 'الميزانيات',
+            href: '/budgets',
+            icon: Target,
         },
     ];
 </script>
@@ -56,9 +57,9 @@
                 <SidebarMenuButton size="lg" asChild>
                     {#snippet children(props)}
                         <Link
-                            {...props}
-                            href={toUrl(dashboard())}
-                            class={props.class}
+                            {...(props || {})}
+                            href={toUrl('/dashboard')}
+                            class={props?.class}
                         >
                             <AppLogo />
                         </Link>
@@ -73,7 +74,6 @@
     </SidebarContent>
 
     <SidebarFooter>
-        <NavFooter items={footerNavItems} />
         <NavUser />
     </SidebarFooter>
 </Sidebar>

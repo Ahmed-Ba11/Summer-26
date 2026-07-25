@@ -59,7 +59,7 @@
                         asChild
                     >
                         {#snippet children(props)}
-                            <Link href={toUrl(item.href)} class={props.class}>
+                            <Link href={toUrl(item.href)} class={props?.class}>
                                 {item.title}
                             </Link>
                         {/snippet}

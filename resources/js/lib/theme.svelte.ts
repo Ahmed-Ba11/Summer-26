@@ -10,7 +10,7 @@ export type ThemeState = {
     updateAppearance: (value: Appearance) => void;
 };
 
-const appearance = $state<{ value: Appearance }>({ value: 'system' });
+const appearance = $state<{ value: Appearance }>({ value: 'light' });
 
 let themeChangeMediaQuery: MediaQueryList | null = null;
 
@@ -83,8 +83,8 @@ export function initializeTheme(): () => void {
     }
 
     if (!localStorage.getItem('appearance')) {
-        localStorage.setItem('appearance', 'system');
-        setCookie('appearance', 'system');
+        localStorage.setItem('appearance', 'light');
+        setCookie('appearance', 'light');
     }
 
     appearance.value = getStoredAppearance();

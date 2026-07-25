@@ -29,11 +29,11 @@
                     >
                         {#snippet children(props)}
                             <a
-                                {...props}
+                                {...(props || {})}
                                 href={toUrl(item.href)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class={props.class}
+                                 class={props?.class}
                             >
                                 {#if item.icon}
                                     <item.icon class="size-4 shrink-0" />
