@@ -5,6 +5,7 @@
     import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import Target from 'lucide-svelte/icons/target';
+    import Bot from 'lucide-svelte/icons/bot';
     import AppLogo from '@/components/AppLogo.svelte';
     import NavMain from '@/components/NavMain.svelte';
     import NavUser from '@/components/NavUser.svelte';
@@ -46,6 +47,11 @@
             title: 'الميزانيات',
             href: '/budgets',
             icon: Target,
+        },
+        {
+            title: 'المساعد الذكي',
+            href: '#',
+            icon: Bot,
         },
     ];
 </script>

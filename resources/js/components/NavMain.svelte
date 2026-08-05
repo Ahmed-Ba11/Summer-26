@@ -13,15 +13,17 @@
 
     let {
         items = [],
+        label = 'القائمة الرئيسية',
     }: {
         items: NavItem[];
+        label?: string;
     } = $props();
 
     const url = currentUrlState();
 </script>
 
 <SidebarGroup class="px-2 py-0">
-    <SidebarGroupLabel>القائمة الرئيسية</SidebarGroupLabel>
+    <SidebarGroupLabel>{label}</SidebarGroupLabel>
     <SidebarMenu>
         {#each items as item (toUrl(item.href))}
             <SidebarMenuItem>
@@ -36,10 +38,12 @@
                             href={toUrl(item.href)}
                             class={props?.class}
                         >
-                            {#if item.icon}
-                                <item.icon class="size-4 shrink-0" />
-                            {/if}
-                            <span>{item.title}</span>
+                            <span class="flex items-center gap-3">
+                                {#if item.icon}
+                                    <item.icon class="size-4 shrink-0" />
+                                {/if}
+                                <span>{item.title}</span>
+                            </span>
                         </Link>
                     {/snippet}
                 </SidebarMenuButton>

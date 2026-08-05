@@ -34,7 +34,7 @@
                             data-state={props?.['data-state']}
                         >
                             <UserInfo {user} />
-                            <ChevronsUpDown class="ml-auto size-4" />
+                            <ChevronsUpDown class="ms-auto size-4" />
                         </SidebarMenuButton>
                     {/snippet}
                 </DropdownMenuTrigger>

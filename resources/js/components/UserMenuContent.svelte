@@ -43,7 +43,7 @@
                 prefetch
                 onclick={props?.onClick}
             >
-                <Settings class="mr-2 h-4 w-4" />
+                <Settings class="me-2 h-4 w-4" />
                 Settings
             </Link>
         {/snippet}
@@ -59,7 +59,7 @@
             onclick={handleLogout(props?.onClick)}
             data-test="logout-button"
         >
-            <LogOut class="mr-2 h-4 w-4" />
+            <LogOut class="me-2 h-4 w-4" />
             Log out
         </Link>
     {/snippet}
