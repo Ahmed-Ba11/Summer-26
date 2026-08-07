@@ -16,11 +16,34 @@
     import PiggyBank from 'lucide-svelte/icons/piggy-bank';
     import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
-    import Plus from 'lucide-svelte/icons/plus';
     import ChevronDown from 'lucide-svelte/icons/chevron-down';
 
-    interface Transaction {
+    interface Stat {
+        totalExpenses: number;
+        prevExpenses: number;
+        totalIncome: number;
+        balance: number;
+        savingsRate: number;
+        budgetTotal: number;
+    }
+
+    interface Category {
         id: number;
+        name: string;
+        icon: string;
+        color: string;
+        amount: number;
+        budget: number;
+        prevAmount: number;
+    }
+
+    interface MonthlyItem {
+        month: string;
+        expenses: number;
+        income: number;
+    }
+
+    interface Transaction {
         type: 'expense' | 'income';
         desc: string;
         cat: string;
@@ -28,79 +51,74 @@
         date: string;
     }
 
-    interface Category {
-        name: string;
-        amount: number;
-        budget: number;
-        color: string;
-        prevAmount: number;
-    }
+    let {
+        stats = {
+            totalExpenses: 452000,
+            prevExpenses: 420000,
+            totalIncome: 800000,
+            balance: 348000,
+            savingsRate: 44,
+            budgetTotal: 500000,
+        } satisfies Stat,
+        categories = [
+            { id: 1, name: 'طعام', icon: 'utensils', color: '#ef4444', amount: 120000, budget: 150000, prevAmount: 105000 },
+            { id: 2, name: 'مواصلات', icon: 'car', color: '#3b82f6', amount: 80000, budget: 100000, prevAmount: 75000 },
+            { id: 3, name: 'ترفيه', icon: 'gamepad-2', color: '#eab308', amount: 65000, budget: 50000, prevAmount: 58000 },
+            { id: 4, name: 'فواتير', icon: 'zap', color: '#a855f7', amount: 90000, budget: 100000, prevAmount: 88000 },
+            { id: 5, name: 'صحة', icon: 'heart-pulse', color: '#22c55e', amount: 40000, budget: 50000, prevAmount: 35000 },
+            { id: 6, name: 'تعليم', icon: 'graduation-cap', color: '#6366f1', amount: 30000, budget: 30000, prevAmount: 32000 },
+            { id: 7, name: 'أخرى', icon: 'ellipsis', color: '#6b7280', amount: 27000, budget: 20000, prevAmount: 26000 },
+        ] satisfies Category[],
+        monthlyExpenses = [
+            { month: 'يناير', expenses: 380000, income: 800000 },
+            { month: 'فبراير', expenses: 410000, income: 800000 },
+            { month: 'مارس', expenses: 360000, income: 800000 },
+            { month: 'أبريل', expenses: 430000, income: 800000 },
+            { month: 'مايو', expenses: 390000, income: 800000 },
+            { month: 'يونيو', expenses: 420000, income: 800000 },
+            { month: 'يوليو', expenses: 452000, income: 800000 },
+            { month: 'أغسطس', expenses: 410000, income: 800000 },
+            { month: 'سبتمبر', expenses: 390000, income: 800000 },
+            { month: 'أكتوبر', expenses: 460000, income: 850000 },
+            { month: 'نوفمبر', expenses: 430000, income: 850000 },
+            { month: 'ديسمبر', expenses: 520000, income: 900000 },
+        ] satisfies MonthlyItem[],
+        recentTransactions = [
+            { type: 'expense', desc: 'مطعم', cat: 'طعام', amount: 15000, date: '2026-07-14' },
+            { type: 'expense', desc: 'تاكسي', cat: 'مواصلات', amount: 4500, date: '2026-07-13' },
+            { type: 'income', desc: 'راتب شهري', cat: 'وظيفة', amount: 800000, date: '2026-07-01' },
+            { type: 'expense', desc: 'فاتورة كهرباء', cat: 'فواتير', amount: 32000, date: '2026-07-12' },
+            { type: 'expense', desc: 'سينما', cat: 'ترفيه', amount: 12000, date: '2026-07-10' },
+            { type: 'income', desc: 'عمل حر', cat: 'مستقل', amount: 50000, date: '2026-07-08' },
+            { type: 'expense', desc: 'دواء', cat: 'صحة', amount: 8500, date: '2026-07-09' },
+            { type: 'expense', desc: 'اشتراك نت', cat: 'فواتير', amount: 19900, date: '2026-07-05' },
+        ] satisfies Transaction[],
+    }: {
+        stats?: Stat;
+        categories?: Category[];
+        monthlyExpenses?: MonthlyItem[];
+        recentTransactions?: Transaction[];
+    } = $props();
 
     const months = [
         'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
         'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
     ];
-    const years = ['2025', '2026'];
-    let selectedMonth = $state(6); // يوليو
-    let selectedYear = $state('2026');
 
-    const allMonthlyData: Record<string, { month: string; expenses: number; income: number }[]> = {
-        '2025': [
-            { month: 'يناير', expenses: 3200, income: 7500 },
-            { month: 'فبراير', expenses: 3500, income: 7500 },
-            { month: 'مارس', expenses: 2800, income: 7500 },
-            { month: 'أبريل', expenses: 4000, income: 7500 },
-            { month: 'مايو', expenses: 3600, income: 7800 },
-            { month: 'يونيو', expenses: 3900, income: 7800 },
-            { month: 'يوليو', expenses: 4100, income: 7800 },
-            { month: 'أغسطس', expenses: 3800, income: 7800 },
-            { month: 'سبتمبر', expenses: 3500, income: 8000 },
-            { month: 'أكتوبر', expenses: 4200, income: 8000 },
-            { month: 'نوفمبر', expenses: 3700, income: 8000 },
-            { month: 'ديسمبر', expenses: 4500, income: 8500 },
-        ],
-        '2026': [
-            { month: 'يناير', expenses: 3800, income: 8000 },
-            { month: 'فبراير', expenses: 4100, income: 8000 },
-            { month: 'مارس', expenses: 3600, income: 8000 },
-            { month: 'أبريل', expenses: 4300, income: 8000 },
-            { month: 'مايو', expenses: 3900, income: 8000 },
-            { month: 'يونيو', expenses: 4200, income: 8000 },
-            { month: 'يوليو', expenses: 4520, income: 8000 },
-            { month: 'أغسطس', expenses: 4100, income: 8000 },
-            { month: 'سبتمبر', expenses: 3900, income: 8000 },
-            { month: 'أكتوبر', expenses: 4600, income: 8500 },
-            { month: 'نوفمبر', expenses: 4300, income: 8500 },
-            { month: 'ديسمبر', expenses: 5200, income: 9000 },
-        ],
-    };
+    let selectedMonth = $state(6);
 
-    const monthlyData = $derived(allMonthlyData[selectedYear] || []);
-    const currentMonthData = $derived(monthlyData[selectedMonth] || monthlyData[0]);
-    const prevMonthData = $derived(monthlyData[selectedMonth > 0 ? selectedMonth - 1 : 0]);
-    const totalExpenses = $derived(currentMonthData.expenses);
-    const totalIncome = $derived(currentMonthData.income);
-    const balance = $derived(totalIncome - totalExpenses);
-    const savingsRate = $derived(Math.round((balance / totalIncome) * 100));
-    const budgetTotal = 5000;
-    const prevExpenses = $derived(prevMonthData.expenses);
-    const expenseChange = $derived(Math.round(((totalExpenses - prevExpenses) / prevExpenses) * 100));
-
-    const categories: Category[] = $derived([
-        { name: 'طعام', amount: 1200, budget: 1500, prevAmount: 1050, color: '#ef4444' },
-        { name: 'مواصلات', amount: 800, budget: 1000, prevAmount: 750, color: '#3b82f6' },
-        { name: 'ترفيه', amount: 650, budget: 500, prevAmount: 580, color: '#eab308' },
-        { name: 'فواتير', amount: 900, budget: 1000, prevAmount: 880, color: '#a855f7' },
-        { name: 'صحة', amount: 400, budget: 500, prevAmount: 350, color: '#22c55e' },
-        { name: 'تعليم', amount: 300, budget: 300, prevAmount: 320, color: '#6366f1' },
-        { name: 'أخرى', amount: 270, budget: 200, prevAmount: 260, color: '#6b7280' },
-    ]);
+    const expenseChange = $derived(
+        stats.prevExpenses > 0
+            ? Math.round(((stats.totalExpenses - stats.prevExpenses) / stats.prevExpenses) * 100)
+            : 0,
+    );
 
     const totalCatAmount = $derived(categories.reduce((s, c) => s + c.amount, 0));
 
-    const maxExpense = $derived(Math.max(...monthlyData.map((d) => d.expenses), 1));
+    const maxExpense = $derived(Math.max(...monthlyExpenses.map((d) => d.expenses), 1));
+    const maxIncome = $derived(Math.max(...monthlyExpenses.map((d) => d.income), 1));
+    const barChartMax = $derived(Math.max(maxExpense, maxIncome));
 
-    // SVG donut chart calculations
     const donutSegments = $derived.by(() => {
         const total = categories.reduce((s, c) => s + c.amount, 0);
         let cumulative = 0;
@@ -114,7 +132,8 @@
 
     function donutPath(startPct: number, endPct: number): string {
         const r = 40;
-        const cx = 50; const cy = 50;
+        const cx = 50;
+        const cy = 50;
         const startAngle = (startPct / 50) * Math.PI - Math.PI / 2;
         const endAngle = (endPct / 50) * Math.PI - Math.PI / 2;
         const x1 = cx + r * Math.cos(startAngle);
@@ -125,58 +144,54 @@
         return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
     }
 
-    const recentTransactions: Transaction[] = $derived([
-        { id: 1, type: 'expense', desc: 'مطعم', cat: 'طعام', amount: 150, date: '2026-07-14' },
-        { id: 2, type: 'expense', desc: 'تاكسي', cat: 'مواصلات', amount: 45, date: '2026-07-13' },
-        { id: 3, type: 'income', desc: 'راتب شهري', cat: 'وظيفة', amount: 8000, date: '2026-07-01' },
-        { id: 4, type: 'expense', desc: 'فاتورة كهرباء', cat: 'فواتير', amount: 320, date: '2026-07-12' },
-        { id: 5, type: 'expense', desc: 'سينما', cat: 'ترفيه', amount: 120, date: '2026-07-10' },
-        { id: 6, type: 'income', desc: 'عمل حر', cat: 'مستقل', amount: 500, date: '2026-07-08' },
-        { id: 7, type: 'expense', desc: 'دواء', cat: 'صحة', amount: 85, date: '2026-07-09' },
-        { id: 8, type: 'expense', desc: 'اشتراك نت', cat: 'فواتير', amount: 199, date: '2026-07-05' },
-    ]);
-
-    let showQuickAdd = $state(false);
-
     function formatCurrency(amount: number): string {
-        return amount.toLocaleString('ar-SA') + ' ر.س';
+        return (amount / 100).toLocaleString('ar-SA', { maximumFractionDigits: 2 }) + ' ر.س';
     }
+
+    function formatDate(dateStr: string): string {
+        return new Date(dateStr).toLocaleDateString('ar-SA');
+    }
+
+    let showMonthDropdown = $state(false);
 </script>
 
 <AppHead title="لوحة التحكم" />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-    <!-- العنوان + الفلتر + أزرار سريعة -->
     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold">لوحة التحكم</h1>
             <p class="text-muted-foreground">
-                ملخص مصاريفك ودخلك لشهر {months[selectedMonth]} {selectedYear}
+                ملخص مصاريفك ودخلك لشهر {months[selectedMonth]}
             </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
-            <!-- فلتر الشهر -->
-            <select
-                class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                bind:value={selectedMonth}
-            >
-                {#each months as month, i}
-                    <option value={i}>{month}</option>
-                {/each}
-            </select>
+            <div class="relative">
+                <button
+                    class="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    onclick={() => (showMonthDropdown = !showMonthDropdown)}
+                >
+                    {months[selectedMonth]}
+                    <ChevronDown class="size-3.5 text-muted-foreground" />
+                </button>
+                {#if showMonthDropdown}
+                    <div class="absolute left-0 z-50 mt-1 w-36 rounded-lg border border-border bg-background shadow-lg">
+                        {#each months as month, i}
+                            <button
+                                class="w-full px-3 py-2 text-right text-sm hover:bg-muted first:rounded-t-lg last:rounded-b-lg {i === selectedMonth ? 'bg-muted font-medium' : ''}"
+                                onclick={() => {
+                                    selectedMonth = i;
+                                    showMonthDropdown = false;
+                                }}
+                            >
+                                {month}
+                            </button>
+                        {/each}
+                    </div>
+                {/if}
+            </div>
 
-            <!-- فلتر السنة -->
-            <select
-                class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                bind:value={selectedYear}
-            >
-                {#each years as year}
-                    <option value={year}>{year}</option>
-                {/each}
-            </select>
-
-            <!-- أزرار سريعة -->
             <div class="flex gap-2">
                 <Button size="sm" class="gap-1.5">
                     <ArrowRightLeft class="size-3.5" />
@@ -190,7 +205,6 @@
         </div>
     </div>
 
-    <!-- 5 بطاقات إحصائية -->
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
             <CardContent class="pt-6">
@@ -198,7 +212,7 @@
                     <p class="text-sm text-muted-foreground">المصاريف</p>
                     <ArrowDownRight class="size-4 text-red-500 shrink-0" />
                 </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(totalExpenses)}</p>
+                <p class="mt-2 text-xl font-bold">{formatCurrency(stats.totalExpenses)}</p>
                 <p class="mt-1 text-xs {expenseChange >= 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">
                     {expenseChange >= 0 ? '+' : ''}{expenseChange}% عن الشهر الماضي
                 </p>
@@ -211,8 +225,8 @@
                     <p class="text-sm text-muted-foreground">الدخل</p>
                     <ArrowUpRight class="size-4 text-green-500 shrink-0" />
                 </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(totalIncome)}</p>
-                <p class="mt-1 text-xs text-muted-foreground">ثابت منذ 7 أشهر</p>
+                <p class="mt-2 text-xl font-bold">{formatCurrency(stats.totalIncome)}</p>
+                <p class="mt-1 text-xs text-muted-foreground">إجمالي دخل الشهر</p>
             </CardContent>
         </Card>
 
@@ -222,7 +236,7 @@
                     <p class="text-sm text-muted-foreground">المتبقي</p>
                     <Wallet class="size-4 text-blue-500 shrink-0" />
                 </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(balance)}</p>
+                <p class="mt-2 text-xl font-bold">{formatCurrency(stats.balance)}</p>
                 <p class="mt-1 text-xs text-muted-foreground">بعد خصم كل المصاريف</p>
             </CardContent>
         </Card>
@@ -233,11 +247,11 @@
                     <p class="text-sm text-muted-foreground">نسبة الادخار</p>
                     <PiggyBank class="size-4 text-emerald-500 shrink-0" />
                 </div>
-                <p class="mt-2 text-xl font-bold">{savingsRate}%</p>
+                <p class="mt-2 text-xl font-bold">{stats.savingsRate}%</p>
                 <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
                     <div
                         class="h-full rounded-full bg-emerald-500 transition-all"
-                        style="width: {Math.min(savingsRate, 100)}%"
+                        style="width: {Math.min(stats.savingsRate, 100)}%"
                     ></div>
                 </div>
             </CardContent>
@@ -249,15 +263,13 @@
                     <p class="text-sm text-muted-foreground">الميزانية</p>
                     <Wallet class="size-4 text-orange-500 shrink-0" />
                 </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(budgetTotal - totalExpenses)}</p>
-                <p class="mt-1 text-xs text-muted-foreground">متبقي من {formatCurrency(budgetTotal)}</p>
+                <p class="mt-2 text-xl font-bold">{formatCurrency(stats.budgetTotal - stats.totalExpenses)}</p>
+                <p class="mt-1 text-xs text-muted-foreground">متبقي من {formatCurrency(stats.budgetTotal)}</p>
             </CardContent>
         </Card>
     </div>
 
-    <!-- الصف الثاني: رسم دائري + رسم أعمدة -->
     <div class="grid gap-4 lg:grid-cols-2">
-        <!-- رسم دائري Donut Chart -->
         <Card>
             <CardHeader class="pb-2">
                 <CardTitle class="text-base">توزيع المصاريف حسب الفئة</CardTitle>
@@ -276,25 +288,34 @@
                         {/each}
                         <circle cx="50" cy="50" r="28" fill="var(--color-card, #fff)" />
                         <text
-                            x="50" y="47"
+                            x="50"
+                            y="47"
                             text-anchor="middle"
                             fill="currentColor"
-                            class="text-sm font-bold"
+                            class="text-[11px] font-bold"
                             style="direction: ltr;"
-                        >{formatCurrency(totalCatAmount)}</text>
+                        >
+                            {formatCurrency(totalCatAmount)}
+                        </text>
                         <text
-                            x="50" y="61"
+                            x="50"
+                            y="61"
                             text-anchor="middle"
                             fill="var(--color-muted-foreground)"
                             class="text-[10px]"
-                        >الإجمالي</text>
+                        >
+                            الإجمالي
+                        </text>
                     </svg>
 
                     <div class="flex-1 space-y-2 text-xs">
                         {#each donutSegments as seg}
                             <div class="flex items-center justify-between gap-2">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="size-2 rounded-full shrink-0" style="background:{seg.color}"></span>
+                                    <span
+                                        class="size-2 rounded-full shrink-0"
+                                        style="background:{seg.color}"
+                                    ></span>
                                     <span class="truncate">{seg.name}</span>
                                 </div>
                                 <span class="tabular-nums text-muted-foreground shrink-0">
@@ -307,25 +328,29 @@
             </CardContent>
         </Card>
 
-        <!-- رسم الأعمدة الشهري -->
         <Card>
             <CardHeader class="pb-2">
-                <CardTitle class="text-base">المصاريف الشهرية — {selectedYear}</CardTitle>
+                <CardTitle class="text-base">المصاريف والدخل الشهري</CardTitle>
             </CardHeader>
             <CardContent>
                 <div class="flex items-end gap-1.5 h-44">
-                    {#each monthlyData as month, i}
-                        {@const height = Math.round((month.expenses / maxExpense) * 100)}
+                    {#each monthlyExpenses as month, i}
+                        {@const expHeight = Math.round((month.expenses / barChartMax) * 100)}
+                        {@const incHeight = Math.round((month.income / barChartMax) * 100)}
                         {@const isSelected = i === selectedMonth}
-                        <div class="flex flex-1 flex-col items-center gap-1 group">
-                            <span class="text-[10px] text-muted-foreground tabular-nums opacity-0 group-hover:opacity-100 transition-opacity">
-                                {formatCurrency(month.expenses)}
-                            </span>
-                            <div
-                                class="w-full rounded-t-sm transition-all {isSelected ? 'bg-primary' : 'bg-primary/40 hover:bg-primary/60'}"
-                                style="height: {height}%"
-                                title="{month.month}: {formatCurrency(month.expenses)}"
-                            ></div>
+                        <div class="flex flex-1 flex-col items-center gap-0.5 group">
+                            <div class="flex items-end gap-0.5 h-36 w-full justify-center">
+                                <div
+                                    class="w-2.5 rounded-t-xs transition-all {isSelected ? 'bg-emerald-500' : 'bg-emerald-500/40 hover:bg-emerald-500/60'}"
+                                    style="height: {incHeight}%"
+                                    title="{month.month} — دخل: {formatCurrency(month.income)}"
+                                ></div>
+                                <div
+                                    class="w-2.5 rounded-t-xs transition-all {isSelected ? 'bg-primary' : 'bg-primary/40 hover:bg-primary/60'}"
+                                    style="height: {expHeight}%"
+                                    title="{month.month} — مصاريف: {formatCurrency(month.expenses)}"
+                                ></div>
+                            </div>
                             <span class="text-[10px] text-muted-foreground {isSelected ? 'font-bold text-foreground' : ''}">
                                 {month.month}
                             </span>
@@ -334,23 +359,25 @@
                 </div>
                 <div class="mt-3 flex items-center justify-center gap-4 text-xs text-muted-foreground">
                     <span class="flex items-center gap-1">
-                        <span class="size-2 rounded-sm bg-primary/40"></span> مصاريف
+                        <span class="size-2 rounded-xs bg-emerald-500/40"></span> دخل
                     </span>
                     <span class="flex items-center gap-1">
-                        <span class="size-2 rounded-sm bg-primary"></span> الشهر الحالي
+                        <span class="size-2 rounded-xs bg-primary/40"></span> مصاريف
+                    </span>
+                    <span class="flex items-center gap-1">
+                        <span class="size-2 rounded-xs bg-primary"></span> الشهر الحالي
                     </span>
                 </div>
             </CardContent>
         </Card>
     </div>
 
-    <!-- المصاريف حسب الفئة + المقارنة -->
     <Card>
         <CardHeader>
             <CardTitle class="text-base">المصاريف حسب الفئة — مقارنة بالشهر الماضي</CardTitle>
         </CardHeader>
         <CardContent>
-            <div class="space-y-4">
+            <div class="space-y-5">
                 {#each categories as cat}
                     {@const pct = Math.round((cat.amount / cat.budget) * 100)}
                     {@const prevPct = Math.round((cat.prevAmount / cat.budget) * 100)}
@@ -359,7 +386,10 @@
                     <div class="space-y-1.5">
                         <div class="flex items-center justify-between text-sm">
                             <div class="flex items-center gap-2">
-                                <span class="size-2.5 rounded-full" style="background:{cat.color}"></span>
+                                <span
+                                    class="size-2.5 rounded-full"
+                                    style="background:{cat.color}"
+                                ></span>
                                 <span>{cat.name}</span>
                             </div>
                             <div class="flex items-center gap-2 text-xs">
@@ -385,7 +415,9 @@
                         </div>
                         <div class="flex justify-between text-xs">
                             <span class="{isOver ? 'text-destructive' : 'text-muted-foreground'}">
-                                {isOver ? 'تجاوز بـ ' + formatCurrency(cat.amount - cat.budget) : pct + '% من الميزانية'}
+                                {isOver
+                                    ? 'تجاوز بـ ' + formatCurrency(cat.amount - cat.budget)
+                                    : pct + '% من الميزانية'}
                             </span>
                             <span class="text-muted-foreground">
                                 الشهر الماضي: {formatCurrency(cat.prevAmount)}
@@ -397,7 +429,6 @@
         </CardContent>
     </Card>
 
-    <!-- آخر المعاملات -->
     <Card>
         <CardHeader class="flex flex-row items-center justify-between">
             <CardTitle class="text-base">آخر المعاملات</CardTitle>
@@ -424,7 +455,9 @@
                                     </div>
                                 </td>
                                 <td class="px-6 py-3 text-muted-foreground">{txn.cat}</td>
-                                <td class="px-6 py-3 text-muted-foreground">{txn.date}</td>
+                                <td class="px-6 py-3 text-muted-foreground whitespace-nowrap">
+                                    {formatDate(txn.date)}
+                                </td>
                                 <td class="px-6 py-3 font-medium tabular-nums {txn.type === 'expense' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">
                                     {txn.type === 'expense' ? '-' : '+'}{formatCurrency(txn.amount)}
                                 </td>

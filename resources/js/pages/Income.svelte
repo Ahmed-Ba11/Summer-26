@@ -10,6 +10,7 @@
     import AppHead from '@/components/AppHead.svelte';
     import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
     import Button from '@/components/ui/button/Button.svelte';
+    import { router } from '@inertiajs/svelte';
     import Plus from 'lucide-svelte/icons/plus';
     import Search from 'lucide-svelte/icons/search';
     import ArrowUp from 'lucide-svelte/icons/arrow-up';
@@ -18,68 +19,98 @@
     import X from 'lucide-svelte/icons/x';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import Wallet from 'lucide-svelte/icons/wallet';
+    import Pencil from 'lucide-svelte/icons/pencil';
+    import Trash2 from 'lucide-svelte/icons/trash-2';
+    import LoaderCircle from 'lucide-svelte/icons/loader-circle';
 
-    interface Income {
+    interface IncomeRecord {
         id: number;
-        desc: string;
+        description: string;
         source: string;
-        amount: number;
+        amount: number; // halalas
         date: string;
-        recurring?: { frequency: string; nextDate: string };
+        is_recurring: boolean;
     }
 
-    const allIncomes: Income[] = [
-        { id: 1, desc: 'راتب شهري', source: 'وظيفة', amount: 8000, date: '2026-07-01', recurring: { frequency: 'شهري', nextDate: '2026-08-01' } },
-        { id: 2, desc: 'عمل حر', source: 'مستقل', amount: 500, date: '2026-07-08' },
-        { id: 3, desc: 'بيع أغراض', source: 'مبيعات', amount: 200, date: '2026-06-15' },
-        { id: 4, desc: 'راتب شهري', source: 'وظيفة', amount: 8000, date: '2026-06-01', recurring: { frequency: 'شهري', nextDate: '2026-07-01' } },
-        { id: 5, desc: 'تدريب', source: 'مستقل', amount: 1200, date: '2026-05-20' },
-        { id: 6, desc: 'أرباح أسهم', source: 'استثمار', amount: 350, date: '2026-05-10' },
-        { id: 7, desc: 'راتب شهري', source: 'وظيفة', amount: 8000, date: '2026-05-01', recurring: { frequency: 'شهري', nextDate: '2026-06-01' } },
-    ];
+    interface Pagination {
+        current_page: number;
+        last_page: number;
+        total: number;
+    }
 
-    const sources = ['الكل', 'وظيفة', 'مستقل', 'مبيعات', 'استثمار'];
+    interface Paginator {
+        data: IncomeRecord[];
+        current_page: number;
+        last_page: number;
+        total: number;
+    }
+
+    let {
+        incomes = { data: [], current_page: 1, last_page: 1, total: 0 } as Paginator,
+        recurringCount = 0,
+    }: {
+        incomes?: Paginator;
+        recurringCount?: number;
+    } = $props();
+
+    function displayAmount(halalas: number): string {
+        return (halalas / 100).toLocaleString('ar-SA') + ' ر.س';
+    }
+
+    function toHalalas(sar: number): number {
+        return Math.round(sar * 100);
+    }
+
+    function formatDate(date: string): string {
+        return new Date(date).toLocaleDateString('ar-SA');
+    }
+
+    // Filters
     let search = $state('');
     let selectedSource = $state('الكل');
     let sortField = $state<'date' | 'amount'>('date');
     let sortDir = $state<'asc' | 'desc'>('desc');
     let showRecurringOnly = $state(false);
 
+    const sources = $derived.by(() => {
+        const set = new Set(incomes.data.map((i) => i.source));
+        return ['الكل', ...Array.from(set)];
+    });
+
     const filteredIncomes = $derived.by(() => {
-        let list = [...allIncomes];
+        let list = [...incomes.data];
 
         if (search) {
             const q = search.toLowerCase();
-            list = list.filter((e) => e.desc.toLowerCase().includes(q) || e.source.toLowerCase().includes(q));
+            list = list.filter((i) => i.description.toLowerCase().includes(q) || i.source.toLowerCase().includes(q));
         }
 
         if (selectedSource !== 'الكل') {
-            list = list.filter((e) => e.source === selectedSource);
+            list = list.filter((i) => i.source === selectedSource);
         }
 
         if (showRecurringOnly) {
-            list = list.filter((e) => e.recurring);
+            list = list.filter((i) => i.is_recurring);
         }
 
         list.sort((a, b) => {
-            if (sortField === 'date') return sortDir === 'desc' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date);
+            if (sortField === 'date') {
+                return sortDir === 'desc'
+                    ? b.date.localeCompare(a.date)
+                    : a.date.localeCompare(b.date);
+            }
             return sortDir === 'desc' ? b.amount - a.amount : a.amount - b.amount;
         });
 
         return list;
     });
 
-    const totalFiltered = $derived(filteredIncomes.reduce((s, e) => s + e.amount, 0));
-    const avgMonthly = $derived(Math.round(totalFiltered / Math.max(filteredIncomes.length || 1, 1)));
+    const totalFiltered = $derived(filteredIncomes.reduce((s, i) => s + i.amount, 0));
 
     let currentPage = $state(1);
-    const perPage = 6;
+    const perPage = 8;
     const totalPages = $derived(Math.ceil(filteredIncomes.length / perPage));
     const pagedIncomes = $derived(filteredIncomes.slice((currentPage - 1) * perPage, currentPage * perPage));
-
-    function formatCurrency(amount: number): string {
-        return amount.toLocaleString('ar-SA') + ' ر.س';
-    }
 
     function toggleSort(field: 'date' | 'amount') {
         if (sortField === field) {
@@ -98,23 +129,152 @@
     }
 
     const hasFilters = $derived(search !== '' || selectedSource !== 'الكل' || showRecurringOnly);
+
+    // Modal state
+    let showModal = $state(false);
+    let editingId = $state<number | null>(null);
+
+    // Form state
+    let formAmount = $state('');
+    let formSource = $state('');
+    let formDescription = $state('');
+    let formDate = $state('');
+    let formIsRecurring = $state(false);
+    let formErrors = $state<Record<string, string>>({});
+    let formSubmitting = $state(false);
+
+    function openAddModal() {
+        editingId = null;
+        formAmount = '';
+        formSource = '';
+        formDescription = '';
+        formDate = new Date().toISOString().split('T')[0];
+        formIsRecurring = false;
+        formErrors = {};
+        showModal = true;
+    }
+
+    function openEditModal(inc: IncomeRecord) {
+        editingId = inc.id;
+        formAmount = String(inc.amount / 100);
+        formSource = inc.source;
+        formDescription = inc.description;
+        formDate = inc.date;
+        formIsRecurring = inc.is_recurring;
+        formErrors = {};
+        showModal = true;
+    }
+
+    function closeModal() {
+        showModal = false;
+        editingId = null;
+        formErrors = {};
+    }
+
+    function submitForm() {
+        formErrors = {};
+        const amountSar = parseFloat(formAmount);
+        if (!amountSar || amountSar <= 0) {
+            formErrors.amount = 'المبلغ مطلوب';
+            return;
+        }
+        if (!formSource.trim()) {
+            formErrors.source = 'المصدر مطلوب';
+            return;
+        }
+        if (!formDescription.trim()) {
+            formErrors.description = 'الوصف مطلوب';
+            return;
+        }
+        if (!formDate) {
+            formErrors.date = 'التاريخ مطلوب';
+            return;
+        }
+
+        formSubmitting = true;
+
+        const data = {
+            amount: amountSar,
+            source: formSource.trim(),
+            description: formDescription.trim(),
+            income_date: formDate,
+            is_recurring: formIsRecurring,
+        };
+
+        if (editingId) {
+            router.put(`/income/${editingId}`, data, {
+                onSuccess: () => {
+                    closeModal();
+                    router.reload({ only: ['incomes', 'recurringCount'] });
+                },
+                onError: (err) => {
+                    formErrors = err as Record<string, string>;
+                },
+                onFinish: () => {
+                    formSubmitting = false;
+                },
+            });
+        } else {
+            router.post('/income', data, {
+                onSuccess: () => {
+                    closeModal();
+                    router.reload({ only: ['incomes', 'recurringCount'] });
+                },
+                onError: (err) => {
+                    formErrors = err as Record<string, string>;
+                },
+                onFinish: () => {
+                    formSubmitting = false;
+                },
+            });
+        }
+    }
+
+    // Delete
+    let deleteId = $state<number | null>(null);
+    let deleteSubmitting = $state(false);
+
+    function confirmDelete(id: number) {
+        deleteId = id;
+    }
+
+    function cancelDelete() {
+        deleteId = null;
+    }
+
+    function executeDelete() {
+        if (!deleteId) return;
+        deleteSubmitting = true;
+        router.delete(`/income/${deleteId}`, {
+            onSuccess: () => {
+                deleteId = null;
+                router.reload({ only: ['incomes', 'recurringCount'] });
+            },
+            onFinish: () => {
+                deleteSubmitting = false;
+            },
+        });
+    }
+
+    const recurringIncomes = $derived(incomes.data.filter((i) => i.is_recurring));
 </script>
 
 <AppHead title="الدخل" />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
+    <!-- Header -->
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h1 class="text-2xl font-bold">الدخل</h1>
-            <p class="text-muted-foreground">{allIncomes.length} دخل مسجل</p>
+            <p class="text-muted-foreground">{incomes.total} دخل مسجل</p>
         </div>
-        <Button class="gap-1.5">
+        <Button class="gap-1.5" onclick={openAddModal}>
             <Plus class="size-4" />
             إضافة دخل
         </Button>
     </div>
 
-    <!-- بطاقات الملخص -->
+    <!-- Summary cards -->
     <div class="grid gap-4 sm:grid-cols-3">
         <Card>
             <CardContent class="pt-6">
@@ -122,7 +282,7 @@
                     <p class="text-sm text-muted-foreground">إجمالي الدخل</p>
                     <TrendingUp class="size-4 text-green-500" />
                 </div>
-                <p class="mt-2 text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalFiltered)}</p>
+                <p class="mt-2 text-xl font-bold text-green-600 dark:text-green-400">{displayAmount(totalFiltered)}</p>
             </CardContent>
         </Card>
         <Card>
@@ -137,15 +297,15 @@
         <Card>
             <CardContent class="pt-6">
                 <div class="flex items-center justify-between">
-                    <p class="text-sm text-muted-foreground">متوسط الدخل</p>
-                    <TrendingUp class="size-4 text-emerald-500" />
+                    <p class="text-sm text-muted-foreground">الدخل المتكرر</p>
+                    <Repeat class="size-4 text-purple-500" />
                 </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(avgMonthly)}</p>
+                <p class="mt-2 text-xl font-bold">{recurringCount}</p>
             </CardContent>
         </Card>
     </div>
 
-    <!-- شريط البحث والفلاتر -->
+    <!-- Search and filters -->
     <Card>
         <CardContent class="pt-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -188,7 +348,7 @@
         </CardContent>
     </Card>
 
-    <!-- جدول الدخل -->
+    <!-- Income table -->
     <Card>
         <CardContent class="p-0">
             <div class="overflow-x-auto">
@@ -217,29 +377,41 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {#each pagedIncomes as inc}
-                            <tr class="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                                <td class="px-6 py-3">
-                                    <div class="flex items-center gap-2">
-                                        {inc.desc}
-                                        {#if inc.recurring}
-                                            <span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                                                <Repeat class="size-2.5" /> متكرر
-                                            </span>
-                                        {/if}
-                                    </div>
-                                </td>
-                                <td class="px-6 py-3 text-muted-foreground">{inc.source}</td>
-                                <td class="px-6 py-3 text-muted-foreground tabular-nums">{inc.date}</td>
-                                <td class="px-6 py-3 font-medium tabular-nums text-green-600 dark:text-green-400">{formatCurrency(inc.amount)}</td>
-                                <td class="px-6 py-3">
-                                    <div class="flex gap-2">
-                                        <button class="cursor-pointer text-xs text-muted-foreground hover:text-foreground">تعديل</button>
-                                        <button class="cursor-pointer text-xs text-destructive hover:text-destructive/80">حذف</button>
-                                    </div>
+                        {#if pagedIncomes.length === 0}
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-muted-foreground">
+                                    لا يوجد دخل مطابق للبحث
                                 </td>
                             </tr>
-                        {/each}
+                        {:else}
+                            {#each pagedIncomes as inc}
+                                <tr class="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                                    <td class="px-6 py-3">
+                                        <div class="flex items-center gap-2">
+                                            {inc.description}
+                                            {#if inc.is_recurring}
+                                                <span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                                                    <Repeat class="size-2.5" /> متكرر
+                                                </span>
+                                            {/if}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-3 text-muted-foreground">{inc.source}</td>
+                                    <td class="px-6 py-3 text-muted-foreground tabular-nums">{formatDate(inc.date)}</td>
+                                    <td class="px-6 py-3 font-medium tabular-nums text-green-600 dark:text-green-400">{displayAmount(inc.amount)}</td>
+                                    <td class="px-6 py-3">
+                                        <div class="flex gap-2">
+                                            <button class="cursor-pointer inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onclick={() => openEditModal(inc)}>
+                                                <Pencil class="size-3" /> تعديل
+                                            </button>
+                                            <button class="cursor-pointer inline-flex items-center gap-1 text-xs text-destructive hover:text-destructive/80" onclick={() => confirmDelete(inc.id)}>
+                                                <Trash2 class="size-3" /> حذف
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {/each}
+                        {/if}
                     </tbody>
                 </table>
             </div>
@@ -261,28 +433,150 @@
         </CardContent>
     </Card>
 
-    <!-- الدخل المتكرر -->
-    <Card>
-        <CardHeader>
-            <CardTitle class="text-base">الدخل المتكرر</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <div class="space-y-3">
-                {#each allIncomes.filter((e) => e.recurring) as e}
-                    <div class="flex items-center justify-between rounded-lg border border-green-200 p-3 dark:border-green-800">
-                        <div class="flex items-center gap-3">
-                            <Repeat class="size-4 text-green-500" />
-                            <div>
-                                <p class="text-sm font-medium">{e.desc}</p>
-                                <p class="text-xs text-muted-foreground">
-                                    {e.recurring?.frequency} · التالي: {e.recurring?.nextDate}
-                                </p>
+    <!-- Recurring income -->
+    {#if recurringIncomes.length > 0}
+        <Card>
+            <CardHeader>
+                <CardTitle class="text-base">الدخل المتكرر</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div class="space-y-3">
+                    {#each recurringIncomes as inc}
+                        <div class="flex items-center justify-between rounded-lg border border-green-200 p-3 dark:border-green-800">
+                            <div class="flex items-center gap-3">
+                                <Repeat class="size-4 text-green-500" />
+                                <div>
+                                    <p class="text-sm font-medium">{inc.description}</p>
+                                    <p class="text-xs text-muted-foreground">{inc.source}</p>
+                                </div>
                             </div>
+                            <span class="text-sm font-bold tabular-nums text-green-600 dark:text-green-400">{displayAmount(inc.amount)}</span>
                         </div>
-                        <span class="text-sm font-bold tabular-nums text-green-600 dark:text-green-400">{formatCurrency(e.amount)}</span>
-                    </div>
-                {/each}
-            </div>
-        </CardContent>
-    </Card>
+                    {/each}
+                </div>
+            </CardContent>
+        </Card>
+    {/if}
 </div>
+
+<!-- Add / Edit Modal -->
+{#if showModal}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+        class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-[10vh]"
+        onclick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+        onkeydown={(e) => { if (e.key === 'Escape') closeModal(); }}
+    >
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="fixed inset-0 bg-black/50" onclick={closeModal}></div>
+        <div class="relative z-10 mx-4 w-full max-w-md rounded-xl border bg-card p-0 shadow-lg">
+            <div class="flex items-center justify-between border-b px-6 py-4">
+                <h2 class="text-lg font-semibold">
+                    {editingId ? 'تعديل الدخل' : 'إضافة دخل جديد'}
+                </h2>
+                <button class="text-muted-foreground hover:text-foreground cursor-pointer" onclick={closeModal}>
+                    <X class="size-5" />
+                </button>
+            </div>
+            <div class="space-y-4 px-6 py-4">
+                <div>
+                    <label for="income-amount" class="mb-1.5 block text-sm font-medium">المبلغ (ر.س)</label>
+                    <input
+                        id="income-amount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="0.00"
+                        bind:value={formAmount}
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    {#if formErrors.amount}
+                        <p class="mt-1 text-xs text-destructive">{formErrors.amount}</p>
+                    {/if}
+                </div>
+                <div>
+                    <label for="income-source" class="mb-1.5 block text-sm font-medium">المصدر</label>
+                    <input
+                        id="income-source"
+                        type="text"
+                        placeholder="مثال: وظيفة، عمل حر"
+                        bind:value={formSource}
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    {#if formErrors.source}
+                        <p class="mt-1 text-xs text-destructive">{formErrors.source}</p>
+                    {/if}
+                </div>
+                <div>
+                    <label for="income-desc" class="mb-1.5 block text-sm font-medium">الوصف</label>
+                    <input
+                        id="income-desc"
+                        type="text"
+                        placeholder="مثال: راتب شهري"
+                        bind:value={formDescription}
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    {#if formErrors.description}
+                        <p class="mt-1 text-xs text-destructive">{formErrors.description}</p>
+                    {/if}
+                </div>
+                <div>
+                    <label for="income-date" class="mb-1.5 block text-sm font-medium">التاريخ</label>
+                    <input
+                        id="income-date"
+                        type="date"
+                        bind:value={formDate}
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    {#if formErrors.date}
+                        <p class="mt-1 text-xs text-destructive">{formErrors.date}</p>
+                    {/if}
+                </div>
+                <div class="flex items-center gap-2">
+                    <input
+                        id="income-recurring"
+                        type="checkbox"
+                        bind:checked={formIsRecurring}
+                        class="size-4 rounded border-border accent-primary"
+                    />
+                    <label for="income-recurring" class="text-sm text-muted-foreground cursor-pointer">دخل متكرر</label>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 border-t px-6 py-4">
+                <Button variant="outline" onclick={closeModal} disabled={formSubmitting}>إلغاء</Button>
+                <Button onclick={submitForm} disabled={formSubmitting}>
+                    {#if formSubmitting}
+                        <LoaderCircle class="size-4 animate-spin" />
+                    {/if}
+                    {editingId ? 'حفظ التعديلات' : 'إضافة'}
+                </Button>
+            </div>
+        </div>
+    </div>
+{/if}
+
+<!-- Delete confirmation -->
+{#if deleteId !== null}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        onclick={(e) => { if (e.target === e.currentTarget) cancelDelete(); }}
+        onkeydown={(e) => { if (e.key === 'Escape') cancelDelete(); }}
+    >
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="fixed inset-0 bg-black/50" onclick={cancelDelete}></div>
+        <div class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg">
+            <h2 class="text-lg font-semibold">تأكيد الحذف</h2>
+            <p class="mt-2 text-sm text-muted-foreground">هل أنت متأكد من حذف هذا الدخل؟ لا يمكن التراجع عن هذا الإجراء.</p>
+            <div class="mt-4 flex justify-end gap-2">
+                <Button variant="outline" onclick={cancelDelete} disabled={deleteSubmitting}>إلغاء</Button>
+                <Button variant="destructive" onclick={executeDelete} disabled={deleteSubmitting}>
+                    {#if deleteSubmitting}
+                        <LoaderCircle class="size-4 animate-spin" />
+                    {/if}
+                    حذف
+                </Button>
+            </div>
+        </div>
+    </div>
+{/if}
