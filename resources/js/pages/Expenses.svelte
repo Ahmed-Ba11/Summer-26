@@ -8,21 +8,21 @@
 
 <script lang="ts">
     import { router } from '@inertiajs/svelte';
+    import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+    import ArrowDown from 'lucide-svelte/icons/arrow-down';
+    import ArrowUp from 'lucide-svelte/icons/arrow-up';
+    import Pencil from 'lucide-svelte/icons/pencil';
+    import Plus from 'lucide-svelte/icons/plus';
+    import Repeat from 'lucide-svelte/icons/repeat';
+    import Search from 'lucide-svelte/icons/search';
+    import Trash2 from 'lucide-svelte/icons/trash-2';
+    import X from 'lucide-svelte/icons/x';
     import AppHead from '@/components/AppHead.svelte';
-    import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
     import Button from '@/components/ui/button/Button.svelte';
-    import DialogTitle from '@/components/ui/dialog/DialogTitle.svelte';
+    import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
     import DialogDescription from '@/components/ui/dialog/DialogDescription.svelte';
     import DialogFooter from '@/components/ui/dialog/DialogFooter.svelte';
-    import Plus from 'lucide-svelte/icons/plus';
-    import Search from 'lucide-svelte/icons/search';
-    import ArrowUp from 'lucide-svelte/icons/arrow-up';
-    import ArrowDown from 'lucide-svelte/icons/arrow-down';
-    import Repeat from 'lucide-svelte/icons/repeat';
-    import X from 'lucide-svelte/icons/x';
-    import Pencil from 'lucide-svelte/icons/pencil';
-    import Trash2 from 'lucide-svelte/icons/trash-2';
-    import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
+    import DialogTitle from '@/components/ui/dialog/DialogTitle.svelte';
 
     interface ExpenseItem {
         id: number;
@@ -88,6 +88,7 @@
 
     function formatDate(dateStr: string): string {
         const d = new Date(dateStr);
+
         return d.toLocaleDateString('ar-SA');
     }
 
@@ -114,9 +115,12 @@
         list.sort((a, b) => {
             if (sortField === 'date') {
                 const cmp = a.date.localeCompare(b.date);
+
                 return sortDir === 'desc' ? -cmp : cmp;
             }
+
             const diff = a.amount - b.amount;
+
             return sortDir === 'desc' ? -diff : diff;
         });
 
@@ -192,21 +196,28 @@
         if (!form.description.trim()) {
             formErrors.description = 'الوصف مطلوب';
             submitting = false;
+
             return;
         }
+
         if (!form.category_id) {
             formErrors.category_id = 'الفئة مطلوبة';
             submitting = false;
+
             return;
         }
-        if (!form.amount.trim() || parseFloat(form.amount) <= 0) {
+
+        if (!form.amount || Number(form.amount) <= 0) {
             formErrors.amount = 'المبلغ مطلوب ويجب أن يكون أكبر من صفر';
             submitting = false;
+
             return;
         }
+
         if (!form.expense_date) {
             formErrors.expense_date = 'التاريخ مطلوب';
             submitting = false;
+
             return;
         }
 
@@ -253,7 +264,10 @@
     }
 
     function handleDelete() {
-        if (!editingExpense) return;
+        if (!editingExpense) {
+return;
+}
+
         submitting = true;
 
         router.delete(`/expenses/${editingExpense.id}`, {
@@ -511,7 +525,9 @@
                 </DialogDescription>
             </div>
 
-            <form class="mt-4 flex flex-col gap-4" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+            <form class="mt-4 flex flex-col gap-4" onsubmit={(e) => {
+ e.preventDefault(); handleSubmit(); 
+}}>
                 <div class="flex flex-col gap-1.5">
                     <label for="expense-description" class="text-sm font-medium">الوصف</label>
                     <input
@@ -600,7 +616,9 @@
         <button
             type="button"
             class="fixed inset-0 bg-black/50 cursor-default"
-            onclick={() => { confirmDeleteOpen = false; editingExpense = null; }}
+            onclick={() => {
+ confirmDeleteOpen = false; editingExpense = null; 
+}}
         ></button>
         <div class="relative z-10 w-full max-w-md rounded-lg border bg-background p-6 shadow-lg" role="dialog" aria-modal="true">
             <div class="flex flex-col items-center gap-3 text-center">
@@ -614,7 +632,9 @@
             </div>
 
             <DialogFooter class="mt-6">
-                <Button variant="outline" onclick={() => { confirmDeleteOpen = false; editingExpense = null; }} disabled={submitting}>
+                <Button variant="outline" onclick={() => {
+ confirmDeleteOpen = false; editingExpense = null; 
+}} disabled={submitting}>
                     إلغاء
                 </Button>
                 <Button variant="destructive" onclick={handleDelete} disabled={submitting}>

@@ -7,16 +7,22 @@
 </script>
 
 <script lang="ts">
-    import AppHead from '@/components/AppHead.svelte';
-    import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-    import Button from '@/components/ui/button/Button.svelte';
+    import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
     import ArrowDownRight from 'lucide-svelte/icons/arrow-down-right';
+    import ArrowLeft from 'lucide-svelte/icons/arrow-left';
     import ArrowUpRight from 'lucide-svelte/icons/arrow-up-right';
-    import Wallet from 'lucide-svelte/icons/wallet';
-    import PiggyBank from 'lucide-svelte/icons/piggy-bank';
-    import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
-    import TrendingUp from 'lucide-svelte/icons/trending-up';
+    import ChartNoAxesColumn from 'lucide-svelte/icons/chart-no-axes-column';
+    import CheckCircle from 'lucide-svelte/icons/check-circle';
+    import Info from 'lucide-svelte/icons/info';
     import ChevronDown from 'lucide-svelte/icons/chevron-down';
+    import CreditCard from 'lucide-svelte/icons/credit-card';
+    import PiggyBank from 'lucide-svelte/icons/piggy-bank';
+    import ReceiptText from 'lucide-svelte/icons/receipt-text';
+    import TrendingUp from 'lucide-svelte/icons/trending-up';
+    import Wallet from 'lucide-svelte/icons/wallet';
+    import AppHead from '@/components/AppHead.svelte';
+    import Button from '@/components/ui/button/Button.svelte';
+    import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
     interface Stat {
         totalExpenses: number;
@@ -83,35 +89,31 @@
             { month: 'نوفمبر', expenses: 430000, income: 850000 },
             { month: 'ديسمبر', expenses: 520000, income: 900000 },
         ] satisfies MonthlyItem[],
-        recentTransactions = [
-            { type: 'expense', desc: 'مطعم', cat: 'طعام', amount: 15000, date: '2026-07-14' },
-            { type: 'expense', desc: 'تاكسي', cat: 'مواصلات', amount: 4500, date: '2026-07-13' },
-            { type: 'income', desc: 'راتب شهري', cat: 'وظيفة', amount: 800000, date: '2026-07-01' },
-            { type: 'expense', desc: 'فاتورة كهرباء', cat: 'فواتير', amount: 32000, date: '2026-07-12' },
-            { type: 'expense', desc: 'سينما', cat: 'ترفيه', amount: 12000, date: '2026-07-10' },
-            { type: 'income', desc: 'عمل حر', cat: 'مستقل', amount: 50000, date: '2026-07-08' },
-            { type: 'expense', desc: 'دواء', cat: 'صحة', amount: 8500, date: '2026-07-09' },
-            { type: 'expense', desc: 'اشتراك نت', cat: 'فواتير', amount: 19900, date: '2026-07-05' },
-        ] satisfies Transaction[],
+        recentTransactions = [],
+        totalSavings = 0,
+        totalInstallmentsMonthly = 0,
+        totalBillsDue = 0,
+        activeInstallments = 0,
+        upcomingBills = 0,
     }: {
         stats?: Stat;
         categories?: Category[];
         monthlyExpenses?: MonthlyItem[];
         recentTransactions?: Transaction[];
+        totalSavings?: number;
+        totalInstallmentsMonthly?: number;
+        totalBillsDue?: number;
+        activeInstallments?: number;
+        upcomingBills?: number;
     } = $props();
 
-    const months = [
-        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-        'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
-    ];
-
-    let selectedMonth = $state(6);
-
-    const expenseChange = $derived(
-        stats.prevExpenses > 0
-            ? Math.round(((stats.totalExpenses - stats.prevExpenses) / stats.prevExpenses) * 100)
-            : 0,
+    const allCommitments = $derived(
+        stats.totalExpenses + totalInstallmentsMonthly + totalBillsDue + totalSavings,
     );
+
+    const netMoney = $derived(stats.totalIncome - allCommitments);
+
+    const budgetRemaining = $derived(stats.budgetTotal - stats.totalExpenses);
 
     const totalCatAmount = $derived(categories.reduce((s, c) => s + c.amount, 0));
 
@@ -122,13 +124,42 @@
     const donutSegments = $derived.by(() => {
         const total = categories.reduce((s, c) => s + c.amount, 0);
         let cumulative = 0;
+
         return categories.map((cat) => {
             const pct = total > 0 ? (cat.amount / total) * 100 : 0;
             const start = cumulative;
             cumulative += pct;
+
             return { ...cat, pct, start, end: cumulative };
         });
     });
+
+    const overspendingCategories = $derived(
+        categories
+            .filter((c) => c.budget > 0 && c.amount / c.budget >= 0.8)
+            .sort((a, b) => b.amount / b.budget - a.amount / a.budget)
+            .slice(0, 3),
+    );
+
+    const hasOverBudget = $derived(
+        categories.some((c) => c.budget > 0 && c.amount > c.budget),
+    );
+    const hasNearBudget = $derived(
+        categories.some(
+            (c) => c.budget > 0 && c.amount / c.budget >= 0.8 && c.amount <= c.budget,
+        ),
+    );
+
+    const motivationalStatus = $derived(
+        hasOverBudget ? 'over' : hasNearBudget ? 'near' : 'under',
+    );
+
+    const months = [
+        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+        'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+    ];
+
+    let selectedMonth = $state(6);
 
     function donutPath(startPct: number, endPct: number): string {
         const r = 40;
@@ -141,6 +172,7 @@
         const x2 = cx + r * Math.cos(endAngle);
         const y2 = cy + r * Math.sin(endAngle);
         const large = endPct - startPct > 50 ? 1 : 0;
+
         return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
     }
 
@@ -152,127 +184,145 @@
         return new Date(dateStr).toLocaleDateString('ar-SA');
     }
 
+    function overspendPct(cat: Category): number {
+        return cat.budget > 0 ? Math.round((cat.amount / cat.budget) * 100) : 0;
+    }
+
     let showMonthDropdown = $state(false);
 </script>
 
 <AppHead title="لوحة التحكم" />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-            <h1 class="text-2xl font-bold">لوحة التحكم</h1>
-            <p class="text-muted-foreground">
-                ملخص مصاريفك ودخلك لشهر {months[selectedMonth]}
-            </p>
-        </div>
 
-        <div class="flex flex-wrap items-center gap-3">
-            <div class="relative">
-                <button
-                    class="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    onclick={() => (showMonthDropdown = !showMonthDropdown)}
-                >
-                    {months[selectedMonth]}
-                    <ChevronDown class="size-3.5 text-muted-foreground" />
-                </button>
-                {#if showMonthDropdown}
-                    <div class="absolute left-0 z-50 mt-1 w-36 rounded-lg border border-border bg-background shadow-lg">
-                        {#each months as month, i}
-                            <button
-                                class="w-full px-3 py-2 text-right text-sm hover:bg-muted first:rounded-t-lg last:rounded-b-lg {i === selectedMonth ? 'bg-muted font-medium' : ''}"
-                                onclick={() => {
-                                    selectedMonth = i;
-                                    showMonthDropdown = false;
-                                }}
-                            >
-                                {month}
-                            </button>
-                        {/each}
+    <!-- Section 1: Top Banner -->
+    <Card class="bg-gradient-to-l from-primary/10 to-primary/5 border-primary/20">
+        <CardContent class="p-6 sm:p-8">
+            <div class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-start gap-4">
+                    <div class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/20">
+                        <Wallet class="size-6 text-primary" />
                     </div>
-                {/if}
-            </div>
+                    <div>
+                        <p class="text-sm text-muted-foreground">صافي المال</p>
+                        <p class="text-2xl font-bold tabular-nums sm:text-3xl {netMoney >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}">
+                            {formatCurrency(netMoney)}
+                        </p>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            الدخل ({formatCurrency(stats.totalIncome)}) - الالتزامات ({formatCurrency(allCommitments)})
+                        </p>
+                    </div>
+                </div>
 
-            <div class="flex gap-2">
-                <Button size="sm" class="gap-1.5">
-                    <ArrowRightLeft class="size-3.5" />
-                    مصروف
-                </Button>
-                <Button size="sm" variant="outline" class="gap-1.5">
-                    <TrendingUp class="size-3.5" />
-                    دخل
-                </Button>
+                <div class="hidden sm:block h-16 w-px bg-border"></div>
+
+                <div class="flex items-start gap-4">
+                    <div class="flex size-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20">
+                        <TrendingUp class="size-6 text-emerald-500" />
+                    </div>
+                    <div>
+                        <p class="text-sm text-muted-foreground">المتبقي من الميزانية</p>
+                        <p class="text-2xl font-bold tabular-nums sm:text-3xl {budgetRemaining >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'}">
+                            {formatCurrency(budgetRemaining)}
+                        </p>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            من إجمالي {formatCurrency(stats.budgetTotal)}
+                        </p>
+                    </div>
+                </div>
             </div>
-        </div>
+        </CardContent>
+    </Card>
+
+    <!-- Section 2: Summary Cards Row -->
+    <div class="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <Card>
+            <CardContent class="pt-6">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-muted-foreground">إجمالي الدخل</p>
+                    <ArrowUpRight class="size-5 text-green-500 shrink-0" />
+                </div>
+                <p class="mt-2 text-xl font-bold tabular-nums">{formatCurrency(stats.totalIncome)}</p>
+                <p class="mt-1 text-xs text-muted-foreground">دخل الشهر الحالي</p>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardContent class="pt-6">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-muted-foreground">إجمالي المصروفات</p>
+                    <ArrowDownRight class="size-5 text-red-500 shrink-0" />
+                </div>
+                <p class="mt-2 text-xl font-bold tabular-nums">{formatCurrency(stats.totalExpenses)}</p>
+                <p class="mt-1 text-xs text-muted-foreground">مصاريف الشهر الحالي</p>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardContent class="pt-6">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-muted-foreground">الادخار</p>
+                    <PiggyBank class="size-5 text-emerald-500 shrink-0" />
+                </div>
+                <p class="mt-2 text-xl font-bold tabular-nums">{formatCurrency(totalSavings)}</p>
+                <p class="mt-1 text-xs text-muted-foreground">نسبة الادخار {stats.savingsRate}%</p>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardContent class="pt-6">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-muted-foreground">الأقساط الشهرية</p>
+                    <CreditCard class="size-5 text-orange-500 shrink-0" />
+                </div>
+                <p class="mt-2 text-xl font-bold tabular-nums">{formatCurrency(totalInstallmentsMonthly)}</p>
+                <p class="mt-1 text-xs text-muted-foreground">{activeInstallments} أقساط نشطة</p>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardContent class="pt-6">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-muted-foreground">الفواتير المستحقة</p>
+                    <ReceiptText class="size-5 text-purple-500 shrink-0" />
+                </div>
+                <p class="mt-2 text-xl font-bold tabular-nums">{formatCurrency(totalBillsDue)}</p>
+                <p class="mt-1 text-xs text-muted-foreground">{upcomingBills} فواتير معلقة</p>
+            </CardContent>
+        </Card>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card>
-            <CardContent class="pt-6">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm text-muted-foreground">المصاريف</p>
-                    <ArrowDownRight class="size-4 text-red-500 shrink-0" />
-                </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(stats.totalExpenses)}</p>
-                <p class="mt-1 text-xs {expenseChange >= 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}">
-                    {expenseChange >= 0 ? '+' : ''}{expenseChange}% عن الشهر الماضي
-                </p>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardContent class="pt-6">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm text-muted-foreground">الدخل</p>
-                    <ArrowUpRight class="size-4 text-green-500 shrink-0" />
-                </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(stats.totalIncome)}</p>
-                <p class="mt-1 text-xs text-muted-foreground">إجمالي دخل الشهر</p>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardContent class="pt-6">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm text-muted-foreground">المتبقي</p>
-                    <Wallet class="size-4 text-blue-500 shrink-0" />
-                </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(stats.balance)}</p>
-                <p class="mt-1 text-xs text-muted-foreground">بعد خصم كل المصاريف</p>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardContent class="pt-6">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm text-muted-foreground">نسبة الادخار</p>
-                    <PiggyBank class="size-4 text-emerald-500 shrink-0" />
-                </div>
-                <p class="mt-2 text-xl font-bold">{stats.savingsRate}%</p>
-                <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                    <div
-                        class="h-full rounded-full bg-emerald-500 transition-all"
-                        style="width: {Math.min(stats.savingsRate, 100)}%"
-                    ></div>
-                </div>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardContent class="pt-6">
-                <div class="flex items-center justify-between">
-                    <p class="text-sm text-muted-foreground">الميزانية</p>
-                    <Wallet class="size-4 text-orange-500 shrink-0" />
-                </div>
-                <p class="mt-2 text-xl font-bold">{formatCurrency(stats.budgetTotal - stats.totalExpenses)}</p>
-                <p class="mt-1 text-xs text-muted-foreground">متبقي من {formatCurrency(stats.budgetTotal)}</p>
-            </CardContent>
-        </Card>
-    </div>
-
+    <!-- Section 3: Charts -->
     <div class="grid gap-4 lg:grid-cols-2">
         <Card>
             <CardHeader class="pb-2">
-                <CardTitle class="text-base">توزيع المصاريف حسب الفئة</CardTitle>
+                <div class="flex items-center justify-between">
+                    <CardTitle class="text-base">توزيع المصاريف حسب الفئة</CardTitle>
+                    <div class="relative">
+                        <button
+                            class="flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+                            onclick={() => (showMonthDropdown = !showMonthDropdown)}
+                        >
+                            {months[selectedMonth]}
+                            <ChevronDown class="size-3 text-muted-foreground" />
+                        </button>
+                        {#if showMonthDropdown}
+                            <div class="absolute left-0 z-50 mt-1 w-32 rounded-lg border border-border bg-background shadow-lg">
+                                {#each months as month, i}
+                                    <button
+                                        class="w-full px-3 py-1.5 text-right text-xs hover:bg-muted first:rounded-t-lg last:rounded-b-lg {i === selectedMonth ? 'bg-muted font-medium' : ''}"
+                                        onclick={() => {
+                                            selectedMonth = i;
+                                            showMonthDropdown = false;
+                                        }}
+                                    >
+                                        {month}
+                                    </button>
+                                {/each}
+                            </div>
+                        {/if}
+                    </div>
+                </div>
             </CardHeader>
             <CardContent>
                 <div class="flex items-center gap-6">
@@ -311,7 +361,7 @@
                     <div class="flex-1 space-y-2 text-xs">
                         {#each donutSegments as seg}
                             <div class="flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-1.5">
+                                <div class="flex items-center gap-1.5 min-w-0">
                                     <span
                                         class="size-2 rounded-full shrink-0"
                                         style="background:{seg.color}"
@@ -330,7 +380,7 @@
 
         <Card>
             <CardHeader class="pb-2">
-                <CardTitle class="text-base">المصاريف والدخل الشهري</CardTitle>
+                <CardTitle class="text-base">المصاريف الشهرية</CardTitle>
             </CardHeader>
             <CardContent>
                 <div class="flex items-end gap-1.5 h-44">
@@ -372,63 +422,87 @@
         </Card>
     </div>
 
-    <Card>
-        <CardHeader>
-            <CardTitle class="text-base">المصاريف حسب الفئة — مقارنة بالشهر الماضي</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <div class="space-y-5">
-                {#each categories as cat}
-                    {@const pct = Math.round((cat.amount / cat.budget) * 100)}
-                    {@const prevPct = Math.round((cat.prevAmount / cat.budget) * 100)}
-                    {@const diff = cat.amount - cat.prevAmount}
-                    {@const isOver = cat.amount > cat.budget}
-                    <div class="space-y-1.5">
-                        <div class="flex items-center justify-between text-sm">
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="size-2.5 rounded-full"
-                                    style="background:{cat.color}"
-                                ></span>
-                                <span>{cat.name}</span>
+    <!-- Section 4: Top 3 Overspending Categories -->
+    {#if overspendingCategories.length > 0}
+        <Card>
+            <CardHeader class="flex flex-row items-center justify-between">
+                <CardTitle class="text-base">الفئات القريبة أو المتجاوزة للميزانية</CardTitle>
+                <Button variant="ghost" size="sm" class="gap-1.5 text-xs" href="/budgets">
+                    عرض كل الميزانيات
+                    <ArrowLeft class="size-3.5" />
+                </Button>
+            </CardHeader>
+            <CardContent>
+                <div class="grid gap-5 sm:grid-cols-3">
+                    {#each overspendingCategories as cat}
+                        {@const pct = overspendPct(cat)}
+                        {@const isOver = cat.amount > cat.budget}
+                        <div class="rounded-lg border p-4 {isOver ? 'border-destructive/30 bg-destructive/5' : 'border-orange-500/30 bg-orange-500/5'}">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <span
+                                        class="size-2.5 rounded-full"
+                                        style="background:{cat.color}"
+                                    ></span>
+                                    <span class="text-sm font-medium">{cat.name}</span>
+                                </div>
+                                <span class="text-xs tabular-nums {isOver ? 'font-bold text-destructive' : 'font-medium text-orange-600 dark:text-orange-400'}">
+                                    {pct}%
+                                </span>
                             </div>
-                            <div class="flex items-center gap-2 text-xs">
-                                <span class="tabular-nums">{formatCurrency(cat.amount)}</span>
-                                <span class="text-muted-foreground">/ {formatCurrency(cat.budget)}</span>
-                                {#if diff !== 0}
-                                    <span class="tabular-nums {diff > 0 ? 'text-red-500' : 'text-green-500'}">
-                                        {diff > 0 ? '+' : ''}{formatCurrency(diff)}
-                                    </span>
-                                {/if}
+                            <div class="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                                <div
+                                    class="h-full rounded-full transition-all {isOver ? 'bg-destructive' : 'bg-orange-500'}"
+                                    style="width: {Math.min(pct, 100)}%"
+                                ></div>
+                            </div>
+                            <div class="flex items-center justify-between mt-1.5">
+                                <span class="text-xs tabular-nums text-muted-foreground">
+                                    {formatCurrency(cat.amount)}
+                                </span>
+                                <span class="text-xs tabular-nums text-muted-foreground">
+                                    من {formatCurrency(cat.budget)}
+                                </span>
                             </div>
                         </div>
-                        <div class="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
-                            <div
-                                class="absolute inset-y-0 h-full rounded-full {isOver ? 'bg-destructive' : ''}"
-                                style="left: 0; width: {Math.min(pct, 100)}%; background: {isOver ? '' : cat.color}"
-                            ></div>
-                            <div
-                                class="absolute inset-y-0 h-full border-e-2 border-background opacity-30"
-                                style="left: {Math.min(prevPct, 100)}%; width: 2px"
-                                title="الشهر الماضي: {prevPct}%"
-                            ></div>
-                        </div>
-                        <div class="flex justify-between text-xs">
-                            <span class="{isOver ? 'text-destructive' : 'text-muted-foreground'}">
-                                {isOver
-                                    ? 'تجاوز بـ ' + formatCurrency(cat.amount - cat.budget)
-                                    : pct + '% من الميزانية'}
-                            </span>
-                            <span class="text-muted-foreground">
-                                الشهر الماضي: {formatCurrency(cat.prevAmount)}
-                            </span>
-                        </div>
-                    </div>
-                {/each}
-            </div>
+                    {/each}
+                </div>
+            </CardContent>
+        </Card>
+    {/if}
+
+    <!-- Section 5: Motivational Message -->
+    <Card class="{motivationalStatus === 'under' ? 'border-emerald-500/30 bg-emerald-500/5' : motivationalStatus === 'near' ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-destructive/30 bg-destructive/5'}">
+        <CardContent class="flex items-center gap-4 p-6">
+            {#if motivationalStatus === 'under'}
+                <CheckCircle class="size-8 text-emerald-500 shrink-0" />
+                <div>
+                    <p class="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
+                        أحسنت! أنت على الطريق الصحيح 💚
+                    </p>
+                    <p class="text-sm text-muted-foreground">كل فئاتك ضمن الميزانية المحددة، استمر على هذا النهج</p>
+                </div>
+            {:else if motivationalStatus === 'near'}
+                <Info class="size-8 text-yellow-500 shrink-0" />
+                <div>
+                    <p class="text-lg font-semibold text-yellow-700 dark:text-yellow-300">
+                        انتبه! بعض الفئات قاربت حد الميزانية 🟡
+                    </p>
+                    <p class="text-sm text-muted-foreground">راقب إنفاقك في الفئات القريبة من الحد لتجنب التجاوز</p>
+                </div>
+            {:else}
+                <AlertTriangle class="size-8 text-destructive shrink-0" />
+                <div>
+                    <p class="text-lg font-semibold text-destructive">
+                        بعض الفئات تجاوزت الميزانية، راجع إنفاقك 🔴
+                    </p>
+                    <p class="text-sm text-muted-foreground">حاول ضبط مصاريفك في الفئات المتجاوزة أو تعديل الميزانية</p>
+                </div>
+            {/if}
         </CardContent>
     </Card>
 
+    <!-- Section 6: Recent Transactions -->
     <Card>
         <CardHeader class="flex flex-row items-center justify-between">
             <CardTitle class="text-base">آخر المعاملات</CardTitle>

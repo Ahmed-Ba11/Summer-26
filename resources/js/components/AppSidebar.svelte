@@ -1,11 +1,14 @@
 <script lang="ts">
     import { Link } from '@inertiajs/svelte';
-    import type { Snippet } from 'svelte';
-    import LayoutGrid from 'lucide-svelte/icons/layout-grid';
     import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
-    import TrendingUp from 'lucide-svelte/icons/trending-up';
+    import CreditCard from 'lucide-svelte/icons/credit-card';
+    import LayoutGrid from 'lucide-svelte/icons/layout-grid';
+    import PiggyBank from 'lucide-svelte/icons/piggy-bank';
+    import ReceiptText from 'lucide-svelte/icons/receipt-text';
     import Target from 'lucide-svelte/icons/target';
+    import TrendingUp from 'lucide-svelte/icons/trending-up';
     import Bot from 'lucide-svelte/icons/bot';
+    import type { Snippet } from 'svelte';
     import AppLogo from '@/components/AppLogo.svelte';
     import NavMain from '@/components/NavMain.svelte';
     import NavUser from '@/components/NavUser.svelte';
@@ -29,9 +32,29 @@
 
     const mainNavItems: NavItem[] = [
         {
-            title: 'لوحة التحكم',
-            href: '/dashboard',
-            icon: LayoutGrid,
+            title: 'الدخل',
+            href: '/income',
+            icon: TrendingUp,
+        },
+        {
+            title: 'الميزانية العامة',
+            href: '/budgets',
+            icon: Target,
+        },
+        {
+            title: 'الادخار',
+            href: '/savings',
+            icon: PiggyBank,
+        },
+        {
+            title: 'الأقساط',
+            href: '/installments',
+            icon: CreditCard,
+        },
+        {
+            title: 'الفواتير',
+            href: '/bills',
+            icon: ReceiptText,
         },
         {
             title: 'المصاريف',
@@ -39,14 +62,9 @@
             icon: ArrowRightLeft,
         },
         {
-            title: 'الدخل',
-            href: '/income',
-            icon: TrendingUp,
-        },
-        {
-            title: 'الميزانيات',
-            href: '/budgets',
-            icon: Target,
+            title: 'لوحة التحكم',
+            href: '/dashboard',
+            icon: LayoutGrid,
         },
         {
             title: 'المساعد الذكي',
@@ -65,7 +83,7 @@
                         <Link
                             {...(props || {})}
                             href={toUrl('/dashboard')}
-                            class={props?.class}
+                            class="flex items-center gap-3 w-full"
                         >
                             <AppLogo />
                         </Link>

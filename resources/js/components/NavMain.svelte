@@ -36,14 +36,12 @@
                         <Link
                             {...(props || {})}
                             href={toUrl(item.href)}
-                            class={props?.class}
+                            class="flex items-center gap-3 w-full"
                         >
-                            <span class="flex items-center gap-3">
-                                {#if item.icon}
-                                    <item.icon class="size-4 shrink-0" />
-                                {/if}
-                                <span>{item.title}</span>
-                            </span>
+                            {#if item.icon}
+                                <item.icon class="size-4 shrink-0" />
+                            {/if}
+                            <span>{item.title}</span>
                         </Link>
                     {/snippet}
                 </SidebarMenuButton>

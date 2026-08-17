@@ -23,7 +23,10 @@ class CategorySeeder extends Seeder
         ];
 
         foreach ($defaults as $d) {
-            Category::create(array_merge($d, ['user_id' => $userId]));
+            Category::firstOrCreate(
+                ['user_id' => $userId, 'name' => $d['name']],
+                ['icon' => $d['icon'], 'color' => $d['color']]
+            );
         }
     }
 }

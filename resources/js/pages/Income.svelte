@@ -7,21 +7,21 @@
 </script>
 
 <script lang="ts">
-    import AppHead from '@/components/AppHead.svelte';
-    import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-    import Button from '@/components/ui/button/Button.svelte';
     import { router } from '@inertiajs/svelte';
-    import Plus from 'lucide-svelte/icons/plus';
-    import Search from 'lucide-svelte/icons/search';
-    import ArrowUp from 'lucide-svelte/icons/arrow-up';
     import ArrowDown from 'lucide-svelte/icons/arrow-down';
+    import ArrowUp from 'lucide-svelte/icons/arrow-up';
+    import LoaderCircle from 'lucide-svelte/icons/loader-circle';
+    import Pencil from 'lucide-svelte/icons/pencil';
+    import Plus from 'lucide-svelte/icons/plus';
     import Repeat from 'lucide-svelte/icons/repeat';
-    import X from 'lucide-svelte/icons/x';
+    import Search from 'lucide-svelte/icons/search';
+    import Trash2 from 'lucide-svelte/icons/trash-2';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import Wallet from 'lucide-svelte/icons/wallet';
-    import Pencil from 'lucide-svelte/icons/pencil';
-    import Trash2 from 'lucide-svelte/icons/trash-2';
-    import LoaderCircle from 'lucide-svelte/icons/loader-circle';
+    import X from 'lucide-svelte/icons/x';
+    import AppHead from '@/components/AppHead.svelte';
+    import Button from '@/components/ui/button/Button.svelte';
+    import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
     interface IncomeRecord {
         id: number;
@@ -74,6 +74,7 @@
 
     const sources = $derived.by(() => {
         const set = new Set(incomes.data.map((i) => i.source));
+
         return ['الكل', ...Array.from(set)];
     });
 
@@ -99,6 +100,7 @@
                     ? b.date.localeCompare(a.date)
                     : a.date.localeCompare(b.date);
             }
+
             return sortDir === 'desc' ? b.amount - a.amount : a.amount - b.amount;
         });
 
@@ -174,20 +176,28 @@
     function submitForm() {
         formErrors = {};
         const amountSar = parseFloat(formAmount);
+
         if (!amountSar || amountSar <= 0) {
             formErrors.amount = 'المبلغ مطلوب';
+
             return;
         }
+
         if (!formSource.trim()) {
             formErrors.source = 'المصدر مطلوب';
+
             return;
         }
+
         if (!formDescription.trim()) {
             formErrors.description = 'الوصف مطلوب';
+
             return;
         }
+
         if (!formDate) {
             formErrors.date = 'التاريخ مطلوب';
+
             return;
         }
 
@@ -243,7 +253,10 @@
     }
 
     function executeDelete() {
-        if (!deleteId) return;
+        if (!deleteId) {
+return;
+}
+
         deleteSubmitting = true;
         router.delete(`/income/${deleteId}`, {
             onSuccess: () => {
@@ -464,8 +477,16 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
         class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-[10vh]"
-        onclick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
-        onkeydown={(e) => { if (e.key === 'Escape') closeModal(); }}
+        onclick={(e) => {
+ if (e.target === e.currentTarget) {
+closeModal();
+} 
+}}
+        onkeydown={(e) => {
+ if (e.key === 'Escape') {
+closeModal();
+} 
+}}
     >
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="fixed inset-0 bg-black/50" onclick={closeModal}></div>
@@ -560,8 +581,16 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
         class="fixed inset-0 z-50 flex items-center justify-center"
-        onclick={(e) => { if (e.target === e.currentTarget) cancelDelete(); }}
-        onkeydown={(e) => { if (e.key === 'Escape') cancelDelete(); }}
+        onclick={(e) => {
+ if (e.target === e.currentTarget) {
+cancelDelete();
+} 
+}}
+        onkeydown={(e) => {
+ if (e.key === 'Escape') {
+cancelDelete();
+} 
+}}
     >
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="fixed inset-0 bg-black/50" onclick={cancelDelete}></div>

@@ -1,9 +1,12 @@
 <?php
 
+use App\Models\Bill;
 use App\Models\Budget;
 use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Income;
+use App\Models\Installment;
+use App\Models\SavingsGoal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -55,6 +58,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'savingsRate' => $totalIncome > 0 ? round((($totalIncome - $totalExpenses) / $totalIncome) * 100) : 0,
                 'budgetTotal' => 500000, // default for MVP
             ],
+            'totalSavings' => (int) $user->savingsGoals()->sum('current_amount'),
+            'totalInstallmentsMonthly' => (int) $user->installments()->where('is_completed', false)->sum('monthly_amount'),
+            'totalBillsDue' => (int) $user->bills()->where('is_paid', false)->sum('amount'),
+            'activeInstallments' => $user->installments()->where('is_completed', false)->count(),
+            'upcomingBills' => $user->bills()->where('is_paid', false)->count(),
             'categories' => $categories->map(fn ($c) => [
                 'id' => $c->id,
                 'name' => $c->name,
@@ -308,10 +316,258 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'color' => 'nullable|string|max:7',
         ]);
 
-        auth()->user()->categories()->create($validated);
+        auth()->user()->categories()->firstOrCreate(
+            ['name' => $validated['name']],
+            ['icon' => $validated['icon'] ?? null, 'color' => $validated['color'] ?? null]
+        );
 
         return redirect()->back();
     })->name('categories.store');
+
+    // Savings
+    Route::get('/savings', function () {
+        $user = auth()->user();
+        $currentMonth = now()->format('Y-m');
+
+        $goals = $user->savingsGoals()->latest()->get()->map(fn (SavingsGoal $g) => [
+            'id' => $g->id,
+            'name' => $g->name,
+            'icon' => $g->icon,
+            'target_amount' => (int) $g->target_amount,
+            'current_amount' => (int) $g->current_amount,
+            'target_date' => $g->target_date?->format('Y-m-d'),
+            'is_completed' => (bool) $g->is_completed,
+        ]);
+
+        $totalSaved = (int) $user->savingsGoals()->sum('current_amount');
+        $monthlyIncome = (int) $user->incomes()->where('income_date', 'like', $currentMonth.'%')->sum('amount');
+        $savingsRate = $monthlyIncome > 0 ? (int) round(($totalSaved / $monthlyIncome) * 100) : 0;
+
+        return Inertia::render('Savings', [
+            'goals' => $goals,
+            'stats' => [
+                'total_saved' => $totalSaved,
+                'monthly_income' => $monthlyIncome,
+                'savings_rate' => $savingsRate,
+            ],
+        ]);
+    })->name('savings');
+
+    Route::post('/savings', function (Request $request) {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'icon' => 'nullable|string|max:50',
+            'target_amount' => 'required|numeric|min:0',
+            'target_date' => 'nullable|date',
+        ]);
+
+        auth()->user()->savingsGoals()->create([
+            'name' => $validated['name'],
+            'icon' => $validated['icon'] ?? null,
+            'target_amount' => (int) ($validated['target_amount'] * 100),
+            'current_amount' => 0,
+            'target_date' => $validated['target_date'] ?? null,
+            'is_completed' => false,
+        ]);
+
+        return redirect()->back();
+    })->name('savings.store');
+
+    Route::put('/savings/{goal}', function (Request $request, SavingsGoal $goal) {
+        if ($goal->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0',
+        ]);
+
+        $goal->update([
+            'current_amount' => (int) $goal->current_amount + (int) ($validated['amount'] * 100),
+        ]);
+
+        return redirect()->back();
+    })->name('savings.update');
+
+    Route::delete('/savings/{goal}', function (SavingsGoal $goal) {
+        if ($goal->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $goal->delete();
+
+        return redirect()->back();
+    })->name('savings.destroy');
+
+    Route::put('/savings/{goal}/complete', function (SavingsGoal $goal) {
+        if ($goal->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $goal->update(['is_completed' => true]);
+
+        return redirect()->back();
+    })->name('savings.complete');
+
+    // Installments
+    Route::get('/installments', function () {
+        $user = auth()->user();
+
+        $installments = $user->installments()->latest()->get()->map(fn (Installment $i) => [
+            'id' => $i->id,
+            'name' => $i->name,
+            'reason' => $i->reason,
+            'icon' => $i->icon,
+            'monthly_amount' => (int) $i->monthly_amount,
+            'total_amount' => (int) $i->total_amount,
+            'paid_months' => (int) $i->paid_months,
+            'total_months' => (int) $i->total_months,
+            'start_date' => $i->start_date,
+            'is_completed' => (bool) $i->is_completed,
+        ]);
+
+        $activeCount = $user->installments()->where('is_completed', false)->count();
+        $totalMonthly = (int) $user->installments()->where('is_completed', false)->sum('monthly_amount');
+        $completedCount = $user->installments()->where('is_completed', true)->count();
+
+        return Inertia::render('Installments', [
+            'installments' => $installments,
+            'stats' => [
+                'active_count' => $activeCount,
+                'total_monthly' => $totalMonthly,
+                'completed_count' => $completedCount,
+            ],
+        ]);
+    })->name('installments');
+
+    Route::post('/installments', function (Request $request) {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'reason' => 'nullable|string|max:500',
+            'icon' => 'nullable|string|max:50',
+            'monthly_amount' => 'required|numeric|min:0',
+            'total_amount' => 'required|numeric|min:0',
+            'total_months' => 'required|integer|min:1',
+            'start_date' => 'required|string|size:7',
+        ]);
+
+        auth()->user()->installments()->create([
+            'name' => $validated['name'],
+            'reason' => $validated['reason'] ?? null,
+            'icon' => $validated['icon'] ?? null,
+            'monthly_amount' => (int) ($validated['monthly_amount'] * 100),
+            'total_amount' => (int) ($validated['total_amount'] * 100),
+            'paid_months' => 0,
+            'total_months' => $validated['total_months'],
+            'start_date' => $validated['start_date'],
+            'is_completed' => false,
+        ]);
+
+        return redirect()->back();
+    })->name('installments.store');
+
+    Route::put('/installments/{installment}/pay', function (Installment $installment) {
+        if ($installment->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $newPaid = $installment->paid_months + 1;
+        $installment->update([
+            'paid_months' => $newPaid,
+            'is_completed' => $newPaid >= $installment->total_months,
+        ]);
+
+        return redirect()->back();
+    })->name('installments.pay');
+
+    Route::delete('/installments/{installment}', function (Installment $installment) {
+        if ($installment->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $installment->delete();
+
+        return redirect()->back();
+    })->name('installments.destroy');
+
+    // Bills
+    Route::get('/bills', function () {
+        $user = auth()->user();
+
+        $bills = $user->bills()->latest('due_date')->get()->map(fn (Bill $b) => [
+            'id' => $b->id,
+            'name' => $b->name,
+            'icon' => $b->icon,
+            'amount' => $b->amount !== null ? (int) $b->amount : null,
+            'due_date' => $b->due_date->format('Y-m-d'),
+            'account_number' => $b->account_number,
+            'is_paid' => (bool) $b->is_paid,
+        ]);
+
+        $upcomingCount = $user->bills()->where('is_paid', false)->count();
+        $totalDue = (int) $user->bills()->where('is_paid', false)->sum('amount');
+        $paidCount = $user->bills()->where('is_paid', true)->count();
+
+        return Inertia::render('Bills', [
+            'bills' => $bills,
+            'stats' => [
+                'upcoming_count' => $upcomingCount,
+                'total_due' => $totalDue,
+                'paid_count' => $paidCount,
+            ],
+        ]);
+    })->name('bills');
+
+    Route::post('/bills', function (Request $request) {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'icon' => 'nullable|string|max:50',
+            'amount' => 'nullable|numeric|min:0',
+            'due_date' => 'required|date',
+            'account_number' => 'nullable|string|max:255',
+        ]);
+
+        auth()->user()->bills()->create([
+            'name' => $validated['name'],
+            'icon' => $validated['icon'] ?? null,
+            'amount' => isset($validated['amount']) ? (int) ($validated['amount'] * 100) : null,
+            'due_date' => $validated['due_date'],
+            'account_number' => $validated['account_number'] ?? null,
+            'is_paid' => false,
+        ]);
+
+        return redirect()->back();
+    })->name('bills.store');
+
+    Route::put('/bills/{bill}/pay', function (Bill $bill) {
+        if ($bill->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $bill->update(['is_paid' => true]);
+
+        return redirect()->back();
+    })->name('bills.pay');
+
+    Route::put('/bills/{bill}/unpay', function (Bill $bill) {
+        if ($bill->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $bill->update(['is_paid' => false]);
+
+        return redirect()->back();
+    })->name('bills.unpay');
+
+    Route::delete('/bills/{bill}', function (Bill $bill) {
+        if ($bill->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $bill->delete();
+
+        return redirect()->back();
+    })->name('bills.destroy');
 
     // Recurring
     Route::get('/recurring', function () {

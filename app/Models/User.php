@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -48,28 +49,43 @@ class User extends Authenticatable implements PasskeyUser
         ];
     }
 
-    public function expenses(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
     }
 
-    public function incomes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function incomes(): HasMany
     {
         return $this->hasMany(Income::class);
     }
 
-    public function categories(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function categories(): HasMany
     {
         return $this->hasMany(Category::class);
     }
 
-    public function budgets(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function budgets(): HasMany
     {
         return $this->hasMany(Budget::class);
     }
 
-    public function recurringTransactions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function recurringTransactions(): HasMany
     {
         return $this->hasMany(RecurringTransaction::class);
+    }
+
+    public function savingsGoals(): HasMany
+    {
+        return $this->hasMany(SavingsGoal::class);
+    }
+
+    public function installments(): HasMany
+    {
+        return $this->hasMany(Installment::class);
+    }
+
+    public function bills(): HasMany
+    {
+        return $this->hasMany(Bill::class);
     }
 }
