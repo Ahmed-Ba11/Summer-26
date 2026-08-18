@@ -17,6 +17,7 @@
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+    import { formatAmount, formatCurrency, formatDate } from '@/lib/format';
 
     interface GoalItem {
         id: number;
@@ -48,21 +49,6 @@
     const overallPct = $derived(
         totalTarget > 0 ? Math.min(100, Math.round((totalSavings / totalTarget) * 100)) : 0
     );
-
-    function displayAmount(halalas: number): string {
-        return (halalas / 100).toLocaleString('ar-SA') + ' ر.س';
-    }
-
-    function displayAmountShort(halalas: number): string {
-        return (halalas / 100).toLocaleString('ar-SA');
-    }
-
-    function formatDate(dateStr: string | null): string {
-        if (!dateStr) return '—';
-        const dt = new Date(dateStr);
-        if (isNaN(dt.getTime())) return '—';
-        return dt.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
-    }
 
     function getProgressColorClass(pct: number): string {
         if (pct > 90) return 'bg-destructive';
@@ -236,7 +222,7 @@
                         <p class="text-sm text-muted-foreground">إجمالي المدخرات</p>
                         <Wallet class="size-4 text-emerald-500" />
                     </div>
-                    <p class="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400">{displayAmount(totalSavings)}</p>
+                    <p class="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalSavings)}</p>
                 </CardContent>
             </Card>
             <Card>
@@ -267,7 +253,7 @@
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <p class="text-sm font-medium text-emerald-700 dark:text-emerald-300">إجمالي المدخرات</p>
-                        <p class="mt-1 text-4xl font-bold text-emerald-900 dark:text-emerald-100">{displayAmount(totalSavings)}</p>
+                        <p class="mt-1 text-4xl font-bold text-emerald-900 dark:text-emerald-100">{formatCurrency(totalSavings)}</p>
                         <div class="mt-2 flex items-center gap-2">
                             <span class="inline-flex items-center gap-1 rounded-full bg-emerald-200 dark:bg-emerald-800 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">
                                 <TrendingUp class="size-3" />
@@ -341,14 +327,14 @@
                                 <div class="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
                                     <div
                                         class="absolute inset-y-0 h-full rounded-full transition-all duration-500 {getProgressColorClass(pct)}"
-                                        style="left: 0; width: {Math.min(pct, 100)}%"
+                                        style="inset-inline-start: 0; width: {Math.min(pct, 100)}%"
                                     ></div>
                                 </div>
                                 <div class="mt-1.5 flex items-center justify-between text-sm">
                                     <span class="{getProgressTextClass(pct)} font-medium tabular-nums">{pct}%</span>
                                     <span class="text-muted-foreground tabular-nums">
                                         {#if remaining > 0}
-                                            متبقي: {displayAmountShort(remaining)} ر.س
+                                            متبقي: {formatAmount(remaining)} ر.س
                                         {:else}
                                             مكتمل
                                         {/if}
@@ -359,11 +345,11 @@
                             <div class="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-muted/50 p-3 text-sm">
                                 <div class="flex flex-col">
                                     <span class="text-xs text-muted-foreground">المبلغ المستهدف</span>
-                                    <span class="font-bold tabular-nums">{displayAmountShort(goal.target_amount)} ر.س</span>
+                                    <span class="font-bold tabular-nums">{formatAmount(goal.target_amount)} ر.س</span>
                                 </div>
                                 <div class="flex flex-col">
                                     <span class="text-xs text-muted-foreground">المدخر حالياً</span>
-                                    <span class="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{displayAmountShort(goal.current_amount)} ر.س</span>
+                                    <span class="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatAmount(goal.current_amount)} ر.س</span>
                                 </div>
                             </div>
 
@@ -390,7 +376,7 @@
                                     variant="ghost"
                                     size="icon-sm"
                                     aria-label="حذف"
-                                    class="text-destructive hover:text-destructive {goal.is_completed ? 'ml-auto' : ''}"
+                                    class="text-destructive hover:text-destructive {goal.is_completed ? 'ms-auto' : ''}"
                                     onclick={() => confirmDelete(goal.id)}
                                 >
                                     <Trash2 class="size-3.5" />
@@ -482,7 +468,7 @@
                         min="0.01"
                         placeholder="0.00"
                         bind:value={formTargetAmount}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-left direction-ltr"
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-end direction-ltr"
                     />
                     {#if formErrors.targetAmount}
                         <p class="mt-1 text-xs text-destructive">{formErrors.targetAmount}</p>
@@ -535,7 +521,7 @@
                         min="0.01"
                         placeholder="0.00"
                         bind:value={addAmountValue}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-left direction-ltr"
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-end direction-ltr"
                     />
                     {#if addAmountErrors.amount}
                         <p class="mt-1 text-xs text-destructive">{addAmountErrors.amount}</p>

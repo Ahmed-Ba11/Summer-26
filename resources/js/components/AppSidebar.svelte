@@ -38,7 +38,7 @@
     let { children }: { children?: Snippet } = $props();
 
     // يأتي من HandleInertiaRequests كمشاركة عامة
-    const dueBills = $derived($page.props.dueBillsCount ?? 0);
+    const dueBills = $derived(page.props.dueBillsCount ?? 0);
 
     const currentMonth = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
         month: 'long',

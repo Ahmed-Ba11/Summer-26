@@ -22,6 +22,7 @@
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+    import { formatCurrency, formatDate, toRiyals } from '@/lib/format';
 
     interface IncomeRecord {
         id: number;
@@ -52,18 +53,6 @@
         incomes?: Paginator;
         recurringCount?: number;
     } = $props();
-
-    function displayAmount(halalas: number): string {
-        return (halalas / 100).toLocaleString('ar-SA') + ' ر.س';
-    }
-
-    function toHalalas(sar: number): number {
-        return Math.round(sar * 100);
-    }
-
-    function formatDate(date: string): string {
-        return new Date(date).toLocaleDateString('ar-SA');
-    }
 
     // Filters
     let search = $state('');
@@ -158,7 +147,7 @@
 
     function openEditModal(inc: IncomeRecord) {
         editingId = inc.id;
-        formAmount = String(inc.amount / 100);
+        formAmount = String(toRiyals(inc.amount));
         formSource = inc.source;
         formDescription = inc.description;
         formDate = inc.date;
@@ -295,7 +284,7 @@ return;
                     <p class="text-sm text-muted-foreground">إجمالي الدخل</p>
                     <TrendingUp class="size-4 text-green-500" />
                 </div>
-                <p class="mt-2 text-xl font-bold text-green-600 dark:text-green-400">{displayAmount(totalFiltered)}</p>
+                <p class="mt-2 text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totalFiltered)}</p>
             </CardContent>
         </Card>
         <Card>
@@ -368,9 +357,9 @@ return;
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b text-muted-foreground">
-                            <th class="px-6 py-3 text-right font-medium">الوصف</th>
-                            <th class="px-6 py-3 text-right font-medium">المصدر</th>
-                            <th class="px-6 py-3 text-right font-medium cursor-pointer select-none hover:text-foreground" onclick={() => toggleSort('date')}>
+                            <th class="px-6 py-3 text-start font-medium">الوصف</th>
+                            <th class="px-6 py-3 text-start font-medium">المصدر</th>
+                            <th class="px-6 py-3 text-start font-medium cursor-pointer select-none hover:text-foreground" onclick={() => toggleSort('date')}>
                                 <span class="inline-flex items-center gap-1">
                                     التاريخ
                                     {#if sortField === 'date'}
@@ -378,7 +367,7 @@ return;
                                     {/if}
                                 </span>
                             </th>
-                            <th class="px-6 py-3 text-right font-medium cursor-pointer select-none hover:text-foreground" onclick={() => toggleSort('amount')}>
+                            <th class="px-6 py-3 text-start font-medium cursor-pointer select-none hover:text-foreground" onclick={() => toggleSort('amount')}>
                                 <span class="inline-flex items-center gap-1">
                                     المبلغ
                                     {#if sortField === 'amount'}
@@ -386,7 +375,7 @@ return;
                                     {/if}
                                 </span>
                             </th>
-                            <th class="px-6 py-3 text-right font-medium">إجراءات</th>
+                            <th class="px-6 py-3 text-start font-medium">إجراءات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -411,7 +400,7 @@ return;
                                     </td>
                                     <td class="px-6 py-3 text-muted-foreground">{inc.source}</td>
                                     <td class="px-6 py-3 text-muted-foreground tabular-nums">{formatDate(inc.date)}</td>
-                                    <td class="px-6 py-3 font-medium tabular-nums text-green-600 dark:text-green-400">{displayAmount(inc.amount)}</td>
+                                    <td class="px-6 py-3 font-medium tabular-nums text-green-600 dark:text-green-400">{formatCurrency(inc.amount)}</td>
                                     <td class="px-6 py-3">
                                         <div class="flex gap-2">
                                             <button class="cursor-pointer inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onclick={() => openEditModal(inc)}>
@@ -463,7 +452,7 @@ return;
                                     <p class="text-xs text-muted-foreground">{inc.source}</p>
                                 </div>
                             </div>
-                            <span class="text-sm font-bold tabular-nums text-green-600 dark:text-green-400">{displayAmount(inc.amount)}</span>
+                            <span class="text-sm font-bold tabular-nums text-green-600 dark:text-green-400">{formatCurrency(inc.amount)}</span>
                         </div>
                     {/each}
                 </div>

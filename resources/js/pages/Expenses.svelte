@@ -23,6 +23,7 @@
     import DialogDescription from '@/components/ui/dialog/DialogDescription.svelte';
     import DialogFooter from '@/components/ui/dialog/DialogFooter.svelte';
     import DialogTitle from '@/components/ui/dialog/DialogTitle.svelte';
+    import { formatCurrency, formatDate, toRiyals } from '@/lib/format';
 
     interface ExpenseItem {
         id: number;
@@ -79,18 +80,6 @@
 
     const findCategoryIdByName = (name: string): number | null =>
         categories.find((c) => c.name === name)?.id ?? null;
-
-    const halalasToSar = (halalas: number): number => halalas / 100;
-
-    function formatCurrency(amount: number): string {
-        return amount.toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
-    }
-
-    function formatDate(dateStr: string): string {
-        const d = new Date(dateStr);
-
-        return d.toLocaleDateString('ar-SA');
-    }
 
     const filteredExpenses = $derived.by(() => {
         let list = [...expenses];
@@ -176,7 +165,7 @@
         form = {
             description: expense.description ?? '',
             category_id: findCategoryIdByName(expense.category),
-            amount: halalasToSar(expense.amount).toFixed(2),
+            amount: toRiyals(expense.amount).toFixed(2),
             expense_date: expense.date,
             is_recurring: expense.is_recurring ?? false,
         };
@@ -356,7 +345,7 @@ return;
                 <span class="text-foreground">(مُصفّى)</span>
             {/if}
         </span>
-        <span class="font-bold text-destructive">المجموع: {formatCurrency(halalasToSar(totalFiltered))}</span>
+        <span class="font-bold text-destructive">المجموع: {formatCurrency(totalFiltered)}</span>
     </div>
 
     <Card>
@@ -365,10 +354,10 @@ return;
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b text-muted-foreground">
-                            <th class="px-6 py-3 text-right font-medium">الوصف</th>
-                            <th class="px-6 py-3 text-right font-medium">الفئة</th>
+                            <th class="px-6 py-3 text-start font-medium">الوصف</th>
+                            <th class="px-6 py-3 text-start font-medium">الفئة</th>
                             <th
-                                class="px-6 py-3 text-right font-medium cursor-pointer select-none hover:text-foreground"
+                                class="px-6 py-3 text-start font-medium cursor-pointer select-none hover:text-foreground"
                                 onclick={() => toggleSort('date')}
                             >
                                 <span class="inline-flex items-center gap-1">
@@ -379,7 +368,7 @@ return;
                                 </span>
                             </th>
                             <th
-                                class="px-6 py-3 text-right font-medium cursor-pointer select-none hover:text-foreground"
+                                class="px-6 py-3 text-start font-medium cursor-pointer select-none hover:text-foreground"
                                 onclick={() => toggleSort('amount')}
                             >
                                 <span class="inline-flex items-center gap-1">
@@ -389,7 +378,7 @@ return;
                                     {/if}
                                 </span>
                             </th>
-                            <th class="px-6 py-3 text-right font-medium">إجراءات</th>
+                            <th class="px-6 py-3 text-start font-medium">إجراءات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -415,7 +404,7 @@ return;
                                     <td class="px-6 py-3 text-muted-foreground">{expense.category}</td>
                                     <td class="px-6 py-3 text-muted-foreground tabular-nums">{formatDate(expense.date)}</td>
                                     <td class="px-6 py-3 font-medium tabular-nums text-destructive">
-                                        {formatCurrency(halalasToSar(expense.amount))}
+                                        {formatCurrency(expense.amount)}
                                     </td>
                                     <td class="px-6 py-3">
                                         <div class="flex gap-1">
@@ -500,7 +489,7 @@ return;
                                     <p class="text-xs text-muted-foreground">{expense.category}</p>
                                 </div>
                             </div>
-                            <span class="text-sm font-bold tabular-nums">{formatCurrency(halalasToSar(expense.amount))}</span>
+                            <span class="text-sm font-bold tabular-nums">{formatCurrency(expense.amount)}</span>
                         </div>
                     {/each}
                 </div>
@@ -568,7 +557,7 @@ return;
                         min="0.01"
                         bind:value={form.amount}
                         placeholder="0.00"
-                        class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-left direction-ltr"
+                        class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-end direction-ltr"
                     />
                     {#if formErrors.amount}
                         <p class="text-xs text-destructive">{formErrors.amount}</p>

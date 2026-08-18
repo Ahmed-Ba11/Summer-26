@@ -21,6 +21,7 @@
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+    import { formatCurrency, formatDate, toRiyals } from '@/lib/format';
 
     interface Bill {
         id: number;
@@ -41,14 +42,6 @@
     ];
 
     let bills = $state<Bill[]>([...mockBills]);
-
-    function displayAmount(halalas: number): string {
-        return (halalas / 100).toLocaleString('ar-SA') + ' ر.س';
-    }
-
-    function formatDate(dateStr: string): string {
-        return new Date(dateStr).toLocaleDateString('ar-SA');
-    }
 
     function daysUntil(dueDateStr: string): number {
         const now = new Date();
@@ -169,7 +162,7 @@ return;
     function openEditModal(item: Bill) {
         editingId = item.id;
         formName = item.name;
-        formAmount = String(item.amount / 100);
+        formAmount = String(toRiyals(item.amount));
         formDueDate = item.dueDate;
         formAccountNumber = item.accountNumber ?? '';
         formErrors = {};
@@ -296,7 +289,7 @@ return;
                         <p class="text-sm text-muted-foreground">إجمالي المستحق</p>
                         <Receipt class="size-4 text-orange-500" />
                     </div>
-                    <p class="mt-2 text-xl font-bold text-destructive">{displayAmount(totalUpcomingAmount)}</p>
+                    <p class="mt-2 text-xl font-bold text-destructive">{formatCurrency(totalUpcomingAmount)}</p>
                 </CardContent>
             </Card>
             <Card>
@@ -319,7 +312,7 @@ return;
                 onclick={() => (activeTab = tab.key)}
             >
                 {tab.label}
-                <span class="mr-1 text-xs text-muted-foreground">({tab.count})</span>
+                <span class="ms-1 text-xs text-muted-foreground">({tab.count})</span>
             </button>
         {/each}
     </div>
@@ -368,7 +361,7 @@ return;
                         <div class="space-y-2.5">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm text-muted-foreground">المبلغ</span>
-                                <span class="text-sm font-bold tabular-nums">{displayAmount(item.amount)}</span>
+                                <span class="text-sm font-bold tabular-nums">{formatCurrency(item.amount)}</span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-sm text-muted-foreground">تاريخ الاستحقاق</span>
@@ -460,7 +453,7 @@ closeDetailsModal();
                     <div class="grid grid-cols-2 gap-4 text-sm">
                         <div>
                             <span class="text-muted-foreground">المبلغ</span>
-                            <p class="text-lg font-bold tabular-nums">{displayAmount(item.amount)}</p>
+                            <p class="text-lg font-bold tabular-nums">{formatCurrency(item.amount)}</p>
                         </div>
                         <div>
                             <span class="text-muted-foreground">الحالة</span>
@@ -559,7 +552,7 @@ closeFormModal();
                         min="0.01"
                         placeholder="0.00"
                         bind:value={formAmount}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-left direction-ltr"
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-end direction-ltr"
                     />
                     {#if formErrors.amount}
                         <p class="mt-1 text-xs text-destructive">{formErrors.amount}</p>

@@ -18,6 +18,7 @@
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+    import { formatCurrency, formatDate } from '@/lib/format';
 
     interface InstallmentItem {
         id: number;
@@ -45,15 +46,6 @@
         installments?: InstallmentItem[];
         stats?: InstallmentStats;
     } = $props();
-
-    function displayAmount(halalas: number): string {
-        return (halalas / 100).toLocaleString('ar-SA') + ' ر.س';
-    }
-
-    function formatDate(dateStr: string): string {
-        const [y, m] = dateStr.split('-');
-        return `${y}/${m}`;
-    }
 
     function remainingMonths(item: InstallmentItem): number {
         return Math.max(0, item.total_months - item.paid_months);
@@ -240,7 +232,7 @@
                         <p class="text-sm text-muted-foreground">الالتزام الشهري</p>
                         <CalendarClock class="size-4 text-orange-500" />
                     </div>
-                    <p class="mt-2 text-xl font-bold text-destructive">{displayAmount(totalMonthlyCommitment)}</p>
+                    <p class="mt-2 text-xl font-bold text-destructive">{formatCurrency(totalMonthlyCommitment)}</p>
                 </CardContent>
             </Card>
             <Card>
@@ -263,7 +255,7 @@
                 onclick={() => (activeTab = tab.key)}
             >
                 {tab.label}
-                <span class="mr-1 text-xs text-muted-foreground">({tab.count})</span>
+                <span class="ms-1 text-xs text-muted-foreground">({tab.count})</span>
             </button>
         {/each}
     </div>
@@ -317,7 +309,7 @@
                         <div class="space-y-2.5">
                             <div class="flex items-center justify-between">
                                 <span class="text-sm text-muted-foreground">القسط الشهري</span>
-                                <span class="text-sm font-bold tabular-nums">{displayAmount(item.monthly_amount)}</span>
+                                <span class="text-sm font-bold tabular-nums">{formatCurrency(item.monthly_amount)}</span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-sm text-muted-foreground">المتبقي</span>
@@ -332,16 +324,16 @@
                             {#if !item.is_completed}
                                 <div class="flex items-center justify-between">
                                     <span class="text-sm text-muted-foreground">المبلغ المتبقي</span>
-                                    <span class="text-sm font-bold tabular-nums text-destructive">{displayAmount(remAmount)}</span>
+                                    <span class="text-sm font-bold tabular-nums text-destructive">{formatCurrency(remAmount)}</span>
                                 </div>
                                 <div class="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
                                     <div
                                         class="absolute inset-y-0 h-full rounded-full bg-primary transition-all"
-                                        style="left: 0; width: {Math.round((item.paid_months / item.total_months) * 100)}%"
+                                        style="inset-inline-start: 0; width: {Math.round((item.paid_months / item.total_months) * 100)}%"
                                     ></div>
                                 </div>
                                 <div class="flex justify-between text-xs text-muted-foreground">
-                                    <span>المدفوع: {displayAmount(paidAmount(item))}</span>
+                                    <span>المدفوع: {formatCurrency(paidAmount(item))}</span>
                                     <span>{Math.round((item.paid_months / item.total_months) * 100)}%</span>
                                 </div>
                             {/if}
@@ -412,11 +404,11 @@
                         </div>
                         <div>
                             <span class="text-muted-foreground">القسط الشهري</span>
-                            <p class="font-bold tabular-nums">{displayAmount(item.monthly_amount)}</p>
+                            <p class="font-bold tabular-nums">{formatCurrency(item.monthly_amount)}</p>
                         </div>
                         <div>
                             <span class="text-muted-foreground">المبلغ الإجمالي</span>
-                            <p class="font-bold tabular-nums">{displayAmount(item.total_amount)}</p>
+                            <p class="font-bold tabular-nums">{formatCurrency(item.total_amount)}</p>
                         </div>
                         <div>
                             <span class="text-muted-foreground">المدفوع</span>
@@ -426,7 +418,7 @@
                             <span class="text-muted-foreground">المتبقي</span>
                             <p class="font-medium tabular-nums">
                                 {#if remainingMonths(item) > 0}
-                                    {remainingMonths(item)} أشهر · {displayAmount(remainingAmount(item))}
+                                    {remainingMonths(item)} أشهر · {formatCurrency(remainingAmount(item))}
                                 {:else}
                                     <span class="text-green-600 dark:text-green-400">مكتمل</span>
                                 {/if}
@@ -438,7 +430,7 @@
                         </div>
                         <div>
                             <span class="text-muted-foreground">المدفوع حتى الآن</span>
-                            <p class="font-bold tabular-nums text-green-600 dark:text-green-400">{displayAmount(paidAmount(item))}</p>
+                            <p class="font-bold tabular-nums text-green-600 dark:text-green-400">{formatCurrency(paidAmount(item))}</p>
                         </div>
                     </div>
                 </div>
@@ -447,7 +439,7 @@
                     <div class="relative h-3 w-full overflow-hidden rounded-full bg-secondary">
                         <div
                             class="absolute inset-y-0 h-full rounded-full bg-primary transition-all"
-                            style="left: 0; width: {Math.round((item.paid_months / item.total_months) * 100)}%"
+                            style="inset-inline-start: 0; width: {Math.round((item.paid_months / item.total_months) * 100)}%"
                         ></div>
                     </div>
                     <div class="flex justify-between text-sm text-muted-foreground">
@@ -531,7 +523,7 @@
                         min="0.01"
                         placeholder="0.00"
                         bind:value={formMonthly}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-left direction-ltr"
+                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring text-end direction-ltr"
                     />
                     {#if formErrors.monthly}
                         <p class="mt-1 text-xs text-destructive">{formErrors.monthly}</p>

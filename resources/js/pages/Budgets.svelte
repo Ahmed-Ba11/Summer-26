@@ -19,6 +19,7 @@
     import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
     import CircleCheck from 'lucide-svelte/icons/circle-check';
     import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
+    import { formatCurrency, toRiyals } from '@/lib/format';
 
     interface BudgetRecord {
         id: number | null;
@@ -52,10 +53,6 @@
         stats?: BudgetStats;
         categories?: CategoryOption[];
     } = $props();
-
-    function displayAmount(halalas: number): string {
-        return (halalas / 100).toLocaleString('ar-SA', { maximumFractionDigits: 2 }) + ' ر.س';
-    }
 
     const usagePct = $derived(
         stats.totalBudget > 0 ? Math.round((stats.totalSpent / stats.totalBudget) * 100) : 0
@@ -124,7 +121,7 @@
 
     function openBudgetModal(b: BudgetRecord) {
         editingBudget = b;
-        budgetAmount = b.budget > 0 ? (b.budget / 100).toFixed(2) : '';
+        budgetAmount = b.budget > 0 ? toRiyals(b.budget).toFixed(2) : '';
         budgetErrors = {};
         showBudgetModal = true;
     }
@@ -197,21 +194,21 @@
     </div>
 
     <!-- بطاقة ملخص الميزانية العامة -->
-    <Card class="border-emerald-500/30 bg-gradient-to-l from-emerald-500/5 to-transparent">
+    <Card class="border-emerald-500/30">
         <CardContent class="p-6">
             <div class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <p class="text-sm text-muted-foreground">إجمالي الميزانية</p>
-                    <p class="text-3xl font-bold">{displayAmount(stats.totalBudget)}</p>
+                    <p class="text-3xl font-bold">{formatCurrency(stats.totalBudget)}</p>
                 </div>
                 <div class="flex flex-wrap gap-6">
                     <div>
                         <p class="text-xs text-muted-foreground">المنفق</p>
-                        <p class="text-lg font-bold text-destructive">{displayAmount(stats.totalSpent)}</p>
+                        <p class="text-lg font-bold text-destructive">{formatCurrency(stats.totalSpent)}</p>
                     </div>
                     <div>
                         <p class="text-xs text-muted-foreground">المتبقي</p>
-                        <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400">{displayAmount(stats.remaining)}</p>
+                        <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.remaining)}</p>
                     </div>
                     <div>
                         <p class="text-xs text-muted-foreground">نسبة الاستخدام</p>
@@ -263,8 +260,8 @@
                 </CardHeader>
                 <CardContent>
                     <div class="mb-3 flex items-baseline justify-between">
-                        <p class="text-xl font-bold">{displayAmount(b.spent)}</p>
-                        <p class="text-sm text-muted-foreground">الميزانية: {displayAmount(b.budget)}</p>
+                        <p class="text-xl font-bold">{formatCurrency(b.spent)}</p>
+                        <p class="text-sm text-muted-foreground">الميزانية: {formatCurrency(b.budget)}</p>
                     </div>
 
                     <div class="relative h-2.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -279,7 +276,7 @@
                     <div class="mt-2 flex items-center justify-between text-xs">
                         <span class="tabular-nums {getTextColor(pct)}">{pct}% مستخدم</span>
                         <span class="tabular-nums text-muted-foreground">
-                            متبقي {displayAmount(effective - b.spent)}
+                            متبقي {formatCurrency(effective - b.spent)}
                         </span>
                     </div>
 
@@ -373,7 +370,7 @@
                     <button class="cursor-pointer text-muted-foreground hover:text-foreground" onclick={closeBudgetModal} aria-label="إغلاق"><X class="size-5" /></button>
                 </div>
                 <div class="space-y-3 px-6 py-4">
-                    <p class="text-sm text-muted-foreground">المصروف هذا الشهر: <span class="font-bold text-foreground">{displayAmount(editingBudget.spent)}</span></p>
+                    <p class="text-sm text-muted-foreground">المصروف هذا الشهر: <span class="font-bold text-foreground">{formatCurrency(editingBudget.spent)}</span></p>
                     <div>
                         <label class="mb-1.5 block text-sm font-medium">الميزانية الشهرية (ر.س)</label>
                         <input type="number" step="0.01" bind:value={budgetAmount} class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="0.00" />
