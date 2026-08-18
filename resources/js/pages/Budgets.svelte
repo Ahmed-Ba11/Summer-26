@@ -10,19 +10,17 @@
     import { router } from '@inertiajs/svelte';
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
-    import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-    import ChevronDown from 'lucide-svelte/icons/chevron-down';
-    import ChevronUp from 'lucide-svelte/icons/chevron-up';
+    import { Card, CardContent } from '@/components/ui/card';
     import Plus from 'lucide-svelte/icons/plus';
-    import Wallet from 'lucide-svelte/icons/wallet';
     import X from 'lucide-svelte/icons/x';
-    import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
-    import CircleCheck from 'lucide-svelte/icons/circle-check';
-    import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
+    import BudgetRow from '@/components/BudgetRow.svelte';
+    import CategoryIcon from '@/components/CategoryIcon.svelte';
+    import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
     import { formatCurrency, toRiyals } from '@/lib/format';
 
     interface BudgetRecord {
         id: number | null;
+        category_id: number;
         name: string;
         icon: string;
         color: string;
@@ -39,19 +37,12 @@
         rollover: number;
     }
 
-    interface CategoryOption {
-        id: number;
-        name: string;
-    }
-
     let {
         budgets = [] as BudgetRecord[],
         stats = { totalBudget: 0, totalSpent: 0, remaining: 0, rollover: 0 } as BudgetStats,
-        categories = [] as CategoryOption[],
     }: {
         budgets?: BudgetRecord[];
         stats?: BudgetStats;
-        categories?: CategoryOption[];
     } = $props();
 
     const usagePct = $derived(
@@ -68,23 +59,6 @@
         if (pct > 90) return 'text-destructive';
         if (pct >= 70) return 'text-amber-600 dark:text-amber-400';
         return 'text-emerald-600 dark:text-emerald-400';
-    }
-
-    function getBadgeColor(pct: number): string {
-        if (pct > 90) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-        if (pct >= 70) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
-        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
-    }
-
-    function getBadgeText(pct: number): string {
-        if (pct > 90) return 'تجاوز';
-        if (pct >= 70) return 'اقترب';
-        return 'آمن';
-    }
-
-    function getBadgeIcon(pct: number) {
-        if (pct > 90) return AlertTriangle;
-        return CircleCheck;
     }
 
     // Sort state
@@ -146,7 +120,7 @@
 
         router.post('/budgets', {
             amount: amt,
-            category_id: editingBudget ? categories.find(c => c.name === editingBudget.name)?.id : null,
+            category_id: editingBudget?.category_id ?? null,
             month: month,
         } as any, {
             onFinish: () => { budgetSubmitting = false; closeBudgetModal(); },
@@ -156,16 +130,15 @@
     // Add category modal
     let showCatModal = $state(false);
     let catName = $state('');
-    let catIcon = $state('📦');
+    let catIcon = $state('ellipsis');
     let catColor = $state('#6b7280');
     let catErrors = $state<Record<string, string>>({});
     let catSubmitting = $state(false);
 
     const colors = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#6366f1','#a855f7','#ec4899','#6b7280'];
-    const icons = ['🍔','🚗','🎮','⚡','💊','📚','📦','🏠','👕','💻','🎓','✈️','🎁','🐱'];
 
     function openCatModal() {
-        catName = ''; catIcon = icons[0]; catColor = colors[0]; catErrors = {}; showCatModal = true;
+        catName = ''; catIcon = 'ellipsis'; catColor = colors[0]; catErrors = {}; showCatModal = true;
     }
     function closeCatModal() { showCatModal = false; catName = ''; catErrors = {}; }
 
@@ -236,62 +209,17 @@
     </div>
 
     <!-- فئات الميزانية -->
-    <div class="grid gap-4 sm:grid-cols-2">
-        {#each sortedBudgets as b, i (b.id ?? `cat-${i}`)}
-            {@const effective = b.budget + b.rollover}
-            {@const pct = effective > 0 ? Math.round((b.spent / effective) * 100) : 0}
-            {@const BadgeIcon = getBadgeIcon(pct)}
-            <Card class={pct > 90 ? 'border-destructive/50' : pct >= 70 ? 'border-amber-500/50' : ''}>
-                <CardHeader class="pb-3">
-                    <div class="flex items-start justify-between">
-                        <div class="flex items-center gap-3">
-                            <span class="flex size-10 items-center justify-center rounded-full text-lg" style="background: {b.color}20; color: {b.color}">
-                                {b.icon}
-                            </span>
-                            <div>
-                                <CardTitle class="text-base">{b.name}</CardTitle>
-                            </div>
-                        </div>
-                        <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium {getBadgeColor(pct)}">
-                            <BadgeIcon class="size-2.5" />
-                            {getBadgeText(pct)}
-                        </span>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div class="mb-3 flex items-baseline justify-between">
-                        <p class="text-xl font-bold">{formatCurrency(b.spent)}</p>
-                        <p class="text-sm text-muted-foreground">الميزانية: {formatCurrency(b.budget)}</p>
-                    </div>
-
-                    <div class="relative h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-                        <div
-                            class="h-full rounded-full transition-all"
-                            style="width: {Math.min(pct, 100)}%; {pct > 90 ? '' : 'background: ' + b.color}"
-                            class:bg-destructive={pct > 90}
-                            class:bg-amber-500={pct >= 70 && pct <= 90}
-                        ></div>
-                    </div>
-
-                    <div class="mt-2 flex items-center justify-between text-xs">
-                        <span class="tabular-nums {getTextColor(pct)}">{pct}% مستخدم</span>
-                        <span class="tabular-nums text-muted-foreground">
-                            متبقي {formatCurrency(effective - b.spent)}
-                        </span>
-                    </div>
-
-                    <div class="mt-3 flex gap-2 border-t pt-3">
-                        <Button variant="outline" size="sm" class="flex-1 text-xs gap-1" onclick={() => openBudgetModal(b)}>
-                            <Wallet class="size-3" />
-                            تعديل الميزانية
-                        </Button>
-                        <a href="/expenses" class="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted transition-colors cursor-pointer no-underline text-foreground">
-                            <ArrowRightLeft class="size-3" />
-                            عرض المصاريف
-                        </a>
-                    </div>
-                </CardContent>
-            </Card>
+    <div class="grid gap-3 sm:grid-cols-2">
+        {#each sortedBudgets as b, i (b.category_id ?? b.id ?? `cat-${i}`)}
+            <BudgetRow
+                name={b.name}
+                icon={b.icon}
+                color={b.color}
+                spent={b.spent}
+                budget={b.budget}
+                rollover={b.rollover}
+                onclick={() => openBudgetModal(b)}
+            />
         {/each}
     </div>
 
@@ -325,12 +253,17 @@
                     </div>
                     <div>
                         <label class="mb-1.5 block text-sm font-medium">الأيقونة</label>
-                        <div class="flex flex-wrap gap-2">
-                            {#each icons as ico}
+                        <div class="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                            {#each ICON_PICKER as key}
                                 <button
-                                    class="flex size-9 items-center justify-center rounded-lg border text-lg transition-all {catIcon === ico ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}"
-                                    onclick={() => (catIcon = ico)}
-                                >{ico}</button>
+                                    type="button"
+                                    class="flex size-9 items-center justify-center rounded-lg border transition-all {catIcon === key ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}"
+                                    aria-label={ICON_LABELS[key]}
+                                    aria-pressed={catIcon === key}
+                                    onclick={() => (catIcon = key)}
+                                >
+                                    <CategoryIcon icon={key} size="sm" color={catColor} />
+                                </button>
                             {/each}
                         </div>
                     </div>
@@ -364,7 +297,7 @@
             <div class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-0 shadow-lg">
                 <div class="flex items-center justify-between border-b px-6 py-4">
                     <div class="flex items-center gap-2">
-                        <span class="text-xl">{editingBudget.icon}</span>
+                        <CategoryIcon icon={editingBudget.icon} color={editingBudget.color} size="md" />
                         <h2 class="text-lg font-semibold">{editingBudget.name}</h2>
                     </div>
                     <button class="cursor-pointer text-muted-foreground hover:text-foreground" onclick={closeBudgetModal} aria-label="إغلاق"><X class="size-5" /></button>

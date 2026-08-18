@@ -42,6 +42,10 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'dueBillsCount' => $request->user()
+                ? $request->user()->bills()->where('is_paid', false)
+                    ->whereBetween('due_date', [now(), now()->addDays(7)])->count()
+                : 0,
         ];
     }
 }

@@ -18,6 +18,8 @@
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+    import CategoryIcon from '@/components/CategoryIcon.svelte';
+    import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
     import { formatCurrency, formatDate } from '@/lib/format';
 
     interface InstallmentItem {
@@ -99,7 +101,7 @@
     let showFormModal = $state(false);
     let formName = $state('');
     let formReason = $state('');
-    let formIcon = $state('📦');
+    let formIcon = $state('ellipsis');
     let formMonthly = $state('');
     let formTotalMonths = $state('');
     let formStartDate = $state('');
@@ -109,7 +111,7 @@
     function openAddModal() {
         formName = '';
         formReason = '';
-        formIcon = '📦';
+        formIcon = 'ellipsis';
         formMonthly = '';
         formTotalMonths = '';
         formStartDate = new Date().toISOString().slice(0, 7);
@@ -286,9 +288,7 @@
                     <CardHeader class="pb-3">
                         <div class="flex items-start justify-between">
                             <div class="flex items-center gap-3">
-                                <span class="flex size-10 items-center justify-center rounded-lg bg-muted text-xl">
-                                    {item.icon}
-                                </span>
+                                <CategoryIcon icon={item.icon} color="#4a3aa7" size="md" />
                                 <div>
                                     <CardTitle class="text-base">{item.name}</CardTitle>
                                     <CardDescription>{item.reason}</CardDescription>
@@ -378,7 +378,7 @@
         <div class="relative z-10 mx-4 w-full max-w-lg rounded-xl border bg-card p-0 shadow-lg">
             <div class="flex items-center justify-between border-b px-6 py-4">
                 <h2 class="flex items-center gap-2 text-lg font-semibold">
-                    <span class="text-xl">{item.icon}</span>
+                    <CategoryIcon icon={item.icon} color="#4a3aa7" size="md" />
                     {item.name}
                 </h2>
                 <button class="text-muted-foreground hover:text-foreground cursor-pointer" onclick={closeDetailsModal}>
@@ -504,15 +504,20 @@
                     />
                 </div>
                 <div>
-                    <label for="inst-icon" class="mb-1.5 block text-sm font-medium">الرمز</label>
-                    <input
-                        id="inst-icon"
-                        type="text"
-                        placeholder="📦"
-                        bind:value={formIcon}
-                        maxlength="2"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
+                    <label for="inst-icon" class="mb-1.5 block text-sm font-medium">الأيقونة</label>
+                    <div class="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                        {#each ICON_PICKER as key}
+                            <button
+                                type="button"
+                                class="flex size-9 items-center justify-center rounded-lg border transition-all {formIcon === key ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}"
+                                aria-label={ICON_LABELS[key]}
+                                aria-pressed={formIcon === key}
+                                onclick={() => (formIcon = key)}
+                            >
+                                <CategoryIcon icon={key} size="sm" />
+                            </button>
+                        {/each}
+                    </div>
                 </div>
                 <div>
                     <label for="inst-monthly" class="mb-1.5 block text-sm font-medium">القسط الشهري (ر.س)</label>

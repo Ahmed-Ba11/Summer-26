@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Models\Bill;
 use App\Models\Budget;
 use App\Models\Category;
@@ -15,67 +16,7 @@ Route::inertia('/', 'Welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
-    Route::get('/dashboard', function () {
-        $user = auth()->user();
-        $currentMonth = now()->format('Y-m');
-        $lastMonth = now()->subMonth()->format('Y-m');
-
-        $totalExpenses = $user->expenses()->where('expense_date', 'like', $currentMonth.'%')->sum('amount');
-        $prevExpenses = $user->expenses()->where('expense_date', 'like', $lastMonth.'%')->sum('amount');
-        $totalIncome = $user->incomes()->where('income_date', 'like', $currentMonth.'%')->sum('amount');
-
-        $categories = Category::where(function ($q) use ($user) {
-            $q->where('user_id', $user->id)->orWhereNull('user_id');
-        })->withCount(['expenses as total_amount' => function ($q) use ($currentMonth) {
-            $q->where('expense_date', 'like', $currentMonth.'%');
-        }])->get()->map(function ($cat) {
-            $cat->total_amount = $cat->expenses()->where('expense_date', 'like', now()->format('Y-m').'%')->sum('amount');
-
-            return $cat;
-        });
-
-        $monthlyExpenses = $user->expenses()
-            ->selectRaw("strftime('%Y-%m', expense_date) as month, SUM(amount) as total")
-            ->whereYear('expense_date', now()->year)
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get();
-
-        $recentTransactions = $user->expenses()->with('category')->latest('expense_date')->limit(5)->get()
-            ->map(fn ($e) => ['type' => 'expense', 'desc' => $e->description, 'cat' => $e->category?->name, 'amount' => $e->amount, 'date' => $e->expense_date->format('Y-m-d')])
-            ->concat(
-                $user->incomes()->latest('income_date')->limit(3)->get()
-                    ->map(fn ($i) => ['type' => 'income', 'desc' => $i->description ?? $i->source, 'cat' => $i->source, 'amount' => $i->amount, 'date' => $i->income_date->format('Y-m-d')])
-            )
-            ->sortByDesc('date')->values();
-
-        return Inertia::render('Dashboard', [
-            'stats' => [
-                'totalExpenses' => (int) $totalExpenses,
-                'prevExpenses' => (int) $prevExpenses,
-                'totalIncome' => (int) $totalIncome,
-                'balance' => (int) ($totalIncome - $totalExpenses),
-                'savingsRate' => $totalIncome > 0 ? round((($totalIncome - $totalExpenses) / $totalIncome) * 100) : 0,
-                'budgetTotal' => 500000, // default for MVP
-            ],
-            'totalSavings' => (int) $user->savingsGoals()->sum('current_amount'),
-            'totalInstallmentsMonthly' => (int) $user->installments()->where('is_completed', false)->sum('monthly_amount'),
-            'totalBillsDue' => (int) $user->bills()->where('is_paid', false)->sum('amount'),
-            'activeInstallments' => $user->installments()->where('is_completed', false)->count(),
-            'upcomingBills' => $user->bills()->where('is_paid', false)->count(),
-            'categories' => $categories->map(fn ($c) => [
-                'id' => $c->id,
-                'name' => $c->name,
-                'icon' => $c->icon,
-                'color' => $c->color,
-                'amount' => (int) $c->total_amount,
-                'budget' => (int) ($user->budgets()->where('category_id', $c->id)->where('month', $currentMonth)->value('amount') ?? 0),
-                'prevAmount' => (int) $c->expenses()->where('expense_date', 'like', $lastMonth.'%')->sum('amount'),
-            ]),
-            'monthlyExpenses' => $monthlyExpenses->map(fn ($m) => ['month' => $m->month, 'expenses' => (int) $m->total, 'income' => (int) $totalIncome]),
-            'recentTransactions' => $recentTransactions,
-        ]);
-    })->name('dashboard');
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
     // Expenses
     Route::get('/expenses', function () {
@@ -240,8 +181,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             return [
                 'id' => $budget?->id,
+                'category_id' => $cat->id,
                 'name' => $cat->name,
-                'icon' => $cat->icon ?? '📦',
+                'icon' => $cat->icon ?? 'ellipsis',
                 'color' => $cat->color ?? '#6b7280',
                 'budget' => (int) ($budget?->amount ?? 0),
                 'spent' => $spent,

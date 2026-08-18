@@ -17,6 +17,8 @@
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+    import CategoryIcon from '@/components/CategoryIcon.svelte';
+    import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
     import { formatAmount, formatCurrency, formatDate } from '@/lib/format';
 
     interface GoalItem {
@@ -65,7 +67,7 @@
     // Add goal modal
     let showFormModal = $state(false);
     let formName = $state('');
-    let formIcon = $state('💰');
+    let formIcon = $state('banknote');
     let formTargetAmount = $state('');
     let formTargetDate = $state('');
     let formErrors = $state<Record<string, string>>({});
@@ -73,7 +75,7 @@
 
     function openAddModal() {
         formName = '';
-        formIcon = '💰';
+        formIcon = 'banknote';
         formTargetAmount = '';
         formTargetDate = '';
         formErrors = {};
@@ -301,7 +303,7 @@
                     <CardHeader class="pb-3">
                         <div class="flex items-center justify-between gap-3">
                             <div class="flex items-center gap-3">
-                                <span class="text-2xl">{goal.icon}</span>
+                                <CategoryIcon icon={goal.icon} color={goal.is_completed ? '#0ca30c' : '#1baf7a'} size="md" />
                                 <div>
                                     <CardTitle class="text-base">{goal.name}</CardTitle>
                                     {#if goal.target_date}
@@ -449,15 +451,20 @@
                     {/if}
                 </div>
                 <div>
-                    <label for="goal-icon" class="mb-1.5 block text-sm font-medium">الرمز</label>
-                    <input
-                        id="goal-icon"
-                        type="text"
-                        placeholder="💰"
-                        bind:value={formIcon}
-                        maxlength="2"
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
+                    <label for="goal-icon" class="mb-1.5 block text-sm font-medium">الأيقونة</label>
+                    <div class="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                        {#each ICON_PICKER as key}
+                            <button
+                                type="button"
+                                class="flex size-9 items-center justify-center rounded-lg border transition-all {formIcon === key ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}"
+                                aria-label={ICON_LABELS[key]}
+                                aria-pressed={formIcon === key}
+                                onclick={() => (formIcon = key)}
+                            >
+                                <CategoryIcon icon={key} size="sm" />
+                            </button>
+                        {/each}
+                    </div>
                 </div>
                 <div>
                     <label for="goal-amount" class="mb-1.5 block text-sm font-medium">المبلغ المستهدف (ر.س)</label>

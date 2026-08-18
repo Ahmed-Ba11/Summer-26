@@ -15,4 +15,6 @@ export type NavItem = {
     href: NonNullable<LinkComponentBaseProps['href']>;
     icon?: NavIcon;
     isActive?: boolean;
+    badge?: number;
+    tag?: string;
 };
