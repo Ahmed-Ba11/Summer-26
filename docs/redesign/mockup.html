@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نموذج الواجهة المقترحة — تطبيق الميزانية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: light;
+  /* ===== الأسطح والحبر ===== */
+  --canvas:#f5f4f0;
+  --surface:#ffffff;
+  --surface-2:#faf9f6;
+  --ink:#16171a;
+  --ink-2:#55565b;
+  --muted:#8a8b90;
+  --hairline:#e7e5df;
+  --hairline-strong:#d6d3ca;
+  /* ===== لون العلامة (كروم فقط — لا يُستخدم للبيانات) ===== */
+  --brand:#2c4a6e;
+  --brand-ink:#ffffff;
+  --brand-soft:#eef2f7;
+  --brand-ring:rgba(44,74,110,.18);
+  /* ===== ألوان الحالة (محجوزة — لا تُستخدم كسلسلة بيانات) ===== */
+  --good:#0ca30c;
+  --good-text:#006300;
+  --warning:#fab219;
+  --serious:#ec835a;
+  --critical:#d03b3b;
+  /* ===== البالتة الفئوية (مُتحقَّق منها برمجياً) ===== */
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7;
+  --shadow:0 1px 2px rgba(22,23,26,.04), 0 1px 3px rgba(22,23,26,.03);
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px;
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --canvas:#0f1012; --surface:#17181b; --surface-2:#1d1e22;
+  --ink:#f4f4f2; --ink-2:#b6b7bc; --muted:#83848a;
+  --hairline:#2a2b30; --hairline-strong:#3a3b41;
+  --brand:#7ea2cc; --brand-ink:#0f1012; --brand-soft:#1e242e; --brand-ring:rgba(126,162,204,.22);
+  --good-text:#0ca30c;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background:var(--canvas); color:var(--ink);
+  font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+.num{font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ===== شريط التبديل بين اللقطات ===== */
+.viewbar{position:sticky;top:0;z-index:60;display:flex;gap:6px;align-items:center;
+  padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--hairline);flex-wrap:wrap}
+.viewbar .lbl{font-size:12px;color:var(--muted);margin-inline-end:6px}
+.tab{border:1px solid var(--hairline-strong);background:var(--surface);color:var(--ink-2);
+  padding:6px 14px;border-radius:999px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+.tab:hover{background:var(--surface-2)}
+.tab[aria-selected="true"]{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.themetog{margin-inline-start:auto;display:flex;align-items:center;gap:6px;border:1px solid var(--hairline-strong);
+  background:var(--surface);color:var(--ink-2);padding:6px 12px;border-radius:999px;font:inherit;font-size:13px;cursor:pointer}
+.screen{display:none}
+.screen.on{display:block}
+
+/* ===== التخطيط ===== */
+.app{display:grid;grid-template-columns:248px 1fr;min-height:calc(100vh - 49px)}
+.sidebar{background:var(--surface);border-inline-start:1px solid var(--hairline);
+  padding:18px 12px;display:flex;flex-direction:column;gap:4px}
+.brandrow{display:flex;align-items:center;gap:10px;padding:6px 10px 18px}
+.logo{width:34px;height:34px;border-radius:10px;background:var(--brand);color:var(--brand-ink);
+  display:grid;place-items:center;font-weight:700;font-size:15px}
+.brandrow b{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.brandrow span{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.navgroup{font-size:11px;color:var(--muted);padding:14px 12px 6px;letter-spacing:.02em}
+.navitem{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--r-sm);
+  color:var(--ink-2);text-decoration:none;font-size:13.5px;transition:.14s}
+.navitem:hover{background:var(--surface-2);color:var(--ink)}
+.navitem.active{background:var(--brand-soft);color:var(--brand);font-weight:600}
+:root[data-theme="dark"] .navitem.active{color:var(--ink)}
+.navitem .tag{margin-inline-start:auto;font-size:10.5px;background:var(--critical);color:#fff;
+  padding:1px 7px;border-radius:999px;font-weight:600}
+.main{padding:26px 28px 90px;max-width:1180px}
+
+/* ===== عناصر عامة ===== */
+.card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);box-shadow:var(--shadow)}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--hairline)}
+.card-h h3{font-size:14.5px;font-weight:600}
+.card-b{padding:20px}
+h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:13px}
+.pagehead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--brand);background:var(--brand);
+  color:var(--brand-ink);padding:9px 16px;border-radius:var(--r-sm);font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;text-decoration:none}
+.btn.ghost{background:var(--surface);color:var(--ink-2);border-color:var(--hairline-strong)}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn.sm{padding:6px 12px;font-size:12.5px}
+.link{color:var(--brand);font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+:root[data-theme="dark"] .link{color:var(--brand)}
+
+/* ===== 1) بطاقة القصة المالية ===== */
+.story{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-xl);
+  box-shadow:var(--shadow);overflow:hidden;margin-bottom:18px}
+.story-top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:28px;padding:24px 26px 20px}
+.hero .k{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.hero .v{font-size:40px;font-weight:600;letter-spacing:-.03em;line-height:1.1;margin-top:4px}
+.hero .v small{font-size:17px;font-weight:500;color:var(--ink-2);margin-inline-start:2px}
+.hero .note{font-size:12.5px;color:var(--ink-2);margin-top:6px}
+.hero .note b{color:var(--good-text);font-weight:600}
+.vline{width:1px;align-self:stretch;background:var(--hairline);margin:4px 0}
+.mini{display:flex;flex-direction:column;gap:2px}
+.mini .k{font-size:12px;color:var(--muted)}
+.mini .v{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.daychip{margin-inline-start:auto;display:flex;flex-direction:column;align-items:flex-end;gap:3px;
+  background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:10px 16px}
+.daychip .k{font-size:11.5px;color:var(--muted)}
+.daychip .v{font-size:20px;font-weight:600;letter-spacing:-.02em}
+
+/* شريط التدفق */
+.flowwrap{padding:0 26px 22px}
+.flow{display:flex;gap:2px;height:34px;border-radius:10px;overflow:hidden;background:var(--surface-2)}
+.flow > div{position:relative;display:grid;place-items:center;font-size:11.5px;font-weight:600;color:#fff;
+  transition:filter .15s;cursor:default;overflow:hidden;white-space:nowrap}
+.flow > div:hover{filter:brightness(1.08)}
+.flow .rest{background:repeating-linear-gradient(135deg,var(--surface-2) 0 6px,var(--hairline) 6px 7px);
+  color:var(--ink-2);border:1px dashed var(--hairline-strong)}
+.flowlegend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:12.5px;color:var(--ink-2)}
+.flowlegend i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-inline-end:6px;vertical-align:-1px}
+.flowlegend span b{font-weight:600;color:var(--ink);margin-inline-start:4px}
+.flowcap{font-size:11.5px;color:var(--muted);margin-top:10px}
+
+/* ===== 2) بطاقات مختصرة ===== */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.tile{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--shadow)}
+.tile .top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tile .k{font-size:12.5px;color:var(--muted)}
+.tile .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center}
+.tile .v{font-size:21px;font-weight:600;letter-spacing:-.02em;margin-top:9px}
+.tile .d{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:5px}
+.tile .d.up{color:var(--critical)} .tile .d.dn{color:var(--good-text)}
+
+/* ===== 3) التقويم المالي ===== */
+.cal{display:flex;gap:5px;overflow-x:auto;padding:4px 0 8px}
+.calday{flex:none;width:46px;border:1px solid var(--hairline);border-radius:10px;padding:8px 0 7px;
+  text-align:center;background:var(--surface-2);position:relative}
+.calday.today{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 0 0 2px var(--brand-ring)}
+.calday .dw{font-size:10px;color:var(--muted)}
+.calday .dn{font-size:15px;font-weight:600;margin-top:1px}
+.calday .dots{display:flex;gap:3px;justify-content:center;margin-top:5px;height:6px}
+.calday .dots i{width:6px;height:6px;border-radius:50%;display:block}
+.callegend{display:flex;gap:16px;font-size:12px;color:var(--ink-2);margin-top:6px;flex-wrap:wrap}
+.callegend i{width:8px;height:8px;border-radius:50%;display:inline-block;margin-inline-end:5px}
+
+/* ===== 4) الرسوم ===== */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.donutwrap{display:flex;gap:22px;align-items:center}
+.donut{position:relative;flex:none}
+.donut .mid{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.donut .mid .v{font-size:16px;font-weight:600;letter-spacing:-.02em}
+.donut .mid .k{font-size:11px;color:var(--muted)}
+.catlist{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.catrow{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;transition:.13s;cursor:default}
+.catrow:hover{background:var(--surface-2)}
+.catico{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;flex:none}
+.catico svg{width:15px;height:15px}
+.catrow .nm{font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catrow .amt{font-size:12.5px;font-weight:600}
+.catrow .pc{font-size:11.5px;color:var(--muted);width:42px;text-align:end}
+
+.bars{display:flex;align-items:flex-end;gap:10px;height:172px;padding-top:6px}
+.barcol{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
+.barpair{display:flex;align-items:flex-end;gap:2px;height:146px;width:100%;justify-content:center}
+.barpair span{width:11px;border-radius:4px 4px 0 0;display:block;transition:.15s}
+.barcol .lb{font-size:11px;color:var(--muted);white-space:nowrap}
+.barcol.cur .lb{color:var(--ink);font-weight:600}
+.chartlegend{display:flex;gap:18px;justify-content:center;margin-top:14px;font-size:12px;color:var(--ink-2)}
+.chartlegend i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-inline-end:6px;vertical-align:-1px}
+
+/* ===== 5) الميزانية حسب الفئة ===== */
+.budgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.budrow{display:flex;align-items:center;gap:12px;padding:13px 16px;border:1px solid var(--hairline);
+  border-radius:var(--r-md);background:var(--surface)}
+.budrow .body{flex:1;min-width:0}
+.budrow .l1{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
+.budrow .nm{font-size:13.5px;font-weight:500}
+.budrow .fig{font-size:12.5px;color:var(--ink-2)}
+.track{height:7px;border-radius:999px;background:var(--surface-2);border:1px solid var(--hairline);overflow:hidden}
+.track > i{display:block;height:100%;border-radius:999px}
+.budrow .l2{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:5px}
+.pill{font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:4px}
+.pill svg{width:11px;height:11px}
+.pill.ok{background:rgba(12,163,12,.1);color:var(--good-text)}
+.pill.warn{background:rgba(250,178,25,.16);color:#8a5d00}
+.pill.bad{background:rgba(208,59,59,.11);color:var(--critical)}
+:root[data-theme="dark"] .pill.warn{color:var(--warning)}
+
+/* ===== 6) الجدول ===== */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:start;font-weight:500;color:var(--muted);font-size:12px;padding:10px 20px;border-bottom:1px solid var(--hairline)}
+td{padding:12px 20px;border-bottom:1px solid var(--hairline)}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface-2)}
+.txnname{display:flex;align-items:center;gap:10px}
+.amt-out{color:var(--critical);font-weight:600}
+.amt-in{color:var(--good-text);font-weight:600}
+
+/* ===== زر الإضافة السريعة ===== */
+.fab{position:fixed;inset-inline-start:28px;bottom:28px;z-index:50;display:flex;flex-direction:column;align-items:flex-start;gap:9px}
+.fabmenu{display:none;flex-direction:column;gap:7px}
+.fab.open .fabmenu{display:flex}
+.fabitem{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--hairline);
+  box-shadow:0 6px 18px rgba(22,23,26,.1);border-radius:999px;padding:8px 16px 8px 12px;font-size:13px;cursor:pointer;color:var(--ink);font-family:inherit}
+.fabitem .dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center}
+.fabitem .dot svg{width:13px;height:13px;stroke:#fff}
+.fabbtn{width:54px;height:54px;border-radius:50%;background:var(--brand);color:var(--brand-ink);border:0;
+  display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 22px rgba(44,74,110,.32);transition:transform .18s}
+.fab.open .fabbtn{transform:rotate(45deg)}
+.fabbtn svg{width:24px;height:24px;stroke-width:2}
+
+/* ===== شاشة معالج الإعداد ===== */
+.wiz{min-height:calc(100vh - 49px);display:grid;place-items:center;padding:36px 20px;background:var(--canvas)}
+.wizcard{width:100%;max-width:660px;background:var(--surface);border:1px solid var(--hairline);
+  border-radius:var(--r-xl);box-shadow:0 3px 26px rgba(22,23,26,.06);overflow:hidden}
+.steps{display:flex;align-items:center;gap:0;padding:22px 28px 0}
+.step{display:flex;align-items:center;gap:9px;flex:1}
+.step .n{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;
+  background:var(--surface-2);color:var(--muted);border:1px solid var(--hairline);flex:none}
+.step .t{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.step.done .n{background:var(--good);color:#fff;border-color:var(--good)}
+.step.done .t{color:var(--ink-2)}
+.step.cur .n{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.step.cur .t{color:var(--ink);font-weight:600}
+.step .bar{flex:1;height:2px;background:var(--hairline);margin:0 10px;border-radius:2px}
+.step.done .bar{background:var(--good)}
+.wizbody{padding:24px 28px 8px}
+.wizbody h2{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.wizbody .sub{margin-top:4px;margin-bottom:20px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12.5px;font-weight:500;margin-bottom:6px}
+.inp{display:flex;align-items:center;border:1px solid var(--hairline-strong);border-radius:var(--r-sm);
+  background:var(--surface);overflow:hidden;transition:.15s}
+.inp:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-ring)}
+.inp input{flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:19px;font-weight:600;
+  padding:11px 14px;color:var(--ink);font-variant-numeric:tabular-nums}
+.inp .cur{padding:0 14px;font-size:13px;color:var(--muted);border-inline-start:1px solid var(--hairline);align-self:stretch;display:grid;place-items:center}
+.hint{font-size:11.5px;color:var(--muted);margin-top:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--hairline-strong);background:var(--surface);border-radius:999px;padding:7px 14px;
+  font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand);font-weight:600}
+.chip svg{width:14px;height:14px}
+.allocbox{border:1px solid var(--hairline);border-radius:var(--r-md);background:var(--surface-2);padding:14px 16px;margin-bottom:14px}
+.allocbox .hd{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:10px}
+.allocbox .hd b{font-weight:600}
+.allocrow{display:flex;align-items:center;gap:11px;padding:7px 0}
+.allocrow .nm{font-size:13px;width:78px;flex:none}
+.allocrow input[type=range]{flex:1;accent-color:var(--brand)}
+.allocrow .val{font-size:12.5px;font-weight:600;width:82px;text-align:end;font-variant-numeric:tabular-nums}
+.wizfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 28px;border-top:1px solid var(--hairline);background:var(--surface-2)}
+.skip{background:0;border:0;font:inherit;font-size:12.5px;color:var(--muted);cursor:pointer;text-decoration:underline}
+
+.note{background:var(--brand-soft);border:1px solid var(--brand-ring);border-radius:var(--r-md);
+  padding:12px 15px;font-size:12.5px;color:var(--ink-2);display:flex;gap:10px;align-items:flex-start;margin-bottom:16px}
+.note svg{width:16px;height:16px;color:var(--brand);flex:none;margin-top:2px}
+
+@media (max-width:1000px){
+  .app{grid-template-columns:1fr} .sidebar{display:none}
+  .tiles{grid-template-columns:1fr 1fr} .grid2{grid-template-columns:1fr} .budgrid{grid-template-columns:1fr}
+  .main{padding:18px 14px 90px}
+}
+</style>
+</head>
+<body>
+
+<svg style="display:none">
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></symbol>
+<symbol id="i-trend" viewBox="0 0 24 24"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></symbol>
+<symbol id="i-swap" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></symbol>
+<symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1.5L8 22l2-1.5L12 22l2-1.5L16 22l2-1.5L20 22V2l-2 1.5L16 2l-2 1.5L12 2l-2 1.5L8 2 6 3.5Z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></symbol>
+<symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/><path d="M6 15h3"/></symbol>
+<symbol id="i-pig" viewBox="0 0 24 24"><path d="M19 8.5c1.2.9 2 2.3 2 3.9 0 1.6-.8 3-2 3.9V19a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-.6a9.7 9.7 0 0 1-4 0V19a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-1.5C5.2 16.3 4 14.5 4 12.5 4 9 7.6 6 12 6c.9 0 1.8.1 2.6.4L18 4.5v3l1 1Z"/><circle cx="16" cy="11.5" r=".6" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-arrowl" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h14a1 1 0 0 1 1 1v3"/><path d="M3 6v13a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1v-3"/><path d="M21 12v4h-4a2 2 0 0 1 0-4Z"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 12.4a2 2 0 0 0 2 1.6h8.6a2 2 0 0 0 2-1.6L21 7H5"/></symbol>
+<symbol id="i-utensils" viewBox="0 0 24 24"><path d="M3 2v7c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2V2"/><path d="M6 2v20"/><path d="M18 2c-1.7 0-3 1.8-3 4v5c0 1.1.9 2 2 2h2V2Z"/><path d="M19 13v9"/></symbol>
+<symbol id="i-car" viewBox="0 0 24 24"><path d="M5 17H4a1 1 0 0 1-1-1v-3.5c0-.4.1-.8.3-1.1l1.9-3.5A2 2 0 0 1 7 7h8.6c.6 0 1.2.3 1.6.8L20 11l1.4.4c.9.2 1.6 1 1.6 1.9V16a1 1 0 0 1-1 1h-1"/><circle cx="7.5" cy="17" r="2"/><circle cx="17.5" cy="17" r="2"/><path d="M9.5 17h6"/></symbol>
+<symbol id="i-game" viewBox="0 0 24 24"><path d="M6 12h4M8 10v4"/><path d="M15.5 13h.01M18 11h.01"/><path d="M17.3 6H6.7a4 4 0 0 0-4 3.6C2.6 10.4 2 14.5 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.4-1.4a2 2 0 0 1 1.4-.6h4.4a2 2 0 0 1 1.4.6L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.5-.6-5.6-.7-6.4A4 4 0 0 0 17.3 6Z"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z"/></symbol>
+<symbol id="i-health" viewBox="0 0 24 24"><path d="M19.5 13.5C21 12 22 10.4 22 8.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 1.9 1 3.5 2.5 5L12 21l7.5-7.5Z"/><path d="M3.5 12.5H8l1.5-2.5L12 15l2-4 1.5 1.5h5"/></symbol>
+<symbol id="i-cap" viewBox="0 0 24 24"><path d="m2 9 10-4.5L22 9l-10 4.5L2 9Z"/><path d="M22 9v6"/><path d="M6 11v4.5c0 1.7 2.7 3 6 3s6-1.3 6-3V11"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.8"/><path d="M9.5 21v-6h5v6"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></symbol>
+</svg>
+
+<!-- ======== شريط التبديل ======== -->
+<div class="viewbar">
+  <span class="lbl">اللقطة:</span>
+  <button class="tab" aria-selected="true" data-go="wiz">١ · معالج الإعداد الأول</button>
+  <button class="tab" aria-selected="false" data-go="dash">٢ · لوحة التحكم الجديدة</button>
+  <button class="themetog" id="tt"><svg class="i"><use href="#i-moon"/></svg> الوضع الداكن</button>
+</div>
+
+<!-- ======================= شاشة ١ : معالج الإعداد ======================= -->
+<section class="screen on" id="wiz">
+<div class="wiz">
+  <div class="wizcard">
+    <div class="steps">
+      <div class="step done"><span class="n"><svg class="i" style="width:14px;height:14px"><use href="#i-check"/></svg></span><span class="t">دخلك</span><span class="bar"></span></div>
+      <div class="step cur"><span class="n">٢</span><span class="t">التزاماتك الثابتة</span><span class="bar"></span></div>
+      <div class="step"><span class="n">٣</span><span class="t">توزيع الميزانية</span></div>
+    </div>
+
+    <div class="wizbody">
+      <h2>وش التزاماتك الثابتة كل شهر؟</h2>
+      <p class="sub">الفواتير والأقساط اللي تنخصم من راتبك قبل أي مصروف. نحجزها لك تلقائياً عشان ما تصرفها بالغلط.</p>
+
+      <div class="note">
+        <svg class="i"><use href="#i-info"/></svg>
+        <span>هذي الخطوة هي اللي تخلي رقم <b>«المتبقي لك»</b> في لوحة التحكم واقعي. تقدر تضيف أو تعدّل أي شي منها لاحقاً.</span>
+      </div>
+
+      <div class="field">
+        <label>اختر التزاماتك المتكررة</label>
+        <div class="chips">
+          <button class="chip on"><svg class="i"><use href="#i-zap"/></svg> كهرباء وماء</button>
+          <button class="chip on"><svg class="i"><use href="#i-home"/></svg> إيجار</button>
+          <button class="chip on"><svg class="i"><use href="#i-card"/></svg> قسط سيارة</button>
+          <button class="chip"><svg class="i"><use href="#i-receipt"/></svg> إنترنت وجوال</button>
+          <button class="chip"><svg class="i"><use href="#i-health"/></svg> تأمين</button>
+          <button class="chip"><svg class="i"><use href="#i-plus"/></svg> التزام آخر</button>
+        </div>
+      </div>
+
+      <div class="allocbox">
+        <div class="hd"><span>المبالغ الشهرية</span><span>الإجمالي <b class="num">٣٬٤٥٠ ر.س</b></span></div>
+        <div class="allocrow"><span class="nm">كهرباء وماء</span><input type="range" min="0" max="3000" value="450"><span class="val num">٤٥٠ ر.س</span></div>
+        <div class="allocrow"><span class="nm">إيجار</span><input type="range" min="0" max="6000" value="2000"><span class="val num">٢٬٠٠٠ ر.س</span></div>
+        <div class="allocrow"><span class="nm">قسط سيارة</span><input type="range" min="0" max="3000" value="1000"><span class="val num">١٬٠٠٠ ر.س</span></div>
+      </div>
+
+      <div class="field">
+        <label>يوم استحقاق الراتب</label>
+        <div class="chips">
+          <button class="chip">٢٥</button><button class="chip on">٢٧</button><button class="chip">آخر يوم</button><button class="chip">يوم آخر…</button>
+        </div>
+        <p class="hint">نستخدمه لحساب «المتبقي يومياً» ولتنبيهك قبل استحقاق الفواتير بثلاثة أيام.</p>
+      </div>
+    </div>
+
+    <div class="wizfoot">
+      <button class="skip">تخطّي الآن — أكمل من اللوحة لاحقاً</button>
+      <div style="display:flex;gap:9px">
+        <button class="btn ghost">رجوع</button>
+        <button class="btn" data-go="dash">التالي: وزّع ميزانيتك</button>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ======================= شاشة ٢ : لوحة التحكم ======================= -->
+<section class="screen" id="dash">
+<div class="app">
+
+  <!-- الشريط الجانبي -->
+  <aside class="sidebar">
+    <div class="brandrow">
+      <div class="logo">م</div>
+      <div><b>ميزانيتي</b><span>أغسطس ٢٠٢٦</span></div>
+    </div>
+
+    <div class="navgroup">نظرة عامة</div>
+    <a class="navitem active" href="#"><svg class="i"><use href="#i-grid"/></svg> لوحة التحكم</a>
+
+    <div class="navgroup">فلوسي</div>
+    <a class="navitem" href="#"><svg class="i"><use href="#i-trend"/></svg> الدخل</a>
+    <a class="navitem" href="#"><svg class="i"><use href="#i-target"/></svg> الميزانية</a>
+    <a class="navitem" href="#"><svg class="i"><use href="#i-swap"/></svg> المصاريف</a>
+
+    <div class="navgroup">التزاماتي</div>
+    <a class="navitem" href="#"><svg class="i"><use href="#i-receipt"/></svg> الفواتير <span class="tag">٢</span></a>
+    <a class="navitem" href="#"><svg class="i"><use href="#i-card"/></svg> الأقساط</a>
+    <a class="navitem" href="#"><svg class="i"><use href="#i-pig"/></svg> الادخار</a>
+  </aside>
+
+  <!-- المحتوى -->
+  <main class="main">
+    <div class="pagehead">
+      <div>
+        <h1>مرحباً أحمد 👋</h1>
+        <p class="sub">هذي صورة ميزانيتك الكاملة لشهر أغسطس — باقي ١٣ يوم على الراتب.</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn ghost sm">أغسطس ٢٠٢٦ ▾</button>
+        <button class="btn ghost sm">تصدير التقرير</button>
+      </div>
+    </div>
+
+    <!-- ===== بطاقة القصة المالية ===== -->
+    <div class="story">
+      <div class="story-top">
+        <div class="hero">
+          <div class="k"><svg class="i" style="width:14px;height:14px"><use href="#i-wallet"/></svg> المتبقي لك للصرف</div>
+          <div class="v num">٣٬٤٨٠<small> ر.س</small></div>
+          <div class="note">تقدر تصرف <b class="num">٢٦٨ ر.س يومياً</b> وتوصل آخر الشهر بأمان</div>
+        </div>
+
+        <div class="vline"></div>
+
+        <div class="mini"><span class="k">دخلك</span><span class="v num">٨٬٠٠٠</span></div>
+        <div class="mini"><span class="k">محجوز (التزامات)</span><span class="v num">٣٬٤٥٠</span></div>
+        <div class="mini"><span class="k">صرفت هذا الشهر</span><span class="v num">١٬٠٧٠</span></div>
+
+        <div class="daychip">
+          <span class="k">متوسط صرفك اليومي</span>
+          <span class="v num">٦٣ ر.س</span>
+          <span class="k" style="color:var(--good-text)">أقل من الحد الآمن ✓</span>
+        </div>
+      </div>
+
+      <div class="flowwrap">
+        <div class="flow" role="img" aria-label="توزيع الدخل: فواتير 18٪، أقساط 13٪، ادخار 6٪، مصاريف 13٪، متبقي 44٪">
+          <div style="flex:18;background:var(--s7)" title="فواتير — ١٬٤٥٠ ر.س">١٨٪</div>
+          <div style="flex:13;background:var(--s2)" title="أقساط — ١٬٠٠٠ ر.س">١٣٪</div>
+          <div style="flex:6;background:var(--s3)"  title="ادخار — ٥٠٠ ر.س">٦٪</div>
+          <div style="flex:13;background:var(--s1)" title="مصاريف — ١٬٠٧٠ ر.س">١٣٪</div>
+          <div class="rest" style="flex:44" title="متبقي لك — ٣٬٤٨٠ ر.س">متبقي لك ٤٤٪</div>
+        </div>
+        <div class="flowlegend">
+          <span><i style="background:var(--s7)"></i>فواتير<b class="num">١٬٤٥٠</b></span>
+          <span><i style="background:var(--s2)"></i>أقساط<b class="num">١٬٠٠٠</b></span>
+          <span><i style="background:var(--s3)"></i>ادخار<b class="num">٥٠٠</b></span>
+          <span><i style="background:var(--s1)"></i>مصاريف<b class="num">١٬٠٧٠</b></span>
+          <span><i style="background:repeating-linear-gradient(135deg,var(--hairline) 0 3px,transparent 3px 5px);border:1px dashed var(--hairline-strong)"></i>متبقي<b class="num">٣٬٤٨٠</b></span>
+        </div>
+        <p class="flowcap">شريط واحد يقرأ من اليمين لليسار: من وين دخل الراتب، ووين راح، وكم بقي.</p>
+      </div>
+    </div>
+
+    <!-- ===== التقويم المالي ===== -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-h"><h3>التقويم المالي — الأسبوعين القادمين</h3><a class="link" href="#">عرض الشهر كامل</a></div>
+      <div class="card-b" style="padding-bottom:14px">
+        <div class="cal">
+          <div class="calday today"><div class="dw">ثلاثاء</div><div class="dn num">١٨</div><div class="dots"></div></div>
+          <div class="calday"><div class="dw">أربعاء</div><div class="dn num">١٩</div><div class="dots"></div></div>
+          <div class="calday"><div class="dw">خميس</div><div class="dn num">٢٠</div><div class="dots"><i style="background:var(--s7)"></i></div></div>
+          <div class="calday"><div class="dw">جمعة</div><div class="dn num">٢١</div><div class="dots"></div></div>
+          <div class="calday"><div class="dw">سبت</div><div class="dn num">٢٢</div><div class="dots"></div></div>
+          <div class="calday"><div class="dw">أحد</div><div class="dn num">٢٣</div><div class="dots"><i style="background:var(--s2)"></i></div></div>
+          <div class="calday"><div class="dw">اثنين</div><div class="dn num">٢٤</div><div class="dots"></div></div>
+          <div class="calday"><div class="dw">ثلاثاء</div><div class="dn num">٢٥</div><div class="dots"><i style="background:var(--s7)"></i></div></div>
+          <div class="calday"><div class="dw">أربعاء</div><div class="dn num">٢٦</div><div class="dots"></div></div>
+          <div class="calday"><div class="dw">خميس</div><div class="dn num">٢٧</div><div class="dots"><i style="background:var(--good)"></i></div></div>
+          <div class="calday"><div class="dw">جمعة</div><div class="dn num">٢٨</div><div class="dots"></div></div>
+          <div class="calday"><div class="dw">سبت</div><div class="dn num">٢٩</div><div class="dots"><i style="background:var(--s3)"></i></div></div>
+          <div class="calday"><div class="dw">أحد</div><div class="dn num">٣٠</div><div class="dots"></div></div>
+          <div class="calday"><div class="dw">اثنين</div><div class="dn num">٣١</div><div class="dots"></div></div>
+        </div>
+        <div class="callegend">
+          <span><i style="background:var(--good)"></i>راتب</span>
+          <span><i style="background:var(--s7)"></i>فاتورة مستحقة</span>
+          <span><i style="background:var(--s2)"></i>قسط</span>
+          <span><i style="background:var(--s3)"></i>تحويل ادخار</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== بطاقات مختصرة ===== -->
+    <div class="tiles">
+      <div class="tile">
+        <div class="top"><span class="k">الدخل</span><span class="ico" style="background:rgba(12,163,12,.11);color:var(--good-text)"><svg class="i"><use href="#i-trend"/></svg></span></div>
+        <div class="v num">٨٬٠٠٠ ر.س</div><div class="d">راتب + دخل إضافي</div>
+      </div>
+      <div class="tile">
+        <div class="top"><span class="k">المصاريف</span><span class="ico" style="background:rgba(42,120,214,.11);color:var(--s1)"><svg class="i"><use href="#i-cart"/></svg></span></div>
+        <div class="v num">١٬٠٧٠ ر.س</div><div class="d dn"><svg class="i" style="width:12px;height:12px"><use href="#i-check"/></svg> أقل ١٢٪ عن الشهر الماضي</div>
+      </div>
+      <div class="tile">
+        <div class="top"><span class="k">المحجوز</span><span class="ico" style="background:rgba(74,58,167,.1);color:var(--s7)"><svg class="i"><use href="#i-lock"/></svg></span></div>
+        <div class="v num">٣٬٤٥٠ ر.س</div><div class="d">٥ فواتير · قسطين</div>
+      </div>
+      <div class="tile">
+        <div class="top"><span class="k">الادخار</span><span class="ico" style="background:rgba(27,175,122,.11);color:var(--s3)"><svg class="i"><use href="#i-pig"/></svg></span></div>
+        <div class="v num">٥٠٠ ر.س</div><div class="d">٦٪ من دخلك · الهدف ١٠٪</div>
+      </div>
+    </div>
+
+    <!-- ===== الرسوم ===== -->
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>وين راحت مصاريفك؟</h3><a class="link" href="#">جدول البيانات</a></div>
+        <div class="card-b">
+          <div class="donutwrap">
+            <div class="donut" style="width:132px;height:132px">
+              <svg viewBox="0 0 42 42" width="132" height="132" style="transform:rotate(-90deg)">
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--surface-2)" stroke-width="5"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--s1)" stroke-width="5" stroke-dasharray="30 70" stroke-dashoffset="0"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--s2)" stroke-width="5" stroke-dasharray="21 79" stroke-dashoffset="-31"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--s3)" stroke-width="5" stroke-dasharray="17 83" stroke-dashoffset="-53"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--s4)" stroke-width="5" stroke-dasharray="13 87" stroke-dashoffset="-71"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--s5)" stroke-width="5" stroke-dasharray="10 90" stroke-dashoffset="-85"/>
+                <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--s6)" stroke-width="5" stroke-dasharray="7 93" stroke-dashoffset="-96"/>
+              </svg>
+              <div class="mid"><div class="v num">١٬٠٧٠</div><div class="k">ر.س</div></div>
+            </div>
+            <div class="catlist">
+              <div class="catrow"><span class="catico" style="background:rgba(42,120,214,.12);color:var(--s1)"><svg><use href="#i-utensils"/></svg></span><span class="nm">طعام</span><span class="amt num">٣٢١</span><span class="pc num">٣٠٪</span></div>
+              <div class="catrow"><span class="catico" style="background:rgba(235,104,52,.12);color:var(--s2)"><svg><use href="#i-car"/></svg></span><span class="nm">مواصلات</span><span class="amt num">٢٢٥</span><span class="pc num">٢١٪</span></div>
+              <div class="catrow"><span class="catico" style="background:rgba(27,175,122,.12);color:var(--s3)"><svg><use href="#i-game"/></svg></span><span class="nm">ترفيه</span><span class="amt num">١٨٢</span><span class="pc num">١٧٪</span></div>
+              <div class="catrow"><span class="catico" style="background:rgba(237,161,0,.14);color:#a06e00"><svg><use href="#i-health"/></svg></span><span class="nm">صحة</span><span class="amt num">١٣٩</span><span class="pc num">١٣٪</span></div>
+              <div class="catrow"><span class="catico" style="background:rgba(232,123,164,.14);color:#b34f76"><svg><use href="#i-cap"/></svg></span><span class="nm">تعليم</span><span class="amt num">١٠٧</span><span class="pc num">١٠٪</span></div>
+              <div class="catrow"><span class="catico" style="background:rgba(0,131,0,.11);color:var(--s6)"><svg><use href="#i-dots"/></svg></span><span class="nm">أخرى</span><span class="amt num">٩٦</span><span class="pc num">٩٪</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>الدخل مقابل المصاريف — ٦ أشهر</h3><a class="link" href="#">آخر ١٢ شهر</a></div>
+        <div class="card-b">
+          <div class="bars">
+            <div class="barcol"><div class="barpair"><span style="height:100%;background:var(--s3);opacity:.42"></span><span style="height:48%;background:var(--s1);opacity:.42"></span></div><span class="lb">مارس</span></div>
+            <div class="barcol"><div class="barpair"><span style="height:100%;background:var(--s3);opacity:.42"></span><span style="height:57%;background:var(--s1);opacity:.42"></span></div><span class="lb">أبريل</span></div>
+            <div class="barcol"><div class="barpair"><span style="height:100%;background:var(--s3);opacity:.42"></span><span style="height:52%;background:var(--s1);opacity:.42"></span></div><span class="lb">مايو</span></div>
+            <div class="barcol"><div class="barpair"><span style="height:100%;background:var(--s3);opacity:.42"></span><span style="height:56%;background:var(--s1);opacity:.42"></span></div><span class="lb">يونيو</span></div>
+            <div class="barcol"><div class="barpair"><span style="height:100%;background:var(--s3);opacity:.42"></span><span style="height:60%;background:var(--s1);opacity:.42"></span></div><span class="lb">يوليو</span></div>
+            <div class="barcol cur"><div class="barpair"><span style="height:100%;background:var(--s3)"></span><span style="height:36%;background:var(--s1)"></span></div><span class="lb">أغسطس</span></div>
+          </div>
+          <div class="chartlegend">
+            <span><i style="background:var(--s3)"></i>دخل</span>
+            <span><i style="background:var(--s1)"></i>مصاريف</span>
+            <span style="color:var(--muted)">الشهر الحالي بلون كامل</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== الميزانية حسب الفئة ===== -->
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-h"><h3>ميزانيتك حسب الفئة</h3><a class="link" href="#">تعديل الميزانية <svg class="i" style="width:13px;height:13px"><use href="#i-arrowl"/></svg></a></div>
+      <div class="card-b">
+        <div class="budgrid">
+          <div class="budrow">
+            <span class="catico" style="background:rgba(42,120,214,.12);color:var(--s1)"><svg><use href="#i-utensils"/></svg></span>
+            <div class="body">
+              <div class="l1"><span class="nm">طعام</span><span class="pill ok"><svg><use href="#i-check"/></svg> آمن</span></div>
+              <div class="track"><i style="width:64%;background:var(--s1)"></i></div>
+              <div class="l2"><span class="num">٣٢١ من ٥٠٠ ر.س</span><span class="num">باقي ١٧٩</span></div>
+            </div>
+          </div>
+          <div class="budrow">
+            <span class="catico" style="background:rgba(235,104,52,.12);color:var(--s2)"><svg><use href="#i-car"/></svg></span>
+            <div class="body">
+              <div class="l1"><span class="nm">مواصلات</span><span class="pill warn"><svg><use href="#i-alert"/></svg> اقترب</span></div>
+              <div class="track"><i style="width:90%;background:var(--warning)"></i></div>
+              <div class="l2"><span class="num">٢٢٥ من ٢٥٠ ر.س</span><span class="num">باقي ٢٥</span></div>
+            </div>
+          </div>
+          <div class="budrow">
+            <span class="catico" style="background:rgba(27,175,122,.12);color:var(--s3)"><svg><use href="#i-game"/></svg></span>
+            <div class="body">
+              <div class="l1"><span class="nm">ترفيه</span><span class="pill bad"><svg><use href="#i-alert"/></svg> تجاوزت</span></div>
+              <div class="track"><i style="width:100%;background:var(--critical)"></i></div>
+              <div class="l2"><span class="num">١٨٢ من ١٥٠ ر.س</span><span class="num" style="color:var(--critical)">تجاوز ٣٢</span></div>
+            </div>
+          </div>
+          <div class="budrow">
+            <span class="catico" style="background:rgba(237,161,0,.14);color:#a06e00"><svg><use href="#i-health"/></svg></span>
+            <div class="body">
+              <div class="l1"><span class="nm">صحة</span><span class="pill ok"><svg><use href="#i-check"/></svg> آمن</span></div>
+              <div class="track"><i style="width:46%;background:var(--s4)"></i></div>
+              <div class="l2"><span class="num">١٣٩ من ٣٠٠ ر.س</span><span class="num">باقي ١٦١</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== آخر المعاملات ===== -->
+    <div class="card">
+      <div class="card-h"><h3>آخر المعاملات</h3><a class="link" href="#">عرض الكل</a></div>
+      <table>
+        <thead><tr><th>الوصف</th><th>الفئة</th><th>التاريخ</th><th style="text-align:end">المبلغ</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="txnname"><span class="catico" style="width:24px;height:24px;background:rgba(42,120,214,.12);color:var(--s1)"><svg style="width:13px;height:13px"><use href="#i-utensils"/></svg></span> عشاء مطعم</span></td>
+            <td style="color:var(--ink-2)">طعام</td><td style="color:var(--muted)" class="num">١٧ أغسطس</td>
+            <td style="text-align:end" class="amt-out num">− ٨٥ ر.س</td>
+          </tr>
+          <tr>
+            <td><span class="txnname"><span class="catico" style="width:24px;height:24px;background:rgba(12,163,12,.11);color:var(--good-text)"><svg style="width:13px;height:13px"><use href="#i-trend"/></svg></span> عمل حر</span></td>
+            <td style="color:var(--ink-2)">دخل إضافي</td><td style="color:var(--muted)" class="num">١٦ أغسطس</td>
+            <td style="text-align:end" class="amt-in num">+ ٦٠٠ ر.س</td>
+          </tr>
+          <tr>
+            <td><span class="txnname"><span class="catico" style="width:24px;height:24px;background:rgba(235,104,52,.12);color:var(--s2)"><svg style="width:13px;height:13px"><use href="#i-car"/></svg></span> بنزين</span></td>
+            <td style="color:var(--ink-2)">مواصلات</td><td style="color:var(--muted)" class="num">١٥ أغسطس</td>
+            <td style="text-align:end" class="amt-out num">− ١٢٠ ر.س</td>
+          </tr>
+          <tr>
+            <td><span class="txnname"><span class="catico" style="width:24px;height:24px;background:rgba(74,58,167,.1);color:var(--s7)"><svg style="width:13px;height:13px"><use href="#i-zap"/></svg></span> فاتورة كهرباء</span></td>
+            <td style="color:var(--ink-2)">فواتير</td><td style="color:var(--muted)" class="num">١٤ أغسطس</td>
+            <td style="text-align:end" class="amt-out num">− ٤٥٠ ر.س</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- زر الإضافة السريعة -->
+<div class="fab" id="fab">
+  <div class="fabmenu">
+    <button class="fabitem"><span class="dot" style="background:var(--s1)"><svg class="i"><use href="#i-cart"/></svg></span> مصروف</button>
+    <button class="fabitem"><span class="dot" style="background:var(--good)"><svg class="i"><use href="#i-trend"/></svg></span> دخل</button>
+    <button class="fabitem"><span class="dot" style="background:var(--s7)"><svg class="i"><use href="#i-receipt"/></svg></span> فاتورة</button>
+    <button class="fabitem"><span class="dot" style="background:var(--s3)"><svg class="i"><use href="#i-pig"/></svg></span> ادخار</button>
+  </div>
+  <button class="fabbtn" id="fabbtn" aria-label="إضافة سريعة"><svg class="i"><use href="#i-plus"/></svg></button>
+</div>
+</section>
+
+<script>
+document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>{
+  const id=b.dataset.go;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected', t.dataset.go===id));
+  window.scrollTo(0,0);
+}));
+document.getElementById('fabbtn').addEventListener('click',()=>document.getElementById('fab').classList.toggle('open'));
+document.getElementById('tt').addEventListener('click',()=>{
+  const r=document.documentElement;
+  const d=r.dataset.theme==='dark';
+  r.dataset.theme=d?'light':'dark';
+  document.getElementById('tt').innerHTML = d
+    ? '<svg class="i"><use href="#i-moon"/></svg> الوضع الداكن'
+    : '<svg class="i"><use href="#i-moon"/></svg> الوضع الفاتح';
+});
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('on')));
+</script>
+</body>
+</html>
