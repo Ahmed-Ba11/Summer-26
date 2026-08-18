@@ -104,14 +104,90 @@
 - TailwindCSS
 
 # Design system
-mobile first
-read DESIGN.md file
 
-# Fronted Pages
+- التطبيق **عربي RTL بالكامل** و **mobile first**.
+- `DESIGN.md` هو نظام التصميم الملزم — اقرأه قبل أي عمل على الواجهة.
+- `docs/redesign/mockup.html` هو **المرجع البصري النهائي المعتمد**. عند أي
+  تعارض بين اجتهادك وبين النموذج، النموذج يفوز.
+- `docs/redesign/PROMPT.md` هو خطة إعادة التصميم الكاملة: ما يُحذف، ما يُعدّل،
+  ما يُضاف، ومعايير القبول.
+
+# Frontend Pages
+
+| المسار | الملف | الحالة |
+|---|---|---|
+| `/onboarding` | `pages/Onboarding.svelte` | جديد — معالج إعداد ٣ خطوات، إلزامي للمستخدم الجديد |
+| `/dashboard` | `pages/Dashboard.svelte` | أُعيد بناؤها — لا تعدّلها بلا مراجعة `PROMPT.md` |
+| `/income` | `pages/Income.svelte` | قائمة — تحتاج تعديلات القسم ٥.٤ |
+| `/budgets` | `pages/Budgets.svelte` | قائمة — تحتاج تعديلات القسم ٥.٢ |
+| `/expenses` | `pages/Expenses.svelte` | قائمة — تحتاج تعديلات القسم ٥.٣ |
+| `/bills` | `pages/Bills.svelte` | قائمة — تحتاج تعديلات القسم ٥.٥ |
+| `/installments` | `pages/Installments.svelte` | قائمة — تحتاج تعديلات القسم ٥.٥ |
+| `/savings` | `pages/Savings.svelte` | قائمة — تحتاج تعديلات القسم ٥.٦ |
+| `/reports` | `pages/Reports.svelte` | جديد — تقارير قابلة للتصدير PDF/Excel |
+| `/assistant` | `pages/Assistant.svelte` | جديد — هيكل واجهة جاهز، المنطق يُضاف لاحقاً |
+
+## المكوّنات المشتركة (جاهزة — لا تعيد كتابتها)
+
+`CategoryIcon` · `MoneyStoryCard` · `FlowBar` · `CategoryDonut` · `MonthlyBars`
+· `BudgetRow` · `StatTile` · `FinanceCalendar` · `EmptyState` · `AmountInput`
+· `QuickAddFab`
+
+كلها في `resources/js/components/`. **افحصها قبل كتابة أي مكوّن جديد** — الغالب
+أن ما تحتاجه موجود.
+
+# UI Hard Rules
+
+هذه قواعد ملزمة لكل عمل على الواجهة. مخالفتها تُعتبر خطأً يجب إصلاحه، لا
+اختياراً تصميمياً.
+
+1. **ممنوع الإيموجي في الواجهة.** كل الأيقونات `lucide-svelte` داخل حاوية
+   ملوّنة عبر `@/components/CategoryIcon.svelte`. عمود `categories.icon`
+   يخزّن اسم أيقونة lucide (مثل `"utensils"`) لا رمز إيموجي.
+
+2. **ممنوع أي خاصية اتجاهية مثبّتة.** استخدم `ms-` `me-` `ps-` `pe-`
+   `start-` `end-` `text-start` `text-end` `border-s` `border-e` بدل
+   `ml-` `mr-` `pl-` `pr-` `left-` `right-` `text-left` `text-right`
+   `border-l` `border-r`.
+
+3. **الأحمر والكهرماني والأخضر محجوزة للحالة والتحذير فقط.** ممنوع
+   استخدامها كألوان زينة. لون العلامة الوحيد `--primary` للكروم فقط ولا
+   يظهر في أي رسم بياني.
+
+4. **الحالة لا تُنقل باللون وحده أبداً** — كل حالة تحمل أيقونة + نص.
+
+5. **ممنوع أي بيانات وهمية كقيم افتراضية في أي مكوّن.** القيم الافتراضية
+   فارغة (`0`, `[]`, `{}`)، والفراغ يُعرض عبر `@/components/EmptyState.svelte`.
+   عرض أرقام كاذبة لمستخدم بلا بيانات هو أخطر ما يفعله تطبيق مالي.
+
+6. **ممنوع مكتبة رسوم بيانية خارجية.** كل الرسوم بـ SVG و CSS خالصين.
+   **محور واحد فقط** — ممنوع محوران رأسيان بمقياسين مختلفين.
+
+7. **كل المودالات تستخدم `@/components/ui/dialog`** — تُغلق بـ `Esc`، وتحصر
+   التركيز، وتعيده للزر عند الإغلاق. **ممنوع `svelte-ignore a11y_*`**؛ كل
+   ظهور له يخفي مشكلة وصولية حقيقية.
+
+8. **كل الجداول تتحوّل لبطاقات مكدّسة على الجوال** — صفر تمرير أفقي.
+   (`hidden md:table` للجدول، `md:hidden` لقائمة البطاقات.)
+
+9. **كل المبالغ مخزّنة بالهللات (integer).** كل التحويل والعرض يمرّ حصراً
+   عبر `@/lib/format`. ممنوع كتابة دالة تنسيق محلية في أي صفحة.
+
+10. **ممنوع فلتر أو زر معروض لا يعمل فعلاً.** الوعد الكاذب أسوأ من غياب
+    الميزة. أي فلتر شهر يجب أن يعيد الطلب للسيرفر، لا أن يغيّر متغيّراً محلياً.
+
+11. **الأرقام اللاتينية والتقويم الميلادي** — `ar-SA-u-nu-latn` و
+    `-u-ca-gregory`. كل عمود جدول يحمل `tabular-nums`.
 
 # Instructions
 
 1. Before doing anything related to a framework or tool ensure you have enough information or about it read the docs using the context7 mcp server
+
+2. قبل اعتبار أي صفحة واجهة منتهية، افتح `docs/redesign/mockup.html` وقارن
+   الألوان والمسافات وبنية المكوّنات. النموذج هو المرجع، لا اجتهادك.
+
+3. بعد أي تعديل على الواجهة، شغّل `npm run build` وتأكّد من عدم وجود أخطاء
+   قبل الانتقال للمهمة التالية.
 
 ===
 
