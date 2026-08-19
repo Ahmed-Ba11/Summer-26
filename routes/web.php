@@ -14,6 +14,7 @@ use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Installment;
 use App\Models\SavingsGoal;
+use App\Services\BudgetGuard;
 use App\Services\RecurringTransactionService;
 use App\Support\Money;
 use Illuminate\Http\Request;
@@ -111,7 +112,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'next_due_date' => 'nullable|date',
         ]);
 
-        DB::transaction(function () use ($validated, $recurring): void {
+        $expense = DB::transaction(function () use ($validated, $recurring): Expense {
             $expense = auth()->user()->expenses()->create([
                 'category_id' => $validated['category_id'],
                 'amount' => Money::toHalalas($validated['amount']),
@@ -127,9 +128,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
                     $validated['next_due_date'] ?? null,
                 );
             }
+
+            return $expense;
         });
 
-        return redirect()->back();
+        $warnings = BudgetGuard::for(auth()->user())->inspectExpense(
+            (int) $expense->amount,
+            (int) $expense->category_id,
+            substr((string) $validated['expense_date'], 0, 7),
+        );
+
+        return redirect()->back()->with('warnings', $warnings);
     })->name('expenses.store');
 
     Route::put('/expenses/{expense}', function (Request $request, Expense $expense, RecurringTransactionService $recurring) {
@@ -369,9 +378,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'alert_percentage' => 'nullable|integer|min:1|max:100',
         ]);
 
-        auth()->user()->budgets()->updateOrCreate(
-            ['category_id' => $validated['category_id'], 'month' => $validated['month'] ?? now()->format('Y-m')],
-            ['amount' => Money::toHalalas($validated['amount']), 'alert_percentage' => $validated['alert_percentage'] ?? 80]
+        $user = auth()->user();
+        $month = $validated['month'] ?? now()->format('Y-m');
+        $amount = Money::toHalalas($validated['amount']);
+        $previousAmount = (int) $user->budgets()
+            ->where('category_id', $validated['category_id'])
+            ->where('month', $month)
+            ->value('amount');
+
+        BudgetGuard::for($user)->assertBudgetFits($amount, $previousAmount, $month);
+
+        $user->budgets()->updateOrCreate(
+            ['category_id' => $validated['category_id'], 'month' => $month],
+            ['amount' => $amount, 'alert_percentage' => $validated['alert_percentage'] ?? 80]
         );
 
         return redirect()->back();
@@ -457,10 +476,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'target_date' => 'nullable|date',
         ]);
 
+        $targetAmount = Money::toHalalas($validated['target_amount']);
+        if (! empty($validated['target_date'])) {
+            BudgetGuard::for(auth()->user())->assertSavingsGoalFits(
+                $targetAmount,
+                0,
+                $validated['target_date'],
+            );
+        }
+
         auth()->user()->savingsGoals()->create([
             'name' => $validated['name'],
             'icon' => $validated['icon'] ?? null,
-            'target_amount' => Money::toHalalas($validated['target_amount']),
+            'target_amount' => $targetAmount,
             'current_amount' => 0,
             'target_date' => $validated['target_date'] ?? null,
             'is_completed' => false,
@@ -555,11 +583,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'start_date' => 'required|date_format:Y-m',
         ]);
 
+        $monthlyAmount = Money::toHalalas($validated['monthly_amount']);
+        BudgetGuard::for(auth()->user())->assertCommitmentFits($monthlyAmount, 0, 'monthly_amount');
+
         auth()->user()->installments()->create([
             'name' => $validated['name'],
             'reason' => $validated['reason'] ?? null,
             'icon' => $validated['icon'] ?? null,
-            'monthly_amount' => Money::toHalalas($validated['monthly_amount']),
+            'monthly_amount' => $monthlyAmount,
             'total_amount' => Money::toHalalas($validated['total_amount']),
             'paid_months' => 0,
             'total_months' => $validated['total_months'],
@@ -635,10 +666,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'account_number' => 'nullable|string|max:255',
         ]);
 
+        $amount = isset($validated['amount']) ? Money::toHalalas($validated['amount']) : null;
+        if ($amount !== null) {
+            BudgetGuard::for(auth()->user())->assertCommitmentFits($amount, 0, 'amount');
+        }
+
         auth()->user()->bills()->create([
             'name' => $validated['name'],
             'icon' => $validated['icon'] ?? null,
-            'amount' => isset($validated['amount']) ? Money::toHalalas($validated['amount']) : null,
+            'amount' => $amount,
             'due_date' => $validated['due_date'],
             'account_number' => $validated['account_number'] ?? null,
             'is_paid' => false,
