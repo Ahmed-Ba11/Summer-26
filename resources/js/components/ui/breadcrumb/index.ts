@@ -1,4 +1,4 @@
-import Root from "./breadcrumb.svelte";
+import Root from "./Breadcrumb.svelte";
 import Ellipsis from "./breadcrumb-ellipsis.svelte";
 import Item from "./breadcrumb-item.svelte";
 import Separator from "./breadcrumb-separator.svelte";

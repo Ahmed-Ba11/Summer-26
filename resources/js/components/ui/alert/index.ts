@@ -1,4 +1,4 @@
-import Root from "./alert.svelte";
+import Root from "./Alert.svelte";
 import Description from "./alert-description.svelte";
 import Title from "./alert-title.svelte";
 import Action from "./alert-action.svelte";

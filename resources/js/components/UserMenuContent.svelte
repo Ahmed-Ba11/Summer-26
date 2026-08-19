@@ -29,7 +29,7 @@
 </script>
 
 <DropdownMenuLabel class="p-0 font-normal">
-    <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+    <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
         <UserInfo {user} showEmail={true} />
     </div>
 </DropdownMenuLabel>
@@ -38,10 +38,9 @@
     <DropdownMenuItem asChild>
         {#snippet children(props)}
             <Link
-                class={props?.class}
+                {...(props || {})}
                 href={toUrl(edit())}
                 prefetch
-                onclick={props?.onClick}
             >
                 <Settings class="me-2 h-4 w-4" />
                 Settings
@@ -53,10 +52,10 @@
 <DropdownMenuItem asChild>
     {#snippet children(props)}
         <Link
-            class={props?.class}
+            {...(props || {})}
             href={logout()}
             as="button"
-            onclick={handleLogout(props?.onClick)}
+            onclick={handleLogout(props?.onclick)}
             data-test="logout-button"
         >
             <LogOut class="me-2 h-4 w-4" />

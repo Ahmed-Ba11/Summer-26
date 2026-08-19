@@ -1,7 +1,7 @@
 import type { LinkComponentBaseProps } from '@inertiajs/core';
 import type { Component, SvelteComponent } from 'svelte';
 
-type NavIcon =
+export type IconComponent =
     | Component<{ class?: string }>
     | (new (...args: any[]) => SvelteComponent<{ class?: string }>);
 
@@ -13,7 +13,7 @@ export type BreadcrumbItem = {
 export type NavItem = {
     title: string;
     href: NonNullable<LinkComponentBaseProps['href']>;
-    icon?: NavIcon;
+    icon?: IconComponent;
     isActive?: boolean;
     badge?: number;
     tag?: string;

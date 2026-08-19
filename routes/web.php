@@ -1,6 +1,12 @@
 <?php
 
+use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\RecurringTransactionController;
+use App\Http\Controllers\ReportsController;
+use App\Http\Requests\ExpenseIndexRequest;
+use App\Http\Requests\IncomeIndexRequest;
 use App\Models\Bill;
 use App\Models\Budget;
 use App\Models\Category;
@@ -8,8 +14,12 @@ use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Installment;
 use App\Models\SavingsGoal;
+use App\Services\RecurringTransactionService;
+use App\Support\Money;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -18,26 +28,67 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
+    // Onboarding is available to authenticated users, but is not enforced by middleware.
+    Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
+    Route::post('/onboarding/income', [OnboardingController::class, 'income'])->name('onboarding.income');
+    Route::post('/onboarding/commitments', [OnboardingController::class, 'commitments'])->name('onboarding.commitments');
+    Route::post('/onboarding/budget', [OnboardingController::class, 'budget'])->name('onboarding.budget');
+
     // Expenses
-    Route::get('/expenses', function () {
+    Route::get('/expenses', function (ExpenseIndexRequest $request) {
         $user = auth()->user();
-        $expenses = $user->expenses()->with('category')->latest('expense_date')->paginate(10);
+        $filters = $request->validated();
+        $sort = $filters['sort'] ?? 'date';
+        $direction = $filters['direction'] ?? 'desc';
+        $query = $user->expenses()->with('category');
+
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function ($query) use ($search): void {
+                $query->where('description', 'like', "%{$search}%")
+                    ->orWhereHas('category', fn ($category) => $category->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        if (! empty($filters['category'])) {
+            $query->whereHas('category', fn ($category) => $category->where('name', $filters['category']));
+        }
+
+        if (filter_var($filters['recurring'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $query->where('is_recurring', true);
+        }
+
+        $expenses = $query
+            ->orderBy($sort === 'amount' ? 'amount' : 'expense_date', $direction)
+            ->paginate(10)
+            ->withQueryString();
         $categories = Category::where(function ($q) use ($user) {
             $q->where('user_id', $user->id)->orWhereNull('user_id');
         })->get();
         $recurringCount = $user->recurringTransactions()->where('type', 'expense')->active()->count();
+        $recurringExpenses = $user->expenses()->with('category')->where('is_recurring', true)->latest('expense_date')->get();
+        $mapExpense = static fn (Expense $expense): array => [
+            'id' => $expense->id,
+            'description' => $expense->description,
+            'category' => $expense->category?->name,
+            'amount' => (int) $expense->amount,
+            'date' => $expense->expense_date->format('Y-m-d'),
+            'is_recurring' => $expense->is_recurring,
+        ];
 
         return Inertia::render('Expenses', [
-            'expenses' => $expenses->through(fn ($e) => [
-                'id' => $e->id,
-                'description' => $e->description,
-                'category' => $e->category?->name,
-                'amount' => (int) $e->amount,
-                'date' => $e->expense_date->format('Y-m-d'),
-                'is_recurring' => $e->is_recurring,
-            ])->items(),
+            'expenses' => $expenses->through($mapExpense)->items(),
             'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]),
             'recurringCount' => $recurringCount,
+            'recurringExpenses' => $recurringExpenses->map($mapExpense)->values(),
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'category' => $filters['category'] ?? null,
+                'recurring' => filter_var($filters['recurring'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'sort' => $sort,
+                'direction' => $direction,
+                'page' => $expenses->currentPage(),
+            ],
             'pagination' => [
                 'current_page' => $expenses->currentPage(),
                 'last_page' => $expenses->lastPage(),
@@ -46,71 +97,142 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('expenses');
 
-    Route::post('/expenses', function (Request $request) {
+    Route::post('/expenses', function (Request $request, RecurringTransactionService $recurring) {
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01',
-            'category_id' => 'required|exists:categories,id',
+            'amount' => 'required|numeric|min:0.01|decimal:0,2',
+            'category_id' => [
+                'required',
+                Rule::exists(Category::class, 'id')->where('user_id', auth()->id()),
+            ],
             'description' => 'nullable|string|max:500',
             'expense_date' => 'required|date',
+            'is_recurring' => 'sometimes|boolean',
+            'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
+            'next_due_date' => 'nullable|date',
         ]);
 
-        auth()->user()->expenses()->create([
-            'category_id' => $validated['category_id'],
-            'amount' => (int) ($validated['amount'] * 100),
-            'description' => $validated['description'],
-            'expense_date' => $validated['expense_date'],
-        ]);
+        DB::transaction(function () use ($validated, $recurring): void {
+            $expense = auth()->user()->expenses()->create([
+                'category_id' => $validated['category_id'],
+                'amount' => Money::toHalalas($validated['amount']),
+                'description' => $validated['description'] ?? null,
+                'expense_date' => $validated['expense_date'],
+                'is_recurring' => $validated['is_recurring'] ?? false,
+            ]);
+
+            if ($expense->is_recurring) {
+                $recurring->createFromExpense(
+                    $expense,
+                    $validated['frequency'] ?? 'monthly',
+                    $validated['next_due_date'] ?? null,
+                );
+            }
+        });
 
         return redirect()->back();
     })->name('expenses.store');
 
-    Route::put('/expenses/{expense}', function (Request $request, Expense $expense) {
+    Route::put('/expenses/{expense}', function (Request $request, Expense $expense, RecurringTransactionService $recurring) {
         if ($expense->user_id !== auth()->id()) {
             abort(403);
         }
 
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01',
-            'category_id' => 'required|exists:categories,id',
+            'amount' => 'required|numeric|min:0.01|decimal:0,2',
+            'category_id' => [
+                'required',
+                Rule::exists(Category::class, 'id')->where('user_id', auth()->id()),
+            ],
             'description' => 'nullable|string|max:500',
             'expense_date' => 'required|date',
+            'is_recurring' => 'sometimes|boolean',
+            'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
+            'next_due_date' => 'nullable|date',
         ]);
 
-        $expense->update([
-            'category_id' => $validated['category_id'],
-            'amount' => (int) ($validated['amount'] * 100),
-            'description' => $validated['description'],
-            'expense_date' => $validated['expense_date'],
-        ]);
+        DB::transaction(function () use ($validated, $expense, $recurring): void {
+            $expense->update([
+                'category_id' => $validated['category_id'],
+                'amount' => Money::toHalalas($validated['amount']),
+                'description' => $validated['description'] ?? null,
+                'expense_date' => $validated['expense_date'],
+                'is_recurring' => $validated['is_recurring'] ?? $expense->is_recurring,
+            ]);
+
+            $recurring->syncExpense(
+                $expense->refresh(),
+                $validated['frequency'] ?? null,
+                $validated['next_due_date'] ?? null,
+            );
+        });
 
         return redirect()->back();
     })->name('expenses.update');
 
-    Route::delete('/expenses/{expense}', function (Expense $expense) {
+    Route::delete('/expenses/{expense}', function (Expense $expense, RecurringTransactionService $recurring) {
         if ($expense->user_id !== auth()->id()) {
             abort(403);
         }
-        $expense->delete();
+        DB::transaction(function () use ($expense, $recurring): void {
+            $recurring->detachExpense($expense);
+            $expense->delete();
+        });
 
         return redirect()->back();
     })->name('expenses.destroy');
 
     // Income
-    Route::get('/income', function () {
+    Route::get('/income', function (IncomeIndexRequest $request) {
         $user = auth()->user();
-        $incomes = $user->incomes()->latest('income_date')->paginate(10);
+        $filters = $request->validated();
+        $sort = $filters['sort'] ?? 'date';
+        $direction = $filters['direction'] ?? 'desc';
+        $query = $user->incomes();
+
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function ($query) use ($search): void {
+                $query->where('description', 'like', "%{$search}%")
+                    ->orWhere('source', 'like', "%{$search}%");
+            });
+        }
+
+        if (! empty($filters['source'])) {
+            $query->where('source', $filters['source']);
+        }
+
+        if (filter_var($filters['recurring'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $query->where('is_recurring', true);
+        }
+
+        $incomes = $query
+            ->orderBy($sort === 'amount' ? 'amount' : 'income_date', $direction)
+            ->paginate(10)
+            ->withQueryString();
         $recurringCount = $user->recurringTransactions()->where('type', 'income')->active()->count();
+        $recurringIncomes = $user->incomes()->where('is_recurring', true)->latest('income_date')->get();
+        $mapIncome = static fn (Income $income): array => [
+            'id' => $income->id,
+            'description' => $income->description ?? $income->source,
+            'source' => $income->source,
+            'amount' => (int) $income->amount,
+            'date' => $income->income_date->format('Y-m-d'),
+            'is_recurring' => $income->is_recurring,
+        ];
 
         return Inertia::render('Income', [
-            'incomes' => $incomes->through(fn ($i) => [
-                'id' => $i->id,
-                'description' => $i->description ?? $i->source,
-                'source' => $i->source,
-                'amount' => (int) $i->amount,
-                'date' => $i->income_date->format('Y-m-d'),
-                'is_recurring' => $i->is_recurring,
-            ]),
+            'incomes' => $incomes->through($mapIncome),
             'recurringCount' => $recurringCount,
+            'recurringIncomes' => $recurringIncomes->map($mapIncome)->values(),
+            'sources' => $user->incomes()->distinct()->orderBy('source')->pluck('source')->values(),
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'source' => $filters['source'] ?? null,
+                'recurring' => filter_var($filters['recurring'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'sort' => $sort,
+                'direction' => $direction,
+                'page' => $incomes->currentPage(),
+            ],
             'pagination' => [
                 'current_page' => $incomes->currentPage(),
                 'last_page' => $incomes->lastPage(),
@@ -119,50 +241,79 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('income');
 
-    Route::post('/income', function (Request $request) {
+    Route::post('/income', function (Request $request, RecurringTransactionService $recurring) {
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric|min:0.01|decimal:0,2',
             'source' => 'required|string|max:500',
             'description' => 'nullable|string|max:500',
             'income_date' => 'required|date',
+            'is_recurring' => 'sometimes|boolean',
+            'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
+            'next_due_date' => 'nullable|date',
         ]);
 
-        auth()->user()->incomes()->create([
-            'amount' => (int) ($validated['amount'] * 100),
-            'source' => $validated['source'],
-            'description' => $validated['description'],
-            'income_date' => $validated['income_date'],
-        ]);
+        DB::transaction(function () use ($validated, $recurring): void {
+            $income = auth()->user()->incomes()->create([
+                'amount' => Money::toHalalas($validated['amount']),
+                'source' => $validated['source'],
+                'description' => $validated['description'] ?? null,
+                'income_date' => $validated['income_date'],
+                'is_recurring' => $validated['is_recurring'] ?? false,
+            ]);
+
+            if ($income->is_recurring) {
+                $recurring->createFromIncome(
+                    $income,
+                    $validated['frequency'] ?? 'monthly',
+                    $validated['next_due_date'] ?? null,
+                );
+            }
+        });
 
         return redirect()->back();
     })->name('income.store');
 
-    Route::put('/income/{income}', function (Request $request, Income $income) {
+    Route::put('/income/{income}', function (Request $request, Income $income, RecurringTransactionService $recurring) {
         if ($income->user_id !== auth()->id()) {
             abort(403);
         }
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric|min:0.01|decimal:0,2',
             'source' => 'required|string|max:500',
             'description' => 'nullable|string|max:500',
             'income_date' => 'required|date',
+            'is_recurring' => 'sometimes|boolean',
+            'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
+            'next_due_date' => 'nullable|date',
         ]);
 
-        $income->update([
-            'amount' => (int) ($validated['amount'] * 100),
-            'source' => $validated['source'],
-            'description' => $validated['description'],
-            'income_date' => $validated['income_date'],
-        ]);
+        DB::transaction(function () use ($validated, $income, $recurring): void {
+            $income->update([
+                'amount' => Money::toHalalas($validated['amount']),
+                'source' => $validated['source'],
+                'description' => $validated['description'] ?? null,
+                'income_date' => $validated['income_date'],
+                'is_recurring' => $validated['is_recurring'] ?? $income->is_recurring,
+            ]);
+
+            $recurring->syncIncome(
+                $income->refresh(),
+                $validated['frequency'] ?? null,
+                $validated['next_due_date'] ?? null,
+            );
+        });
 
         return redirect()->back();
     })->name('income.update');
 
-    Route::delete('/income/{income}', function (Income $income) {
+    Route::delete('/income/{income}', function (Income $income, RecurringTransactionService $recurring) {
         if ($income->user_id !== auth()->id()) {
             abort(403);
         }
-        $income->delete();
+        DB::transaction(function () use ($income, $recurring): void {
+            $recurring->detachIncome($income);
+            $income->delete();
+        });
 
         return redirect()->back();
     })->name('income.destroy');
@@ -209,15 +360,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/budgets', function (Request $request) {
         $validated = $request->validate([
-            'category_id' => 'required|exists:categories,id',
-            'amount' => 'required|numeric|min:0',
+            'category_id' => [
+                'required',
+                Rule::exists(Category::class, 'id')->where('user_id', auth()->id()),
+            ],
+            'amount' => 'required|numeric|min:0|decimal:0,2',
             'month' => 'nullable|string|size:7',
             'alert_percentage' => 'nullable|integer|min:1|max:100',
         ]);
 
         auth()->user()->budgets()->updateOrCreate(
             ['category_id' => $validated['category_id'], 'month' => $validated['month'] ?? now()->format('Y-m')],
-            ['amount' => (int) ($validated['amount'] * 100), 'alert_percentage' => $validated['alert_percentage'] ?? 80]
+            ['amount' => Money::toHalalas($validated['amount']), 'alert_percentage' => $validated['alert_percentage'] ?? 80]
         );
 
         return redirect()->back();
@@ -229,12 +383,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         }
 
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0',
+            'amount' => 'required|numeric|min:0|decimal:0,2',
             'alert_percentage' => 'nullable|integer|min:1|max:100',
         ]);
 
         $budget->update([
-            'amount' => (int) ($validated['amount'] * 100),
+            'amount' => Money::toHalalas($validated['amount']),
             'alert_percentage' => $validated['alert_percentage'] ?? $budget->alert_percentage,
         ]);
 
@@ -299,14 +453,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'icon' => 'nullable|string|max:50',
-            'target_amount' => 'required|numeric|min:0',
+            'target_amount' => 'required|numeric|min:0|decimal:0,2',
             'target_date' => 'nullable|date',
         ]);
 
         auth()->user()->savingsGoals()->create([
             'name' => $validated['name'],
             'icon' => $validated['icon'] ?? null,
-            'target_amount' => (int) ($validated['target_amount'] * 100),
+            'target_amount' => Money::toHalalas($validated['target_amount']),
             'current_amount' => 0,
             'target_date' => $validated['target_date'] ?? null,
             'is_completed' => false,
@@ -321,11 +475,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         }
 
         $validated = $request->validate([
-            'amount' => 'required|numeric|min:0',
+            'amount' => 'required|numeric|min:0.01|decimal:0,2',
         ]);
 
+        $addition = Money::toHalalas($validated['amount']);
+        $newAmount = (int) $goal->current_amount + $addition;
+
+        if ($goal->is_completed || $newAmount > (int) $goal->target_amount) {
+            abort(422, 'لا يمكن تجاوز هدف الادخار أو الإضافة بعد اكتماله.');
+        }
+
         $goal->update([
-            'current_amount' => (int) $goal->current_amount + (int) ($validated['amount'] * 100),
+            'current_amount' => $newAmount,
+            'is_completed' => $newAmount === (int) $goal->target_amount,
         ]);
 
         return redirect()->back();
@@ -387,18 +549,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'name' => 'required|string|max:255',
             'reason' => 'nullable|string|max:500',
             'icon' => 'nullable|string|max:50',
-            'monthly_amount' => 'required|numeric|min:0',
-            'total_amount' => 'required|numeric|min:0',
+            'monthly_amount' => 'required|numeric|min:0|decimal:0,2',
+            'total_amount' => 'required|numeric|min:0|decimal:0,2',
             'total_months' => 'required|integer|min:1',
-            'start_date' => 'required|string|size:7',
+            'start_date' => 'required|date_format:Y-m',
         ]);
 
         auth()->user()->installments()->create([
             'name' => $validated['name'],
             'reason' => $validated['reason'] ?? null,
             'icon' => $validated['icon'] ?? null,
-            'monthly_amount' => (int) ($validated['monthly_amount'] * 100),
-            'total_amount' => (int) ($validated['total_amount'] * 100),
+            'monthly_amount' => Money::toHalalas($validated['monthly_amount']),
+            'total_amount' => Money::toHalalas($validated['total_amount']),
             'paid_months' => 0,
             'total_months' => $validated['total_months'],
             'start_date' => $validated['start_date'],
@@ -411,6 +573,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/installments/{installment}/pay', function (Installment $installment) {
         if ($installment->user_id !== auth()->id()) {
             abort(403);
+        }
+
+        if ($installment->is_completed || $installment->paid_months >= $installment->total_months) {
+            abort(422, 'لا يمكن سداد قسط مكتمل.');
         }
 
         $newPaid = $installment->paid_months + 1;
@@ -464,7 +630,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'icon' => 'nullable|string|max:50',
-            'amount' => 'nullable|numeric|min:0',
+            'amount' => 'nullable|numeric|min:0|decimal:0,2',
             'due_date' => 'required|date',
             'account_number' => 'nullable|string|max:255',
         ]);
@@ -472,7 +638,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         auth()->user()->bills()->create([
             'name' => $validated['name'],
             'icon' => $validated['icon'] ?? null,
-            'amount' => isset($validated['amount']) ? (int) ($validated['amount'] * 100) : null,
+            'amount' => isset($validated['amount']) ? Money::toHalalas($validated['amount']) : null,
             'due_date' => $validated['due_date'],
             'account_number' => $validated['account_number'] ?? null,
             'is_paid' => false,
@@ -480,6 +646,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         return redirect()->back();
     })->name('bills.store');
+
+    Route::put('/bills/{bill}', function (Request $request, Bill $bill) {
+        if ($bill->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'icon' => 'nullable|string|max:50',
+            'amount' => 'nullable|numeric|min:0|decimal:0,2',
+            'due_date' => 'required|date',
+            'account_number' => 'nullable|string|max:255',
+            'is_paid' => 'sometimes|boolean',
+        ]);
+
+        $bill->update([
+            'name' => $validated['name'],
+            'icon' => $validated['icon'] ?? null,
+            'amount' => isset($validated['amount']) ? Money::toHalalas($validated['amount']) : null,
+            'due_date' => $validated['due_date'],
+            'account_number' => $validated['account_number'] ?? null,
+            'is_paid' => $validated['is_paid'] ?? $bill->is_paid,
+        ]);
+
+        return redirect()->back();
+    })->name('bills.update');
 
     Route::put('/bills/{bill}/pay', function (Bill $bill) {
         if ($bill->user_id !== auth()->id()) {
@@ -511,23 +703,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return redirect()->back();
     })->name('bills.destroy');
 
-    // Recurring
-    Route::get('/recurring', function () {
-        $user = auth()->user();
+    // Recurring transactions are templates only; no automatic processing is claimed yet.
+    Route::get('/recurring', [RecurringTransactionController::class, 'index'])->name('recurring');
+    Route::post('/recurring', [RecurringTransactionController::class, 'store'])->name('recurring.store');
+    Route::put('/recurring/{recurringTransaction}', [RecurringTransactionController::class, 'update'])->name('recurring.update');
+    Route::delete('/recurring/{recurringTransaction}', [RecurringTransactionController::class, 'destroy'])->name('recurring.destroy');
 
-        return Inertia::render('Recurring', [
-            'transactions' => $user->recurringTransactions()->with('category')->latest()->get()->map(fn ($r) => [
-                'id' => $r->id,
-                'type' => $r->type,
-                'description' => $r->description,
-                'category' => $r->category?->name,
-                'source' => $r->source,
-                'amount' => (int) $r->amount,
-                'frequency' => $r->frequency,
-                'next_due_date' => $r->next_due_date->format('Y-m-d'),
-                'is_active' => $r->is_active,
-            ]),
-        ]);
-    })->name('recurring');
+    // Reports
+    Route::get('/reports', [ReportsController::class, 'index'])->name('reports');
+    Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
+
+    // Assistant
+    Route::get('/assistant', AssistantController::class)->name('assistant');
+    Route::post('/assistant/chat', [AssistantController::class, 'chat'])
+        ->middleware('throttle:30,1')
+        ->name('assistant.chat');
 });
 require __DIR__.'/settings.php';

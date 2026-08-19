@@ -35,6 +35,13 @@ class User extends Authenticatable implements PasskeyUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
+    protected static function booted(): void
+    {
+        static::created(function (User $user): void {
+            $user->categories()->createMany(Category::defaultDefinitions());
+        });
+    }
+
     /**
      * Get the attributes that should be cast.
      *
@@ -73,6 +80,11 @@ class User extends Authenticatable implements PasskeyUser
     public function recurringTransactions(): HasMany
     {
         return $this->hasMany(RecurringTransaction::class);
+    }
+
+    public function assistantMessages(): HasMany
+    {
+        return $this->hasMany(AssistantMessage::class);
     }
 
     public function savingsGoals(): HasMany

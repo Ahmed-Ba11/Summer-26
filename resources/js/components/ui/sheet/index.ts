@@ -1,4 +1,4 @@
-import Root from "./sheet.svelte";
+import Root from "./Sheet.svelte";
 import Portal from "./sheet-portal.svelte";
 import Trigger from "./sheet-trigger.svelte";
 import Close from "./sheet-close.svelte";

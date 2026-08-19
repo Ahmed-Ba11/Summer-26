@@ -17,6 +17,7 @@ class Income extends Model
         'description',
         'income_date',
         'is_recurring',
+        'recurring_transaction_id',
     ];
 
     protected function casts(): array
@@ -25,11 +26,17 @@ class Income extends Model
             'income_date' => 'date',
             'amount' => 'integer',
             'is_recurring' => 'boolean',
+            'recurring_transaction_id' => 'integer',
         ];
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function recurringTransaction(): BelongsTo
+    {
+        return $this->belongsTo(RecurringTransaction::class);
     }
 }

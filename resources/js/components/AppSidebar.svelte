@@ -53,11 +53,11 @@
         { title: 'المصاريف', href: '/expenses', icon: ArrowRightLeft },
     ];
 
-    const commitments: NavItem[] = [
+    const commitments = $derived<NavItem[]>([
         { title: 'الفواتير', href: '/bills', icon: ReceiptText, badge: dueBills },
         { title: 'الأقساط', href: '/installments', icon: CreditCard },
         { title: 'الادخار', href: '/savings', icon: PiggyBank },
-    ];
+    ]);
 
     const tools: NavItem[] = [
         { title: 'التقارير', href: '/reports', icon: FileBarChart },

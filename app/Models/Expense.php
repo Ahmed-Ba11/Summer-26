@@ -17,6 +17,7 @@ class Expense extends Model
         'description',
         'expense_date',
         'is_recurring',
+        'recurring_transaction_id',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class Expense extends Model
             'expense_date' => 'date',
             'amount' => 'integer',
             'is_recurring' => 'boolean',
+            'recurring_transaction_id' => 'integer',
         ];
     }
 
@@ -36,5 +38,10 @@ class Expense extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function recurringTransaction(): BelongsTo
+    {
+        return $this->belongsTo(RecurringTransaction::class);
     }
 }

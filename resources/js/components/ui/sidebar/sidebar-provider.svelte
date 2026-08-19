@@ -12,13 +12,15 @@
 
 	let {
 		ref = $bindable(null),
-		open = $bindable(true),
+		defaultOpen = true,
+		open = $bindable(defaultOpen),
 		onOpenChange = () => {},
 		class: className,
 		style,
 		children,
 		...restProps
 	}: WithElementRef<HTMLAttributes<HTMLDivElement>> & {
+		defaultOpen?: boolean;
 		open?: boolean;
 		onOpenChange?: (open: boolean) => void;
 	} = $props();

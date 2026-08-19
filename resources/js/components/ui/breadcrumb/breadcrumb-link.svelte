@@ -8,10 +8,13 @@
 		class: className,
 		href = undefined,
 		child,
+		asChild = false,
 		children,
 		...restProps
-	}: WithElementRef<HTMLAnchorAttributes> & {
+	}: Omit<WithElementRef<HTMLAnchorAttributes>, "children"> & {
 		child?: Snippet<[{ props: HTMLAnchorAttributes }]>;
+		asChild?: boolean;
+		children?: Snippet<[HTMLAnchorAttributes]>;
 	} = $props();
 
 	const attrs = $derived({
@@ -22,10 +25,12 @@
 	});
 </script>
 
-{#if child}
-	{@render child({ props: attrs })}
-{:else}
-	<a bind:this={ref} {...attrs}>
-		{@render children?.()}
+	{#if child}
+		{@render child({ props: attrs })}
+	{:else if asChild}
+		{@render children?.(attrs)}
+	{:else}
+		<a bind:this={ref} {...attrs}>
+			{@render children?.({})}
 	</a>
 {/if}

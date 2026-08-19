@@ -71,7 +71,7 @@
                     تجاوزت دخلك بـ <b class="font-semibold">{formatCurrency(Math.abs(remaining))}</b> هذا الشهر
                 </p>
             {:else if daysLeft === 0}
-                <p class="mt-1.5 text-[12.5px] text-foreground/75">راتبك اليوم — ميزانية جديدة تبدأ 🎉</p>
+                <p class="mt-1.5 text-[12.5px] text-foreground/75">راتبك اليوم — ميزانية جديدة تبدأ</p>
             {:else}
                 <p class="mt-1.5 text-[12.5px] text-foreground/75">
                     تقدر تصرف

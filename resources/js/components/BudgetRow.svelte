@@ -46,14 +46,7 @@
     );
 </script>
 
-<svelte:element
-    this={onclick ? 'button' : 'div'}
-    type={onclick ? 'button' : undefined}
-    {onclick}
-    class="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-start transition-colors {onclick
-        ? 'cursor-pointer hover:bg-secondary'
-        : ''}"
->
+{#snippet content()}
     <CategoryIcon {icon} {color} size="md" />
 
     <div class="min-w-0 flex-1">
@@ -89,4 +82,18 @@
             {/if}
         </div>
     </div>
-</svelte:element>
+{/snippet}
+
+{#if onclick}
+    <button
+        type="button"
+        {onclick}
+        class="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-start transition-colors cursor-pointer hover:bg-secondary"
+    >
+        {@render content()}
+    </button>
+{:else}
+    <div class="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-start">
+        {@render content()}
+    </div>
+{/if}

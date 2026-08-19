@@ -9,6 +9,8 @@
      *   let amount = $state(0);        // بالهللات
      *   <AmountInput bind:value={amount} label="المبلغ" />
      */
+    import { onMount } from 'svelte';
+
     let {
         value = $bindable(0), // بالهللات
         label = 'المبلغ',
@@ -24,6 +26,14 @@
         autofocus?: boolean;
         id?: string;
     } = $props();
+
+    let inputElement: HTMLInputElement;
+
+    onMount(() => {
+        if (autofocus) {
+            inputElement?.focus();
+        }
+    });
 
     // نص العرض بالريالات — منفصل عن القيمة الحقيقية بالهللات
     let text = $state(value ? (value / 100).toString() : '');
@@ -49,14 +59,13 @@
             : 'border-input focus-within:border-ring'}"
     >
         <input
+            bind:this={inputElement}
             {id}
             type="text"
             inputmode="decimal"
-            dir="ltr"
             value={text}
             oninput={onInput}
             {placeholder}
-            {autofocus}
             aria-invalid={!!error}
             aria-describedby={error ? `${id}-error` : undefined}
             class="min-w-0 flex-1 bg-transparent px-3.5 py-2.5 text-xl font-semibold text-foreground tabular-nums outline-none placeholder:font-normal placeholder:text-muted-foreground"

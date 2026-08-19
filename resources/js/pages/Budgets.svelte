@@ -1,8 +1,6 @@
 <script module lang="ts">
     export const layout = {
-        breadcrumbs: [
-            { title: 'الميزانيات', href: '/budgets' },
-        ],
+        breadcrumbs: [{ title: 'الميزانيات', href: '/budgets' }],
     };
 </script>
 
@@ -17,6 +15,11 @@
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
     import { formatCurrency, toRiyals } from '@/lib/format';
+    import {
+        store as storeBudget,
+        update as updateBudget,
+    } from '@/routes/budgets';
+    import { store as storeCategory } from '@/routes/categories';
 
     interface BudgetRecord {
         id: number | null;
@@ -39,14 +42,21 @@
 
     let {
         budgets = [] as BudgetRecord[],
-        stats = { totalBudget: 0, totalSpent: 0, remaining: 0, rollover: 0 } as BudgetStats,
+        stats = {
+            totalBudget: 0,
+            totalSpent: 0,
+            remaining: 0,
+            rollover: 0,
+        } as BudgetStats,
     }: {
         budgets?: BudgetRecord[];
         stats?: BudgetStats;
     } = $props();
 
     const usagePct = $derived(
-        stats.totalBudget > 0 ? Math.round((stats.totalSpent / stats.totalBudget) * 100) : 0
+        stats.totalBudget > 0
+            ? Math.round((stats.totalSpent / stats.totalBudget) * 100)
+            : 0,
     );
 
     function getProgressColor(pct: number): string {
@@ -62,7 +72,9 @@
     }
 
     // Sort state
-    let sortBy = $state<'name' | 'budget' | 'spent' | 'percentage'>('percentage');
+    let sortBy = $state<'name' | 'budget' | 'spent' | 'percentage'>(
+        'percentage',
+    );
     let sortDir = $state<'asc' | 'desc'>('desc');
 
     const sortedBudgets = $derived.by(() => {
@@ -72,18 +84,26 @@
             const pctA = a.budget > 0 ? a.spent / a.budget : 0;
             const pctB = b.budget > 0 ? b.spent / b.budget : 0;
             switch (sortBy) {
-                case 'name': return dir * a.name.localeCompare(b.name);
-                case 'budget': return dir * (a.budget - b.budget);
-                case 'spent': return dir * (a.spent - b.spent);
-                default: return dir * (pctA - pctB);
+                case 'name':
+                    return dir * a.name.localeCompare(b.name);
+                case 'budget':
+                    return dir * (a.budget - b.budget);
+                case 'spent':
+                    return dir * (a.spent - b.spent);
+                default:
+                    return dir * (pctA - pctB);
             }
         });
         return items;
     });
 
     function toggleSort(field: typeof sortBy) {
-        if (sortBy === field) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; }
-        else { sortBy = field; sortDir = 'desc'; }
+        if (sortBy === field) {
+            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortBy = field;
+            sortDir = 'desc';
+        }
     }
 
     // Edit budget modal
@@ -118,12 +138,25 @@
         }
         const month = new Date().toISOString().slice(0, 7);
 
-        router.post('/budgets', {
-            amount: amt,
-            category_id: editingBudget?.category_id ?? null,
-            month: month,
-        } as any, {
-            onFinish: () => { budgetSubmitting = false; closeBudgetModal(); },
+        const request = editingBudget?.id
+            ? updateBudget(editingBudget.id)
+            : storeBudget();
+
+        router.visit(request, {
+            method: editingBudget?.id ? 'put' : 'post',
+            data: {
+                amount: amt,
+                category_id: editingBudget?.category_id ?? null,
+                month: month,
+            },
+            preserveScroll: true,
+            onSuccess: () => closeBudgetModal(),
+            onError: (errors) => {
+                budgetErrors = errors as Record<string, string>;
+            },
+            onFinish: () => {
+                budgetSubmitting = false;
+            },
         });
     }
 
@@ -135,20 +168,53 @@
     let catErrors = $state<Record<string, string>>({});
     let catSubmitting = $state(false);
 
-    const colors = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#6366f1','#a855f7','#ec4899','#6b7280'];
+    const colors = [
+        '#ef4444',
+        '#f97316',
+        '#eab308',
+        '#22c55e',
+        '#14b8a6',
+        '#3b82f6',
+        '#6366f1',
+        '#a855f7',
+        '#ec4899',
+        '#6b7280',
+    ];
 
     function openCatModal() {
-        catName = ''; catIcon = 'ellipsis'; catColor = colors[0]; catErrors = {}; showCatModal = true;
+        catName = '';
+        catIcon = 'ellipsis';
+        catColor = colors[0];
+        catErrors = {};
+        showCatModal = true;
     }
-    function closeCatModal() { showCatModal = false; catName = ''; catErrors = {}; }
+    function closeCatModal() {
+        showCatModal = false;
+        catName = '';
+        catErrors = {};
+    }
 
     function handleCatSave() {
         catErrors = {};
-        if (!catName.trim()) { catErrors.name = 'الاسم مطلوب'; return; }
+        if (!catName.trim()) {
+            catErrors.name = 'الاسم مطلوب';
+            return;
+        }
         catSubmitting = true;
-        router.post('/categories', { name: catName.trim(), icon: catIcon, color: catColor } as any, {
-            onFinish: () => { catSubmitting = false; closeCatModal(); },
-        });
+        router.post(
+            storeCategory(),
+            { name: catName.trim(), icon: catIcon, color: catColor },
+            {
+                preserveScroll: true,
+                onSuccess: () => closeCatModal(),
+                onError: (errors) => {
+                    catErrors = errors as Record<string, string>;
+                },
+                onFinish: () => {
+                    catSubmitting = false;
+                },
+            },
+        );
     }
 </script>
 
@@ -158,7 +224,9 @@
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-2xl font-bold">الميزانية العامة</h1>
-            <p class="text-muted-foreground">وزّع دخلك على الفئات وراقب إنفاقك</p>
+            <p class="text-muted-foreground">
+                وزّع دخلك على الفئات وراقب إنفاقك
+            </p>
         </div>
         <Button size="sm" class="gap-1.5" onclick={openCatModal}>
             <Plus class="size-3.5" />
@@ -169,28 +237,49 @@
     <!-- بطاقة ملخص الميزانية العامة -->
     <Card class="border-emerald-500/30">
         <CardContent class="p-6">
-            <div class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div
+                class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"
+            >
                 <div>
-                    <p class="text-sm text-muted-foreground">إجمالي الميزانية</p>
-                    <p class="text-3xl font-bold">{formatCurrency(stats.totalBudget)}</p>
+                    <p class="text-sm text-muted-foreground">
+                        إجمالي الميزانية
+                    </p>
+                    <p class="text-3xl font-bold">
+                        {formatCurrency(stats.totalBudget)}
+                    </p>
                 </div>
                 <div class="flex flex-wrap gap-6">
                     <div>
                         <p class="text-xs text-muted-foreground">المنفق</p>
-                        <p class="text-lg font-bold text-destructive">{formatCurrency(stats.totalSpent)}</p>
+                        <p class="text-lg font-bold text-destructive">
+                            {formatCurrency(stats.totalSpent)}
+                        </p>
                     </div>
                     <div>
                         <p class="text-xs text-muted-foreground">المتبقي</p>
-                        <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.remaining)}</p>
+                        <p
+                            class="text-lg font-bold text-emerald-600 dark:text-emerald-400"
+                        >
+                            {formatCurrency(stats.remaining)}
+                        </p>
                     </div>
                     <div>
-                        <p class="text-xs text-muted-foreground">نسبة الاستخدام</p>
-                        <p class="text-lg font-bold {getTextColor(usagePct)}">{usagePct}%</p>
+                        <p class="text-xs text-muted-foreground">
+                            نسبة الاستخدام
+                        </p>
+                        <p class="text-lg font-bold {getTextColor(usagePct)}">
+                            {usagePct}%
+                        </p>
                     </div>
                 </div>
             </div>
-            <div class="mt-4 h-2 w-full overflow-hidden rounded-full bg-secondary">
-                <div class="h-full rounded-full {getProgressColor(usagePct)}" style="width: {Math.min(usagePct, 100)}%"></div>
+            <div
+                class="mt-4 h-2 w-full overflow-hidden rounded-full bg-secondary"
+            >
+                <div
+                    class="h-full rounded-full {getProgressColor(usagePct)}"
+                    style="width: {Math.min(usagePct, 100)}%"
+                ></div>
             </div>
         </CardContent>
     </Card>
@@ -200,10 +289,14 @@
         <span class="text-muted-foreground">ترتيب:</span>
         {#each [{ v: 'percentage' as const, l: 'نسبة الإنفاق' }, { v: 'name' as const, l: 'الاسم' }, { v: 'budget' as const, l: 'الميزانية' }, { v: 'spent' as const, l: 'المنفق' }] as opt}
             <button
-                class="rounded-md px-2.5 py-1 text-xs transition-colors {sortBy === opt.v ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}"
+                class="rounded-md px-2.5 py-1 text-xs transition-colors {sortBy ===
+                opt.v
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80'}"
                 onclick={() => toggleSort(opt.v)}
             >
-                {opt.l} {sortBy === opt.v ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                {opt.l}
+                {sortBy === opt.v ? (sortDir === 'asc' ? '↑' : '↓') : ''}
             </button>
         {/each}
     </div>
@@ -224,14 +317,21 @@
     </div>
 
     <!-- إضافة فئة جديدة -->
-    <Card class="cursor-pointer border-dashed hover:border-primary/50 transition-colors" onclick={openCatModal}>
+    <Card
+        class="cursor-pointer border-dashed hover:border-primary/50 transition-colors"
+        onclick={openCatModal}
+    >
         <CardContent class="flex items-center justify-center py-8">
             <div class="text-center">
-                <div class="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted">
+                <div
+                    class="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted"
+                >
                     <Plus class="size-6 text-muted-foreground" />
                 </div>
                 <p class="text-sm font-medium">إضافة فئة مخصصة</p>
-                <p class="text-xs text-muted-foreground">أنشئ فئة جديدة مع أيقونة ولون</p>
+                <p class="text-xs text-muted-foreground">
+                    أنشئ فئة جديدة مع أيقونة ولون
+                </p>
             </div>
         </CardContent>
     </Card>
@@ -239,40 +339,79 @@
     <!-- مودال إضافة فئة -->
     {#if showCatModal}
         <div class="fixed inset-0 z-50 flex items-center justify-center">
-            <button type="button" class="fixed inset-0 bg-black/50 cursor-default" onclick={closeCatModal} aria-label="إغلاق"></button>
-            <div class="relative z-10 mx-4 w-full max-w-md rounded-xl border bg-card p-0 shadow-lg">
-                <div class="flex items-center justify-between border-b px-6 py-4">
+            <button
+                type="button"
+                class="fixed inset-0 bg-black/50 cursor-default"
+                onclick={closeCatModal}
+                aria-label="إغلاق"
+            ></button>
+            <div
+                class="relative z-10 mx-4 w-full max-w-md rounded-xl border bg-card p-0 shadow-lg"
+            >
+                <div
+                    class="flex items-center justify-between border-b px-6 py-4"
+                >
                     <h2 class="text-lg font-semibold">إضافة فئة جديدة</h2>
-                    <button class="cursor-pointer text-muted-foreground hover:text-foreground" onclick={closeCatModal} aria-label="إغلاق"><X class="size-5" /></button>
+                    <button
+                        class="cursor-pointer text-muted-foreground hover:text-foreground"
+                        onclick={closeCatModal}
+                        aria-label="إغلاق"><X class="size-5" /></button
+                    >
                 </div>
                 <div class="space-y-4 px-6 py-4">
                     <div>
-                        <label class="mb-1.5 block text-sm font-medium">اسم الفئة</label>
-                        <input type="text" bind:value={catName} class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="مثال: سكن، ملابس..." />
-                        {#if catErrors.name}<p class="mt-1 text-xs text-destructive">{catErrors.name}</p>{/if}
+                        <label for="category-name" class="mb-1.5 block text-sm font-medium"
+                            >اسم الفئة</label
+                        >
+                        <input
+                            id="category-name"
+                            type="text"
+                            bind:value={catName}
+                            class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="مثال: سكن، ملابس..."
+                        />
+                        {#if catErrors.name}<p
+                                class="mt-1 text-xs text-destructive"
+                            >
+                                {catErrors.name}
+                            </p>{/if}
                     </div>
                     <div>
-                        <label class="mb-1.5 block text-sm font-medium">الأيقونة</label>
-                        <div class="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                        <span class="mb-1.5 block text-sm font-medium">الأيقونة</span>
+                        <div
+                            class="flex max-h-40 flex-wrap gap-2 overflow-y-auto"
+                        >
                             {#each ICON_PICKER as key}
                                 <button
                                     type="button"
-                                    class="flex size-9 items-center justify-center rounded-lg border transition-all {catIcon === key ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-primary/50'}"
+                                    class="flex size-9 items-center justify-center rounded-lg border transition-all {catIcon ===
+                                    key
+                                        ? 'border-primary ring-2 ring-primary/20'
+                                        : 'border-border hover:border-primary/50'}"
                                     aria-label={ICON_LABELS[key]}
                                     aria-pressed={catIcon === key}
                                     onclick={() => (catIcon = key)}
                                 >
-                                    <CategoryIcon icon={key} size="sm" color={catColor} />
+                                    <CategoryIcon
+                                        icon={key}
+                                        size="sm"
+                                        color={catColor}
+                                    />
                                 </button>
                             {/each}
                         </div>
                     </div>
                     <div>
-                        <label class="mb-1.5 block text-sm font-medium">اللون</label>
+                        <span class="mb-1.5 block text-sm font-medium">اللون</span>
                         <div class="flex flex-wrap gap-2">
                             {#each colors as clr}
                                 <button
-                                    class="size-8 rounded-full border-2 transition-all {catColor === clr ? 'border-primary ring-2 ring-primary/20 scale-110' : 'border-transparent'}"
+                                    type="button"
+                                    class="size-8 rounded-full border-2 transition-all {catColor ===
+                                    clr
+                                        ? 'border-primary ring-2 ring-primary/20 scale-110'
+                                        : 'border-transparent'}"
+                                    aria-label={`اختيار اللون ${clr}`}
                                     style="background: {clr}"
                                     onclick={() => (catColor = clr)}
                                 ></button>
@@ -281,8 +420,14 @@
                     </div>
                 </div>
                 <div class="flex justify-end gap-2 border-t px-6 py-4">
-                    <Button variant="outline" size="sm" onclick={closeCatModal}>إلغاء</Button>
-                    <Button size="sm" disabled={catSubmitting} onclick={handleCatSave}>
+                    <Button variant="outline" size="sm" onclick={closeCatModal}
+                        >إلغاء</Button
+                    >
+                    <Button
+                        size="sm"
+                        disabled={catSubmitting}
+                        onclick={handleCatSave}
+                    >
                         {catSubmitting ? 'جاري الحفظ...' : 'حفظ'}
                     </Button>
                 </div>
@@ -293,26 +438,71 @@
     <!-- مودال تعديل الميزانية -->
     {#if showBudgetModal && editingBudget}
         <div class="fixed inset-0 z-50 flex items-center justify-center">
-            <button type="button" class="fixed inset-0 bg-black/50 cursor-default" onclick={closeBudgetModal} aria-label="إغلاق"></button>
-            <div class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-0 shadow-lg">
-                <div class="flex items-center justify-between border-b px-6 py-4">
+            <button
+                type="button"
+                class="fixed inset-0 bg-black/50 cursor-default"
+                onclick={closeBudgetModal}
+                aria-label="إغلاق"
+            ></button>
+            <div
+                class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-0 shadow-lg"
+            >
+                <div
+                    class="flex items-center justify-between border-b px-6 py-4"
+                >
                     <div class="flex items-center gap-2">
-                        <CategoryIcon icon={editingBudget.icon} color={editingBudget.color} size="md" />
-                        <h2 class="text-lg font-semibold">{editingBudget.name}</h2>
+                        <CategoryIcon
+                            icon={editingBudget.icon}
+                            color={editingBudget.color}
+                            size="md"
+                        />
+                        <h2 class="text-lg font-semibold">
+                            {editingBudget.name}
+                        </h2>
                     </div>
-                    <button class="cursor-pointer text-muted-foreground hover:text-foreground" onclick={closeBudgetModal} aria-label="إغلاق"><X class="size-5" /></button>
+                    <button
+                        class="cursor-pointer text-muted-foreground hover:text-foreground"
+                        onclick={closeBudgetModal}
+                        aria-label="إغلاق"><X class="size-5" /></button
+                    >
                 </div>
                 <div class="space-y-3 px-6 py-4">
-                    <p class="text-sm text-muted-foreground">المصروف هذا الشهر: <span class="font-bold text-foreground">{formatCurrency(editingBudget.spent)}</span></p>
+                    <p class="text-sm text-muted-foreground">
+                        المصروف هذا الشهر: <span
+                            class="font-bold text-foreground"
+                            >{formatCurrency(editingBudget.spent)}</span
+                        >
+                    </p>
                     <div>
-                        <label class="mb-1.5 block text-sm font-medium">الميزانية الشهرية (ر.س)</label>
-                        <input type="number" step="0.01" bind:value={budgetAmount} class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="0.00" />
-                        {#if budgetErrors.amount}<p class="mt-1 text-xs text-destructive">{budgetErrors.amount}</p>{/if}
+                        <label for="budget-amount" class="mb-1.5 block text-sm font-medium"
+                            >الميزانية الشهرية (ر.س)</label
+                        >
+                        <input
+                            id="budget-amount"
+                            type="number"
+                            step="0.01"
+                            bind:value={budgetAmount}
+                            class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            placeholder="0.00"
+                        />
+                        {#if budgetErrors.amount}<p
+                                class="mt-1 text-xs text-destructive"
+                            >
+                                {budgetErrors.amount}
+                            </p>{/if}
                     </div>
                 </div>
                 <div class="flex justify-end gap-2 border-t px-6 py-4">
-                    <Button variant="outline" size="sm" onclick={closeBudgetModal}>إلغاء</Button>
-                    <Button size="sm" disabled={budgetSubmitting} onclick={handleBudgetSave}>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onclick={closeBudgetModal}>إلغاء</Button
+                    >
+                    <Button
+                        size="sm"
+                        disabled={budgetSubmitting}
+                        onclick={handleBudgetSave}
+                    >
                         {budgetSubmitting ? 'جاري الحفظ...' : 'حفظ'}
                     </Button>
                 </div>

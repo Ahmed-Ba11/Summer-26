@@ -45,5 +45,5 @@
 	class={cn(inputGroupButtonVariants({ size }), className)}
 	{...restProps}
 >
-	{@render children?.()}
+    {@render children?.({})}
 </Button>

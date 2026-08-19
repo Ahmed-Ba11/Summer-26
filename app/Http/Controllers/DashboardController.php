@@ -174,7 +174,7 @@ class DashboardController extends Controller
             'month' => $month,
             'availableMonths' => $this->availableMonths(),
             'hasData' => $hasData,
-            'onboardingComplete' => $totalIncome > 0 && $user->budgets()->exists(),
+            'onboardingComplete' => $user->onboarding_completed_at !== null,
 
             'stats' => [
                 'totalIncome' => $totalIncome,
@@ -204,7 +204,9 @@ class DashboardController extends Controller
 
     private function resolveMonth(?string $requested): string
     {
-        if ($requested && preg_match('/^\d{4}-\d{2}$/', $requested)) {
+        if ($requested
+            && preg_match('/^\d{4}-\d{2}$/', $requested)
+            && checkdate((int) substr($requested, 5, 2), 1, (int) substr($requested, 0, 4))) {
             return $requested;
         }
 

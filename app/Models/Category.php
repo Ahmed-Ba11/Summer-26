@@ -15,6 +15,24 @@ class Category extends Model
         'color',
     ];
 
+    /**
+     * Default categories created for each user account.
+     *
+     * @return list<array{name: string, icon: string, color: string}>
+     */
+    public static function defaultDefinitions(): array
+    {
+        return [
+            ['name' => 'طعام', 'icon' => 'utensils', 'color' => '#2a78d6'],
+            ['name' => 'مواصلات', 'icon' => 'car', 'color' => '#eb6834'],
+            ['name' => 'ترفيه', 'icon' => 'gamepad-2', 'color' => '#1baf7a'],
+            ['name' => 'صحة', 'icon' => 'heart-pulse', 'color' => '#eda100'],
+            ['name' => 'تعليم', 'icon' => 'graduation-cap', 'color' => '#e87ba4'],
+            ['name' => 'تسوّق', 'icon' => 'shopping-cart', 'color' => '#008300'],
+            ['name' => 'أخرى', 'icon' => 'ellipsis', 'color' => '#4a3aa7'],
+        ];
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

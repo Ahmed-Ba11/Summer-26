@@ -20,7 +20,7 @@
 
     const actions = [
         { label: 'مصروف', icon: ShoppingCart, color: 'var(--chart-1)', href: '/expenses?new=1' },
-        { label: 'دخل', icon: TrendingUp, color: 'var(--success)', href: '/income?new=1' },
+        { label: 'دخل', icon: TrendingUp, color: 'var(--chart-6)', href: '/income?new=1' },
         { label: 'فاتورة', icon: ReceiptText, color: 'var(--chart-7)', href: '/bills?new=1' },
         { label: 'ادخار', icon: PiggyBank, color: 'var(--chart-3)', href: '/savings?new=1' },
     ];

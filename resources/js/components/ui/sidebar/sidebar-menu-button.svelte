@@ -34,27 +34,41 @@
 	import type { HTMLAttributes } from "svelte/elements";
 	import { useSidebar } from "./context.svelte.js";
 
+	type LegacyButtonProps = {
+		class?: string;
+		onclick?: any;
+		"aria-expanded"?: any;
+		"data-state"?: string | null;
+		[key: string]: any;
+	};
+
 	let {
 		ref = $bindable(null),
 		class: className,
 		children,
 		child,
+		asChild = false,
 		variant = "default",
 		size = "default",
 		isActive = false,
+		tooltip,
 		tooltipContent,
 		tooltipContentProps,
 		...restProps
-	}: WithElementRef<HTMLAttributes<HTMLButtonElement>, HTMLButtonElement> & {
+	}: Omit<WithElementRef<HTMLAttributes<HTMLButtonElement>, HTMLButtonElement>, "children"> & {
+		children?: Snippet<[LegacyButtonProps]>;
+		asChild?: boolean;
 		isActive?: boolean;
 		variant?: SidebarMenuButtonVariant;
 		size?: SidebarMenuButtonSize;
+		tooltip?: Snippet | string;
 		tooltipContent?: Snippet | string;
 		tooltipContentProps?: WithoutChildrenOrChild<ComponentProps<typeof Tooltip.Content>>;
-		child?: Snippet<[{ props: Record<string, unknown> }]>;
+		child?: Snippet<[{ props: LegacyButtonProps }]>;
 	} = $props();
 
 	const sidebar = useSidebar();
+	const resolvedTooltip = $derived(tooltipContent ?? tooltip);
 
 	const buttonProps = $derived({
 		class: cn(sidebarMenuButtonVariants({ variant, size }), className),
@@ -68,16 +82,18 @@
 
 {#snippet Button({ props }: { props?: Record<string, unknown> })}
 	{@const mergedProps = mergeProps(buttonProps, props)}
-	{#if child}
-		{@render child({ props: mergedProps })}
-	{:else}
-		<button bind:this={ref} {...mergedProps}>
-			{@render children?.()}
+		{#if child}
+			{@render child({ props: mergedProps })}
+		{:else if asChild}
+			{@render children?.(mergedProps)}
+		{:else}
+			<button bind:this={ref} {...mergedProps}>
+				{@render children?.({})}
 		</button>
 	{/if}
 {/snippet}
 
-{#if !tooltipContent}
+{#if !resolvedTooltip}
 	{@render Button({})}
 {:else}
 	<Tooltip.Root>
@@ -92,10 +108,10 @@
 			hidden={sidebar.state !== "collapsed" || sidebar.isMobile}
 			{...tooltipContentProps}
 		>
-			{#if typeof tooltipContent === "string"}
-				{tooltipContent}
-			{:else if tooltipContent}
-				{@render tooltipContent()}
+			{#if typeof resolvedTooltip === "string"}
+				{resolvedTooltip}
+			{:else if resolvedTooltip}
+				{@render resolvedTooltip()}
 			{/if}
 		</Tooltip.Content>
 	</Tooltip.Root>

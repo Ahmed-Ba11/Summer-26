@@ -1,6 +1,7 @@
 <script lang="ts" module>
 	import { cn, type WithElementRef } from "@/lib/utils.js";
-	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from "svelte/elements";
+    import type { Snippet } from "svelte";
+    import type { HTMLAnchorAttributes, HTMLButtonAttributes } from "svelte/elements";
 	import { type VariantProps, tv } from "tailwind-variants";
 
 	export const buttonVariants = tv({
@@ -34,11 +35,20 @@
 	export type ButtonVariant = VariantProps<typeof buttonVariants>["variant"];
 	export type ButtonSize = VariantProps<typeof buttonVariants>["size"];
 
-	export type ButtonProps = WithElementRef<HTMLButtonAttributes> &
-		WithElementRef<HTMLAnchorAttributes> & {
-			variant?: ButtonVariant;
-			size?: ButtonSize;
-		};
+    type ButtonChildProps = {
+        class?: string;
+        [key: string]: any;
+    };
+
+    export type ButtonProps = Omit<WithElementRef<HTMLButtonAttributes> &
+        WithElementRef<HTMLAnchorAttributes> & {
+            variant?: ButtonVariant;
+            size?: ButtonSize;
+            asChild?: boolean;
+            children?: Snippet<[ButtonChildProps]>;
+        }, 'children'> & {
+            children?: Snippet<[ButtonChildProps]>;
+        };
 </script>
 
 <script lang="ts">
@@ -47,15 +57,23 @@
 		variant = "default",
 		size = "default",
 		ref = $bindable(null),
-		href = undefined,
-		type = "button",
-		disabled,
-		children,
-		...restProps
-	}: ButtonProps = $props();
+        href = undefined,
+        type = "button",
+        disabled,
+        asChild = false,
+        children,
+        ...restProps
+    }: ButtonProps = $props();
+
+    const childProps = $derived({
+        class: cn(buttonVariants({ variant, size }), className),
+        ...restProps,
+    });
 </script>
 
-{#if href}
+{#if asChild}
+    {@render children?.(childProps)}
+{:else if href}
 	<a
 		bind:this={ref}
 		data-slot="button"
@@ -66,7 +84,7 @@
 		tabindex={disabled ? -1 : undefined}
 		{...restProps}
 	>
-		{@render children?.()}
+        {@render children?.({})}
 	</a>
 {:else}
 	<button
@@ -77,6 +95,6 @@
 		{disabled}
 		{...restProps}
 	>
-		{@render children?.()}
+        {@render children?.({})}
 	</button>
 {/if}

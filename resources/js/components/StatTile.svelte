@@ -3,8 +3,8 @@
      * بطاقة رقم مختصرة. السطر السياقي في الأسفل هو ما يجعلها مفيدة —
      * رقم بلا مقارنة أو تفصيل لا يحمل معنى.
      */
-    import type { Component } from 'svelte';
     import { formatCurrency } from '@/lib/format';
+    import type { IconComponent } from '@/types';
 
     let {
         label,
@@ -16,13 +16,13 @@
     }: {
         label: string;
         amount: number;
-        icon: Component;
+        icon: IconComponent;
         color?: string;
         note?: string;
         tone?: 'neutral' | 'good' | 'bad';
     } = $props();
 
-    const Icon = icon;
+    const Icon = $derived(icon);
 
     const noteClass = $derived(
         tone === 'good' ? 'text-success-text' : tone === 'bad' ? 'text-destructive' : 'text-muted-foreground',

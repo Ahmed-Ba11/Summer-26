@@ -3,8 +3,9 @@
      * حالة فارغة موحّدة. استخدمها في كل جدول وكل قائمة.
      * قائمة فارغة بلا شرح ولا إجراء = مستخدم عالق.
      */
-    import type { Component, Snippet } from 'svelte';
+    import type { Snippet } from 'svelte';
     import Button from '@/components/ui/button/Button.svelte';
+    import type { IconComponent } from '@/types';
 
     let {
         icon,
@@ -15,7 +16,7 @@
         href = '',
         children,
     }: {
-        icon?: Component;
+        icon?: IconComponent;
         title: string;
         description?: string;
         actionLabel?: string;
@@ -24,7 +25,7 @@
         children?: Snippet;
     } = $props();
 
-    const Icon = icon;
+    const Icon = $derived(icon);
 </script>
 
 <div class="flex flex-col items-center justify-center px-6 py-14 text-center">
