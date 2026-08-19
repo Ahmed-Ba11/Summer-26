@@ -5,7 +5,7 @@
 </script>
 
 <script lang="ts">
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
     import { onMount } from 'svelte';
     import AlertCircle from 'lucide-svelte/icons/alert-circle';
     import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
@@ -39,6 +39,7 @@
         formatRelativeDays,
         toRiyals,
     } from '@/lib/format';
+    import type { ValidationErrors } from '@/types';
     import {
         destroy as destroyBill,
         pay as payBill,
@@ -73,6 +74,33 @@
         stats = { upcoming_count: 0, total_due: 0, paid_count: 0 },
         error = null,
     }: PageProps = $props();
+
+    const serverErrors = $derived(
+        (page.props.errors ?? {}) as ValidationErrors,
+    );
+
+    function errorText(
+        errors: ValidationErrors | Record<string, string>,
+        key: string,
+    ): string {
+        const value = errors[key];
+
+        return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+    }
+
+    function generalError(
+        errors: ValidationErrors | Record<string, string>,
+    ): string {
+        for (const key of ['error', 'message', 'general', '_']) {
+            const message = errorText(errors, key);
+
+            if (message) {
+                return message;
+            }
+        }
+
+        return '';
+    }
 
     const billItems = $derived(bills ?? []);
     const isLoading = $derived(bills === undefined);
@@ -620,6 +648,12 @@
                 submitForm();
             }}
         >
+            {#if generalError(formErrors) || generalError(serverErrors)}
+                <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                    <AlertCircle class="size-4 shrink-0" />
+                    {generalError(formErrors) || generalError(serverErrors)}
+                </p>
+            {/if}
             <div class="flex flex-col gap-1.5">
                 <label for="bill-name" class="text-sm font-medium"
                     >اسم الفاتورة</label
@@ -630,8 +664,8 @@
                     bind:value={form.name}
                     class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                {#if formErrors.name}<p class="text-xs text-destructive">
-                        {formErrors.name}
+                {#if formErrors.name || errorText(serverErrors, 'name')}<p class="text-xs text-destructive">
+                        {formErrors.name || errorText(serverErrors, 'name')}
                     </p>{/if}
             </div>
             <div class="flex flex-col gap-1.5">
@@ -647,8 +681,8 @@
                     bind:value={form.amount}
                     class="rounded-lg border border-border bg-background px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                {#if formErrors.amount}<p class="text-xs text-destructive">
-                        {formErrors.amount}
+                {#if formErrors.amount || errorText(serverErrors, 'amount')}<p class="text-xs text-destructive">
+                        {formErrors.amount || errorText(serverErrors, 'amount')}
                     </p>{/if}
             </div>
             <div class="flex flex-col gap-1.5">
@@ -661,8 +695,8 @@
                     bind:value={form.due_date}
                     class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                {#if formErrors.due_date}<p class="text-xs text-destructive">
-                        {formErrors.due_date}
+                {#if formErrors.due_date || errorText(serverErrors, 'due_date')}<p class="text-xs text-destructive">
+                        {formErrors.due_date || errorText(serverErrors, 'due_date')}
                     </p>{/if}
             </div>
             <div class="flex flex-col gap-1.5">
@@ -675,10 +709,10 @@
                     bind:value={form.account_number}
                     class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                {#if formErrors.account_number}<p
+                {#if formErrors.account_number || errorText(serverErrors, 'account_number')}<p
                         class="text-xs text-destructive"
                     >
-                        {formErrors.account_number}
+                        {formErrors.account_number || errorText(serverErrors, 'account_number')}
                     </p>{/if}
             </div>
             <DialogFooter>

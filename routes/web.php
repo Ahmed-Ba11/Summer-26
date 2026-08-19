@@ -21,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 Route::inertia('/', 'Welcome')->name('home');
@@ -452,18 +453,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'current_amount' => (int) $g->current_amount,
             'target_date' => $g->target_date?->format('Y-m-d'),
             'is_completed' => (bool) $g->is_completed,
+            'is_closed' => (bool) $g->is_closed,
         ]);
 
         $totalSaved = (int) $user->savingsGoals()->sum('current_amount');
         $monthlyIncome = (int) $user->incomes()->where('income_date', 'like', $currentMonth.'%')->sum('amount');
-        $savingsRate = $monthlyIncome > 0 ? (int) round(($totalSaved / $monthlyIncome) * 100) : 0;
+        $monthlyDeposits = (int) $user->savingsDeposits()
+            ->whereBetween('deposited_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->sum('amount');
 
         return Inertia::render('Savings', [
             'goals' => $goals,
             'stats' => [
                 'total_saved' => $totalSaved,
                 'monthly_income' => $monthlyIncome,
-                'savings_rate' => $savingsRate,
+                'monthly_deposits' => $monthlyDeposits,
+                'savings_rate' => $monthlyIncome > 0 ? (int) round(($monthlyDeposits / $monthlyIncome) * 100) : 0,
             ],
         ]);
     })->name('savings');
@@ -492,6 +497,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'current_amount' => 0,
             'target_date' => $validated['target_date'] ?? null,
             'is_completed' => false,
+            'is_closed' => false,
         ]);
 
         return redirect()->back();
@@ -509,16 +515,38 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $addition = Money::toHalalas($validated['amount']);
         $newAmount = (int) $goal->current_amount + $addition;
 
-        if ($goal->is_completed || $newAmount > (int) $goal->target_amount) {
-            abort(422, 'لا يمكن تجاوز هدف الادخار أو الإضافة بعد اكتماله.');
+        if ($goal->is_closed) {
+            throw ValidationException::withMessages([
+                'amount' => 'هذا الهدف مكتمل ومغلق بالفعل.',
+            ]);
         }
 
-        $goal->update([
-            'current_amount' => $newAmount,
-            'is_completed' => $newAmount === (int) $goal->target_amount,
-        ]);
+        DB::transaction(function () use ($goal, $newAmount, $addition): void {
+            $goal->update([
+                'current_amount' => $newAmount,
+                'is_completed' => $newAmount >= (int) $goal->target_amount,
+            ]);
 
-        return redirect()->back();
+            $goal->user->savingsDeposits()->create([
+                'savings_goal_id' => $goal->id,
+                'amount' => $addition,
+                'deposited_at' => now()->toDateString(),
+            ]);
+        });
+
+        $response = redirect()->back();
+        $overage = $newAmount - (int) $goal->target_amount;
+
+        if ($overage > 0) {
+            return $response->with('warnings', [[
+                'severity' => 'success',
+                'title' => 'تجاوزت هدفك الادخاري',
+                'overage' => $overage,
+                'detail' => null,
+            ]]);
+        }
+
+        return $response;
     })->name('savings.update');
 
     Route::delete('/savings/{goal}', function (SavingsGoal $goal) {
@@ -536,7 +564,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             abort(403);
         }
 
-        $goal->update(['is_completed' => true]);
+        $goal->update([
+            'is_completed' => true,
+            'is_closed' => true,
+        ]);
 
         return redirect()->back();
     })->name('savings.complete');
@@ -607,7 +638,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         }
 
         if ($installment->is_completed || $installment->paid_months >= $installment->total_months) {
-            abort(422, 'لا يمكن سداد قسط مكتمل.');
+            throw ValidationException::withMessages([
+                'paid_months' => 'هذا القسط مكتمل بالفعل.',
+            ]);
         }
 
         $newPaid = $installment->paid_months + 1;

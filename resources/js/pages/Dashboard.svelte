@@ -22,7 +22,7 @@
     import ArrowLeft from 'lucide-svelte/icons/arrow-left';
     import ChevronDown from 'lucide-svelte/icons/chevron-down';
     import Lock from 'lucide-svelte/icons/lock';
-    import PiggyBank from 'lucide-svelte/icons/piggy-bank';
+import Vault from 'lucide-svelte/icons/vault';
     import ReceiptText from 'lucide-svelte/icons/receipt-text';
     import ShoppingCart from 'lucide-svelte/icons/shopping-cart';
     import Sparkles from 'lucide-svelte/icons/sparkles';
@@ -272,7 +272,7 @@
             <StatTile
                 label="الادخار"
                 amount={stats.savings}
-                icon={PiggyBank}
+                icon={Vault}
                 color="var(--chart-3)"
                 note="{formatPercent(stats.savingsRate)} من دخلك · الهدف {formatPercent(stats.savingsTarget)}"
             />

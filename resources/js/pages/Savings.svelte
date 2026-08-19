@@ -5,12 +5,13 @@
 </script>
 
 <script lang="ts">
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
+    import CircleAlert from 'lucide-svelte/icons/circle-alert';
     import Plus from 'lucide-svelte/icons/plus';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import Trash2 from 'lucide-svelte/icons/trash-2';
     import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
-    import Wallet from 'lucide-svelte/icons/wallet';
+    import Vault from 'lucide-svelte/icons/vault';
     import X from 'lucide-svelte/icons/x';
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
@@ -28,6 +29,7 @@
         formatDate,
         formatPercent,
     } from '@/lib/format';
+    import type { ValidationErrors } from '@/types';
     import type { SavingsStats } from '@/types';
     import {
         complete as completeSavings,
@@ -45,22 +47,87 @@
         current_amount: number;
         target_date: string | null;
         is_completed: boolean;
+        is_closed: boolean;
     }
+
+    type FlashWarning =
+        | string
+        | {
+              overage?: number;
+              message?: string;
+              warning?: string;
+              title?: string;
+              detail?: string;
+              severity?: string;
+          };
 
     let {
         goals = [],
-        stats = { total_saved: 0, monthly_income: 0, savings_rate: 0 },
+        stats = { total_saved: 0, monthly_income: 0, monthly_deposits: 0, savings_rate: 0 },
     }: {
         goals?: GoalItem[];
         stats?: SavingsStats;
     } = $props();
 
+    const serverErrors = $derived(
+        (page.props.errors ?? {}) as ValidationErrors,
+    );
+    const flashWarnings = $derived.by(() => {
+        const warnings = page.props.flash?.warnings;
+
+        if (Array.isArray(warnings)) {
+            return warnings as FlashWarning[];
+        }
+
+        return warnings ? [warnings as FlashWarning] : [];
+    });
+
+    function errorText(
+        errors: ValidationErrors | Record<string, string>,
+        key: string,
+    ): string {
+        const value = errors[key];
+
+        return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+    }
+
+    function generalError(
+        errors: ValidationErrors | Record<string, string>,
+    ): string {
+        for (const key of ['error', 'message', 'general', '_']) {
+            const message = errorText(errors, key);
+
+            if (message) {
+                return message;
+            }
+        }
+
+        return '';
+    }
+
+    function warningText(warning: FlashWarning): string {
+        if (typeof warning === 'string') {
+            return warning;
+        }
+
+        if (typeof warning.overage === 'number') {
+            return `تجاوزت هدفك بـ ${formatCurrency(warning.overage)}`;
+        }
+
+        return (
+            warning.message ??
+            warning.warning ??
+            [warning.title, warning.detail].filter(Boolean).join(' — ')
+        );
+    }
+
     const totalSavings = $derived(stats.total_saved ?? 0);
     const monthlyIncome = $derived(stats.monthly_income ?? 0);
+    const monthlyDeposits = $derived(stats.monthly_deposits ?? 0);
     const savingsRate = $derived(
         monthlyIncome > 0
-            ? Math.round((totalSavings / monthlyIncome) * 100)
-            : 0,
+            ? Math.round((monthlyDeposits / monthlyIncome) * 100)
+            : null,
     );
     const totalTarget = $derived(
         goals.reduce((sum, g) => sum + g.target_amount, 0),
@@ -70,14 +137,17 @@
             ? Math.min(100, Math.round((totalSavings / totalTarget) * 100))
             : 0,
     );
+    const completedGoals = $derived(goals.filter((goal) => goal.is_completed).length);
 
     function getProgressColorClass(pct: number): string {
+        if (pct >= 100) return 'bg-success';
         if (pct > 90) return 'bg-destructive';
         if (pct >= 70) return 'bg-amber-500';
         return 'bg-emerald-500';
     }
 
     function getProgressTextClass(pct: number): string {
+        if (pct >= 100) return 'text-success-text';
         if (pct > 90) return 'text-destructive';
         if (pct >= 70) return 'text-amber-600 dark:text-amber-400';
         return 'text-emerald-600 dark:text-emerald-400';
@@ -277,6 +347,24 @@
         </Button>
     </div>
 
+    {#if flashWarnings.length > 0}
+        <div class="flex flex-col gap-2" aria-live="polite">
+            {#each flashWarnings as warning}
+                {#if warningText(warning)}
+                    {@const isSuccess = typeof warning !== 'string' && warning.severity === 'success'}
+                    <p class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm {isSuccess ? 'bg-success/10 text-success-text' : 'bg-warning/15 text-warning-text'}" role="status">
+                        {#if isSuccess}
+                            <CheckCircle2 class="size-4 shrink-0" />
+                        {:else}
+                            <CircleAlert class="size-4 shrink-0" />
+                        {/if}
+                        {warningText(warning)}
+                    </p>
+                {/if}
+            {/each}
+        </div>
+    {/if}
+
     <!-- Stats bar -->
     {#if goals.length > 0}
         <div class="grid gap-4 sm:grid-cols-3">
@@ -286,7 +374,7 @@
                         <p class="text-sm text-muted-foreground">
                             إجمالي المدخرات
                         </p>
-                        <Wallet class="size-4 text-emerald-500" />
+                        <Vault class="size-4 text-success" />
                     </div>
                     <p
                         class="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400"
@@ -295,18 +383,20 @@
                     </p>
                 </CardContent>
             </Card>
-            <Card>
-                <CardContent class="pt-6">
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm text-muted-foreground">
-                            معدل الادخار
-                        </p>
-                        <TrendingUp class="size-4 text-blue-500" />
-                    </div>
-                    <p class="mt-2 text-xl font-bold tabular-nums">{formatPercent(savingsRate)}</p>
-                    <p class="mt-1 text-xs text-muted-foreground">من دخل الشهر الحالي</p>
-                </CardContent>
-            </Card>
+            {#if savingsRate !== null}
+                <Card>
+                    <CardContent class="pt-6">
+                        <div class="flex items-center justify-between">
+                            <p class="text-sm text-muted-foreground">
+                                معدل الادخار
+                            </p>
+                            <TrendingUp class="size-4 text-chart-1" />
+                        </div>
+                        <p class="mt-2 text-xl font-bold tabular-nums">{formatPercent(savingsRate)}</p>
+                        <p class="mt-1 text-xs text-muted-foreground">من إيداعات الشهر الحالي</p>
+                    </CardContent>
+                </Card>
+            {/if}
             <Card>
                 <CardContent class="pt-6">
                     <div class="flex items-center justify-between">
@@ -314,7 +404,7 @@
                         <CheckCircle2 class="size-4 text-amber-500" />
                     </div>
                     <p class="mt-2 text-xl font-bold">
-                        {goals.filter((g) => g.is_completed).length} / {goals.length}
+                        {completedGoals} من {goals.length} هدف مكتمل
                     </p>
                 </CardContent>
             </Card>
@@ -341,14 +431,16 @@
                         >
                             {formatCurrency(totalSavings)}
                         </p>
-                        <div class="mt-2 flex items-center gap-2">
-                            <span
-                                class="inline-flex items-center gap-1 rounded-full bg-emerald-200 dark:bg-emerald-800 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:text-emerald-200"
-                            >
-                                <TrendingUp class="size-3" />
-                                {formatPercent(savingsRate)} من دخل الشهر الحالي
-                            </span>
-                        </div>
+                        {#if savingsRate !== null}
+                            <div class="mt-2 flex items-center gap-2">
+                                <span
+                                    class="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-foreground"
+                                >
+                                    <TrendingUp class="size-3" />
+                                    {formatPercent(savingsRate)} من إيداعات الشهر الحالي
+                                </span>
+                            </div>
+                        {/if}
                     </div>
                     <div class="flex flex-col items-center gap-1">
                         <div
@@ -386,7 +478,7 @@
                         </div>
                         <span
                             class="text-xs text-emerald-600 dark:text-emerald-400"
-                            >من إجمالي الأهداف</span
+                            >{completedGoals} من {goals.length} هدف مكتمل</span
                         >
                     </div>
                 </div>
@@ -510,7 +602,7 @@
                             </div>
 
                             <div class="flex gap-2">
-                                {#if !goal.is_completed}
+                                {#if !goal.is_closed}
                                     <Button
                                         size="sm"
                                         class="flex-1 gap-1.5 text-xs"
@@ -532,7 +624,7 @@
                                     variant="ghost"
                                     size="icon-sm"
                                     aria-label="حذف"
-                                    class="text-destructive hover:text-destructive {goal.is_completed
+                                    class="text-destructive hover:text-destructive {goal.is_closed
                                         ? 'ms-auto'
                                         : ''}"
                                     onclick={() => confirmDelete(goal.id)}
@@ -572,7 +664,7 @@
             <CardContent
                 class="flex flex-col items-center justify-center py-12 text-center"
             >
-                <Wallet class="size-12 text-muted-foreground" />
+                <Vault class="size-12 text-muted-foreground" />
                 <p class="mt-3 font-medium">لا توجد أهداف ادخارية</p>
                 <p class="text-sm text-muted-foreground">
                     أضف هدفاً ادخارياً للبدء
@@ -603,6 +695,12 @@
                 </button>
             </div>
             <div class="space-y-4 px-6 py-4">
+                {#if generalError(formErrors) || generalError(serverErrors)}
+                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                        <CircleAlert class="size-4 shrink-0" />
+                        {generalError(formErrors) || generalError(serverErrors)}
+                    </p>
+                {/if}
                 <div>
                     <label
                         for="goal-name"
@@ -615,9 +713,9 @@
                         bind:value={formName}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.name}
+                    {#if formErrors.name || errorText(serverErrors, 'name')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.name}
+                            {formErrors.name || errorText(serverErrors, 'name')}
                         </p>
                     {/if}
                 </div>
@@ -658,9 +756,9 @@
                         bind:value={formTargetAmount}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.target_amount}
+                    {#if formErrors.target_amount || errorText(serverErrors, 'target_amount')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.target_amount}
+                            {formErrors.target_amount || errorText(serverErrors, 'target_amount')}
                         </p>
                     {/if}
                 </div>
@@ -676,6 +774,11 @@
                         bind:value={formTargetDate}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
+                    {#if formErrors.target_date || errorText(serverErrors, 'target_date')}
+                        <p class="mt-1 text-xs text-destructive">
+                            {formErrors.target_date || errorText(serverErrors, 'target_date')}
+                        </p>
+                    {/if}
                 </div>
             </div>
             <div class="flex justify-end gap-2 border-t px-6 py-4">
@@ -708,6 +811,12 @@
                 </button>
             </div>
             <div class="space-y-4 px-6 py-4">
+                {#if generalError(addAmountErrors) || generalError(serverErrors)}
+                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                        <CircleAlert class="size-4 shrink-0" />
+                        {generalError(addAmountErrors) || generalError(serverErrors)}
+                    </p>
+                {/if}
                 <div>
                     <label
                         for="add-amount"
@@ -723,9 +832,9 @@
                         bind:value={addAmountValue}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if addAmountErrors.amount}
+                    {#if addAmountErrors.amount || errorText(serverErrors, 'amount')}
                         <p class="mt-1 text-xs text-destructive">
-                            {addAmountErrors.amount}
+                            {addAmountErrors.amount || errorText(serverErrors, 'amount')}
                         </p>
                     {/if}
                 </div>

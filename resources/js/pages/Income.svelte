@@ -5,10 +5,11 @@
 </script>
 
 <script lang="ts">
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
     import { onMount } from 'svelte';
     import ArrowDown from 'lucide-svelte/icons/arrow-down';
     import ArrowUp from 'lucide-svelte/icons/arrow-up';
+    import CircleAlert from 'lucide-svelte/icons/circle-alert';
     import LoaderCircle from 'lucide-svelte/icons/loader-circle';
     import Pencil from 'lucide-svelte/icons/pencil';
     import Plus from 'lucide-svelte/icons/plus';
@@ -27,6 +28,7 @@
         CardTitle,
     } from '@/components/ui/card';
     import { formatCurrency, formatDate, toRiyals } from '@/lib/format';
+    import type { ValidationErrors } from '@/types';
     import {
         destroy as destroyIncome,
         store as storeIncome,
@@ -70,6 +72,33 @@
         sources?: string[];
         recurringIncomes?: IncomeRecord[];
     } = $props();
+
+    const serverErrors = $derived(
+        (page.props.errors ?? {}) as ValidationErrors,
+    );
+
+    function errorText(
+        errors: ValidationErrors | Record<string, string>,
+        key: string,
+    ): string {
+        const value = errors[key];
+
+        return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+    }
+
+    function generalError(
+        errors: ValidationErrors | Record<string, string>,
+    ): string {
+        for (const key of ['error', 'message', 'general', '_']) {
+            const message = errorText(errors, key);
+
+            if (message) {
+                return message;
+            }
+        }
+
+        return '';
+    }
 
     function queryValue(key: string): string {
         if (typeof window === 'undefined') {
@@ -651,6 +680,12 @@
                 </button>
             </div>
             <div class="space-y-4 px-6 py-4">
+                {#if generalError(formErrors) || generalError(serverErrors)}
+                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                        <CircleAlert class="size-4 shrink-0" />
+                        {generalError(formErrors) || generalError(serverErrors)}
+                    </p>
+                {/if}
                 <div>
                     <label
                         for="income-amount"
@@ -666,9 +701,9 @@
                         bind:value={formAmount}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.amount}
+                    {#if formErrors.amount || errorText(serverErrors, 'amount')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.amount}
+                            {formErrors.amount || errorText(serverErrors, 'amount')}
                         </p>
                     {/if}
                 </div>
@@ -684,9 +719,9 @@
                         bind:value={formSource}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.source}
+                    {#if formErrors.source || errorText(serverErrors, 'source')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.source}
+                            {formErrors.source || errorText(serverErrors, 'source')}
                         </p>
                     {/if}
                 </div>
@@ -702,9 +737,9 @@
                         bind:value={formDescription}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.description}
+                    {#if formErrors.description || errorText(serverErrors, 'description')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.description}
+                            {formErrors.description || errorText(serverErrors, 'description')}
                         </p>
                     {/if}
                 </div>
@@ -719,9 +754,9 @@
                         bind:value={formDate}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.income_date}
+                    {#if formErrors.income_date || errorText(serverErrors, 'income_date')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.income_date}
+                            {formErrors.income_date || errorText(serverErrors, 'income_date')}
                         </p>
                     {/if}
                 </div>

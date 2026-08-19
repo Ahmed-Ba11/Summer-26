@@ -5,7 +5,8 @@
 </script>
 
 <script lang="ts">
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
+    import CircleAlert from 'lucide-svelte/icons/circle-alert';
     import AppHead from '@/components/AppHead.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent } from '@/components/ui/card';
@@ -20,6 +21,7 @@
         update as updateBudget,
     } from '@/routes/budgets';
     import { store as storeCategory } from '@/routes/categories';
+    import type { ValidationErrors } from '@/types';
 
     interface BudgetRecord {
         id: number | null;
@@ -52,6 +54,33 @@
         budgets?: BudgetRecord[];
         stats?: BudgetStats;
     } = $props();
+
+    const serverErrors = $derived(
+        (page.props.errors ?? {}) as ValidationErrors,
+    );
+
+    function errorText(
+        errors: ValidationErrors | Record<string, string>,
+        key: string,
+    ): string {
+        const value = errors[key];
+
+        return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+    }
+
+    function generalError(
+        errors: ValidationErrors | Record<string, string>,
+    ): string {
+        for (const key of ['error', 'message', 'general', '_']) {
+            const message = errorText(errors, key);
+
+            if (message) {
+                return message;
+            }
+        }
+
+        return '';
+    }
 
     const usagePct = $derived(
         stats.totalBudget > 0
@@ -359,6 +388,12 @@
                     >
                 </div>
                 <div class="space-y-4 px-6 py-4">
+                    {#if generalError(catErrors) || generalError(serverErrors)}
+                        <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                            <CircleAlert class="size-4 shrink-0" />
+                            {generalError(catErrors) || generalError(serverErrors)}
+                        </p>
+                    {/if}
                     <div>
                         <label for="category-name" class="mb-1.5 block text-sm font-medium"
                             >اسم الفئة</label
@@ -370,10 +405,10 @@
                             class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                             placeholder="مثال: سكن، ملابس..."
                         />
-                        {#if catErrors.name}<p
+                        {#if catErrors.name || errorText(serverErrors, 'name')}<p
                                 class="mt-1 text-xs text-destructive"
                             >
-                                {catErrors.name}
+                                {catErrors.name || errorText(serverErrors, 'name')}
                             </p>{/if}
                     </div>
                     <div>
@@ -467,6 +502,12 @@
                     >
                 </div>
                 <div class="space-y-3 px-6 py-4">
+                    {#if budgetErrors.category_id || errorText(serverErrors, 'category_id') || generalError(budgetErrors) || generalError(serverErrors)}
+                        <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                            <CircleAlert class="size-4 shrink-0" />
+                            {budgetErrors.category_id || errorText(serverErrors, 'category_id') || generalError(budgetErrors) || generalError(serverErrors)}
+                        </p>
+                    {/if}
                     <p class="text-sm text-muted-foreground">
                         المصروف هذا الشهر: <span
                             class="font-bold text-foreground"
@@ -485,10 +526,10 @@
                             class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                             placeholder="0.00"
                         />
-                        {#if budgetErrors.amount}<p
+                        {#if budgetErrors.amount || errorText(serverErrors, 'amount')}<p
                                 class="mt-1 text-xs text-destructive"
                             >
-                                {budgetErrors.amount}
+                                {budgetErrors.amount || errorText(serverErrors, 'amount')}
                             </p>{/if}
                     </div>
                 </div>

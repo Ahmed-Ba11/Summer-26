@@ -14,7 +14,7 @@
     import CreditCard from 'lucide-svelte/icons/credit-card';
     import FileBarChart from 'lucide-svelte/icons/file-bar-chart';
     import LayoutGrid from 'lucide-svelte/icons/layout-grid';
-    import PiggyBank from 'lucide-svelte/icons/piggy-bank';
+import Vault from 'lucide-svelte/icons/vault';
     import ReceiptText from 'lucide-svelte/icons/receipt-text';
     import Sparkles from 'lucide-svelte/icons/sparkles';
     import Target from 'lucide-svelte/icons/target';
@@ -56,7 +56,7 @@
     const commitments = $derived<NavItem[]>([
         { title: 'الفواتير', href: '/bills', icon: ReceiptText, badge: dueBills },
         { title: 'الأقساط', href: '/installments', icon: CreditCard },
-        { title: 'الادخار', href: '/savings', icon: PiggyBank },
+        { title: 'الادخار', href: '/savings', icon: Vault },
     ]);
 
     const tools: NavItem[] = [

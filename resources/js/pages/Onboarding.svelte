@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
     import ArrowRight from 'lucide-svelte/icons/arrow-right';
     import Check from 'lucide-svelte/icons/check';
     import CircleAlert from 'lucide-svelte/icons/circle-alert';
@@ -63,6 +63,10 @@
     let errors = $state<ValidationErrors>({});
     let submitting = $state(false);
 
+    const serverErrors = $derived(
+        (page.props.errors ?? {}) as ValidationErrors,
+    );
+
     $effect(() => {
         salaryDayValue = salaryDay ? String(salaryDay) : '';
     });
@@ -89,9 +93,21 @@
     );
 
     function errorText(key: string): string {
-        const value = errors[key];
+        const value = errors[key] ?? serverErrors[key];
 
         return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+    }
+
+    function generalErrorText(): string {
+        for (const key of ['error', 'message', 'general', '_']) {
+            const message = errorText(key);
+
+            if (message) {
+                return message;
+            }
+        }
+
+        return '';
     }
 
     function todayDate(): string {
@@ -505,10 +521,10 @@
                 </div>
             {/if}
 
-            {#if errorText('income') || errorText('commitments') || errorText('salary_day') || errorText('budget')}
+            {#if generalErrorText() || errorText('income') || errorText('commitments') || errorText('salary_day') || errorText('budget')}
                 <p class="mt-5 flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
                     <CircleAlert class="size-4 shrink-0" />
-                    {errorText('income') || errorText('commitments') || errorText('salary_day') || errorText('budget')}
+                    {generalErrorText() || errorText('income') || errorText('commitments') || errorText('salary_day') || errorText('budget')}
                 </p>
             {/if}
             {#if hasAllocationOverflow}

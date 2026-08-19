@@ -68,5 +68,6 @@ export interface ReportTopExpense {
 export interface SavingsStats {
     total_saved: number;
     monthly_income: number;
+    monthly_deposits: number;
     savings_rate?: number;
 }

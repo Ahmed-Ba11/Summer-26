@@ -14,7 +14,7 @@
     import ShoppingCart from 'lucide-svelte/icons/shopping-cart';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import ReceiptText from 'lucide-svelte/icons/receipt-text';
-    import PiggyBank from 'lucide-svelte/icons/piggy-bank';
+import Vault from 'lucide-svelte/icons/vault';
 
     let open = $state(false);
 
@@ -22,7 +22,7 @@
         { label: 'مصروف', icon: ShoppingCart, color: 'var(--chart-1)', href: '/expenses?new=1' },
         { label: 'دخل', icon: TrendingUp, color: 'var(--chart-6)', href: '/income?new=1' },
         { label: 'فاتورة', icon: ReceiptText, color: 'var(--chart-7)', href: '/bills?new=1' },
-        { label: 'ادخار', icon: PiggyBank, color: 'var(--chart-3)', href: '/savings?new=1' },
+        { label: 'ادخار', icon: Vault, color: 'var(--chart-3)', href: '/savings?new=1' },
     ];
 
     function go(href: string) {

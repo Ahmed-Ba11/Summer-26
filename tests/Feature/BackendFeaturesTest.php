@@ -183,7 +183,11 @@ class BackendFeaturesTest extends TestCase
             'is_completed' => true,
         ]);
 
-        $this->actingAs($user)->put(route('installments.pay', $installment))->assertStatus(422);
+        $this->actingAs($user)
+            ->withHeaders(['X-Inertia' => 'true'])
+            ->put(route('installments.pay', $installment))
+            ->assertRedirect()
+            ->assertSessionHasErrors('paid_months');
         $this->assertDatabaseHas('installments', ['id' => $installment->id, 'paid_months' => 2]);
 
         $otherInstallment = $otherUser->installments()->create([
@@ -200,7 +204,7 @@ class BackendFeaturesTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_savings_additions_cannot_exceed_or_continue_after_goal_completion(): void
+    public function test_savings_additions_accept_overage_but_stop_after_goal_completion(): void
     {
         $user = User::factory()->create();
         $otherUser = User::factory()->create();
@@ -212,16 +216,21 @@ class BackendFeaturesTest extends TestCase
         $goal = $user->savingsGoals()->firstOrFail();
 
         $this->actingAs($user)->put(route('savings.update', $goal), ['amount' => 60])->assertRedirect();
-        $this->actingAs($user)->put(route('savings.update', $goal), ['amount' => 50])->assertStatus(422);
-        $this->assertDatabaseHas('savings_goals', ['id' => $goal->id, 'current_amount' => 6000]);
-
-        $this->actingAs($user)->put(route('savings.update', $goal), ['amount' => 40])->assertRedirect();
+        $this->actingAs($user)
+            ->put(route('savings.update', $goal), ['amount' => 50])
+            ->assertRedirect()
+            ->assertSessionHas('warnings.0.overage', 1000);
         $this->assertDatabaseHas('savings_goals', [
             'id' => $goal->id,
-            'current_amount' => 10000,
+            'current_amount' => 11000,
             'is_completed' => true,
         ]);
-        $this->actingAs($user)->put(route('savings.update', $goal), ['amount' => 1])->assertStatus(422);
+        $this->actingAs($user)->put(route('savings.complete', $goal))->assertRedirect();
+        $this->actingAs($user)
+            ->withHeaders(['X-Inertia' => 'true'])
+            ->put(route('savings.update', $goal), ['amount' => 1])
+            ->assertRedirect()
+            ->assertSessionHasErrors('amount');
 
         $otherGoal = $otherUser->savingsGoals()->create([
             'name' => 'هدف آخر',

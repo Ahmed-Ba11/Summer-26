@@ -5,7 +5,7 @@
 </script>
 
 <script lang="ts">
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
     import { onMount } from 'svelte';
     import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
     import ArrowDown from 'lucide-svelte/icons/arrow-down';
@@ -28,6 +28,7 @@
     import DialogFooter from '@/components/ui/dialog/DialogFooter.svelte';
     import DialogTitle from '@/components/ui/dialog/DialogTitle.svelte';
     import { formatCurrency, formatDate, toRiyals } from '@/lib/format';
+    import type { ValidationErrors } from '@/types';
     import {
         destroy as destroyExpense,
         store as storeExpense,
@@ -64,6 +65,33 @@
         filters?: ListFilters;
         recurringExpenses?: ExpenseItem[];
     } = $props();
+
+    const serverErrors = $derived(
+        (page.props.errors ?? {}) as ValidationErrors,
+    );
+
+    function errorText(
+        errors: ValidationErrors | Record<string, string>,
+        key: string,
+    ): string {
+        const value = errors[key];
+
+        return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+    }
+
+    function generalError(
+        errors: ValidationErrors | Record<string, string>,
+    ): string {
+        for (const key of ['error', 'message', 'general', '_']) {
+            const message = errorText(errors, key);
+
+            if (message) {
+                return message;
+            }
+        }
+
+        return '';
+    }
 
     function queryValue(key: string): string {
         if (typeof window === 'undefined') {
@@ -627,6 +655,12 @@
                     handleSubmit();
                 }}
             >
+                {#if generalError(formErrors) || generalError(serverErrors)}
+                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                        <AlertTriangle class="size-4 shrink-0" />
+                        {generalError(formErrors) || generalError(serverErrors)}
+                    </p>
+                {/if}
                 <div class="flex flex-col gap-1.5">
                     <label for="expense-description" class="text-sm font-medium"
                         >الوصف</label
@@ -638,9 +672,9 @@
                         placeholder="مثال: مطعم، فاتورة كهرباء..."
                         class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.description}
+                    {#if formErrors.description || errorText(serverErrors, 'description')}
                         <p class="text-xs text-destructive">
-                            {formErrors.description}
+                            {formErrors.description || errorText(serverErrors, 'description')}
                         </p>
                     {/if}
                 </div>
@@ -659,9 +693,9 @@
                             <option value={cat.id}>{cat.name}</option>
                         {/each}
                     </select>
-                    {#if formErrors.category_id}
+                    {#if formErrors.category_id || errorText(serverErrors, 'category_id')}
                         <p class="text-xs text-destructive">
-                            {formErrors.category_id}
+                            {formErrors.category_id || errorText(serverErrors, 'category_id')}
                         </p>
                     {/if}
                 </div>
@@ -679,9 +713,9 @@
                         placeholder="0.00"
                         class="rounded-lg border border-border bg-background px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.amount}
+                    {#if formErrors.amount || errorText(serverErrors, 'amount')}
                         <p class="text-xs text-destructive">
-                            {formErrors.amount}
+                            {formErrors.amount || errorText(serverErrors, 'amount')}
                         </p>
                     {/if}
                 </div>
@@ -696,9 +730,9 @@
                         bind:value={form.expense_date}
                         class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.expense_date}
+                    {#if formErrors.expense_date || errorText(serverErrors, 'expense_date')}
                         <p class="text-xs text-destructive">
-                            {formErrors.expense_date}
+                            {formErrors.expense_date || errorText(serverErrors, 'expense_date')}
                         </p>
                     {/if}
                 </div>

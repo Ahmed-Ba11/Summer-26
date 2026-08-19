@@ -5,9 +5,10 @@
 </script>
 
 <script lang="ts">
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
     import CalendarClock from 'lucide-svelte/icons/calendar-clock';
     import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
+    import CircleAlert from 'lucide-svelte/icons/circle-alert';
     import Clock from 'lucide-svelte/icons/clock';
     import CreditCard from 'lucide-svelte/icons/credit-card';
     import Plus from 'lucide-svelte/icons/plus';
@@ -30,6 +31,7 @@
         pay as payInstallmentRoute,
         store as storeInstallment,
     } from '@/routes/installments';
+    import type { ValidationErrors } from '@/types';
 
     interface InstallmentItem {
         id: number;
@@ -57,6 +59,33 @@
         installments?: InstallmentItem[];
         stats?: InstallmentStats;
     } = $props();
+
+    const serverErrors = $derived(
+        (page.props.errors ?? {}) as ValidationErrors,
+    );
+
+    function errorText(
+        errors: ValidationErrors | Record<string, string>,
+        key: string,
+    ): string {
+        const value = errors[key];
+
+        return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
+    }
+
+    function generalError(
+        errors: ValidationErrors | Record<string, string>,
+    ): string {
+        for (const key of ['error', 'message', 'general', '_']) {
+            const message = errorText(errors, key);
+
+            if (message) {
+                return message;
+            }
+        }
+
+        return '';
+    }
 
     function remainingMonths(item: InstallmentItem): number {
         return Math.max(0, item.total_months - item.paid_months);
@@ -621,6 +650,12 @@
                 </button>
             </div>
             <div class="space-y-4 px-6 py-4">
+                {#if generalError(formErrors) || generalError(serverErrors)}
+                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                        <CircleAlert class="size-4 shrink-0" />
+                        {generalError(formErrors) || generalError(serverErrors)}
+                    </p>
+                {/if}
                 <div>
                     <label
                         for="inst-name"
@@ -634,9 +669,9 @@
                         bind:value={formName}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.name}
+                    {#if formErrors.name || errorText(serverErrors, 'name')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.name}
+                            {formErrors.name || errorText(serverErrors, 'name')}
                         </p>
                     {/if}
                 </div>
@@ -691,9 +726,9 @@
                         bind:value={formMonthly}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.monthly_amount}
+                    {#if formErrors.monthly_amount || errorText(serverErrors, 'monthly_amount')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.monthly_amount}
+                            {formErrors.monthly_amount || errorText(serverErrors, 'monthly_amount')}
                         </p>
                     {/if}
                 </div>
@@ -711,9 +746,9 @@
                         bind:value={formTotalMonths}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.total_months}
+                    {#if formErrors.total_months || errorText(serverErrors, 'total_months')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.total_months}
+                            {formErrors.total_months || errorText(serverErrors, 'total_months')}
                         </p>
                     {/if}
                 </div>
@@ -729,9 +764,9 @@
                         bind:value={formStartDate}
                         class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {#if formErrors.start_date}
+                    {#if formErrors.start_date || errorText(serverErrors, 'start_date')}
                         <p class="mt-1 text-xs text-destructive">
-                            {formErrors.start_date}
+                            {formErrors.start_date || errorText(serverErrors, 'start_date')}
                         </p>
                     {/if}
                 </div>
