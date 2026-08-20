@@ -268,6 +268,11 @@ class BackendCompletionTest extends TestCase
     {
         $user = User::factory()->create();
         $category = $user->categories()->firstOrFail();
+        $user->incomes()->create([
+            'amount' => 100_000,
+            'source' => 'دخل اختباري',
+            'income_date' => now()->startOfMonth(),
+        ]);
 
         $this->actingAs($user)->post(route('expenses.store'), [
             'amount' => '25.75',

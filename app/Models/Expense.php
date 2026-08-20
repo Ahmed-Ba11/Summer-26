@@ -17,6 +17,7 @@ class Expense extends Model
         'description',
         'expense_date',
         'is_recurring',
+        'funding_source',
         'recurring_transaction_id',
     ];
 

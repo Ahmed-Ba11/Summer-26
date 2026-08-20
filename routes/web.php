@@ -15,6 +15,7 @@ use App\Models\Income;
 use App\Models\Installment;
 use App\Models\SavingsGoal;
 use App\Services\BudgetGuard;
+use App\Services\ExpenseFundingService;
 use App\Services\RecurringTransactionService;
 use App\Support\Money;
 use Illuminate\Http\Request;
@@ -100,6 +101,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('expenses');
 
     Route::post('/expenses', function (Request $request, RecurringTransactionService $recurring) {
+        $request->merge([
+            'expense_date' => $request->input('expense_date', $request->input('date')),
+        ]);
+
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01|decimal:0,2',
             'category_id' => [
@@ -111,14 +116,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'is_recurring' => 'sometimes|boolean',
             'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
             'next_due_date' => 'nullable|date',
+            'funding_source' => 'nullable|in:savings,unlogged_income,overspend',
+            'savings_goal_id' => 'nullable|integer',
+            'income_amount' => 'nullable|integer|min:0',
+            'income_source' => 'nullable|string|max:255',
         ]);
 
-        $expense = DB::transaction(function () use ($validated, $recurring): Expense {
-            $expense = auth()->user()->expenses()->create([
-                'category_id' => $validated['category_id'],
-                'amount' => Money::toHalalas($validated['amount']),
+        $user = $request->user();
+        $amount = Money::toHalalas($validated['amount']);
+        $expense = DB::transaction(function () use ($validated, $recurring, $user, $amount): Expense {
+            $expense = ExpenseFundingService::for($user)->record([
+                'amount' => $amount,
+                'category_id' => $validated['category_id'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'expense_date' => $validated['expense_date'],
+                'funding_source' => $validated['funding_source'] ?? null,
+                'savings_goal_id' => $validated['savings_goal_id'] ?? null,
+                'income_amount' => $validated['income_amount'] ?? null,
+                'income_source' => $validated['income_source'] ?? null,
+            ]);
+
+            $expense->update([
                 'is_recurring' => $validated['is_recurring'] ?? false,
             ]);
 

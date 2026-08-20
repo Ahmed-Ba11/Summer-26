@@ -9,25 +9,37 @@
      * موضعه في يسار الشاشة (inset-inline-end في RTL) حتى لا يغطي بداية
      * صفوف الجداول.
      */
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
     import Plus from 'lucide-svelte/icons/plus';
     import ShoppingCart from 'lucide-svelte/icons/shopping-cart';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import ReceiptText from 'lucide-svelte/icons/receipt-text';
-import Vault from 'lucide-svelte/icons/vault';
+    import Vault from 'lucide-svelte/icons/vault';
+    import QuickAddSheet from '@/components/QuickAddSheet.svelte';
 
     let open = $state(false);
+    let sheetOpen = $state(false);
+    let sheetMode = $state<'expense' | 'income'>('expense');
+    const quickAdd = $derived(page.props.quickAdd ?? null);
 
     const actions = [
-        { label: 'مصروف', icon: ShoppingCart, color: 'var(--chart-1)', href: '/expenses?new=1' },
-        { label: 'دخل', icon: TrendingUp, color: 'var(--chart-6)', href: '/income?new=1' },
+        { label: 'مصروف', icon: ShoppingCart, color: 'var(--chart-1)', kind: 'expense' as const },
+        { label: 'دخل', icon: TrendingUp, color: 'var(--chart-6)', kind: 'income' as const },
         { label: 'فاتورة', icon: ReceiptText, color: 'var(--chart-7)', href: '/bills?new=1' },
         { label: 'ادخار', icon: Vault, color: 'var(--chart-3)', href: '/savings?new=1' },
     ];
 
-    function go(href: string) {
+    function go(action: (typeof actions)[number]) {
         open = false;
-        router.visit(href);
+
+        if ('kind' in action) {
+            sheetMode = action.kind;
+            sheetOpen = true;
+
+            return;
+        }
+
+        router.visit(action.href);
     }
 
     function onKeydown(e: KeyboardEvent) {
@@ -55,7 +67,7 @@ import Vault from 'lucide-svelte/icons/vault';
                 {@const Icon = a.icon}
                 <button
                     type="button"
-                    onclick={() => go(a.href)}
+                    onclick={() => go(a)}
                     class="flex items-center gap-2.5 rounded-full border border-border bg-card py-2 ps-2.5 pe-4 text-[13px] shadow-lg transition-transform hover:scale-[1.03]"
                     style="animation: fab-in 180ms ease-out both; animation-delay: {i * 30}ms"
                 >
@@ -80,6 +92,19 @@ import Vault from 'lucide-svelte/icons/vault';
         <Plus class="size-6" />
     </button>
 </div>
+
+{#if quickAdd}
+    <QuickAddSheet
+        bind:open={sheetOpen}
+        bind:mode={sheetMode}
+        context={quickAdd.context}
+        categories={quickAdd.categories}
+        lastCategoryId={quickAdd.lastCategoryId}
+        learned={quickAdd.learned}
+        recurringIncome={quickAdd.recurringIncome}
+        fundableGoals={quickAdd.fundableGoals}
+    />
+{/if}
 
 <style>
     @keyframes fab-in {

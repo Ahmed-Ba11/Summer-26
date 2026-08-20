@@ -184,6 +184,11 @@ class BackendDataCorrectnessTest extends TestCase
     {
         $user = User::factory()->create();
         $category = $user->categories()->firstOrFail();
+        $user->incomes()->create([
+            'amount' => 100_000,
+            'source' => 'دخل اختباري',
+            'income_date' => now()->startOfMonth(),
+        ]);
 
         $this->actingAs($user)->post(route('expenses.store'), [
             'amount' => '10.00',
@@ -252,7 +257,7 @@ class BackendDataCorrectnessTest extends TestCase
             'is_recurring' => true,
         ])->assertRedirect();
 
-        $income = $user->incomes()->firstOrFail();
+        $income = $user->incomes()->where('source', 'راتب')->firstOrFail();
         $incomeTemplate = $user->recurringTransactions()->where('type', 'income')->firstOrFail();
 
         $this->actingAs($user)->delete(route('recurring.destroy', $incomeTemplate))->assertRedirect();

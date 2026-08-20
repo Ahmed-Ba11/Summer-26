@@ -17,6 +17,10 @@
     import Info from 'lucide-svelte/icons/info';
     import X from 'lucide-svelte/icons/x';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
+    import FundingSourcePicker, {
+        type Funding,
+        type SavingsGoalOption,
+    } from '@/components/FundingSourcePicker.svelte';
     import { formatAmount, formatCurrency } from '@/lib/format';
     import {
         checkExpense,
@@ -53,6 +57,7 @@
         lastCategoryId = null as number | null,
         learned = [] as Learned[],
         recurringIncome = 0,
+        fundableGoals = [],
     }: {
         open?: boolean;
         mode?: 'expense' | 'income';
@@ -61,6 +66,7 @@
         lastCategoryId?: number | null;
         learned?: Learned[];
         recurringIncome?: number;
+        fundableGoals?: SavingsGoalOption[];
     } = $props();
 
     let raw = $state('');
@@ -68,6 +74,12 @@
     let description = $state('');
     let confirmed = $state(false);
     let submitting = $state(false);
+    let funding = $state<Funding>({
+        source: null,
+        savingsGoalId: null,
+        incomeAmount: 0,
+        incomeSource: '',
+    });
 
     // آخر فئة استخدمها المستخدم مختارة مسبقاً — فأغلب المرات ما يلمسها
     $effect(() => {
@@ -80,6 +92,10 @@
     /** فئة «أخرى» تُلزم بوصف — وإلا صار السجل بلا معنى بعد أسبوع. */
     const isOther = $derived(selected?.name === 'أخرى' || selected?.icon === 'ellipsis');
     const descriptionMissing = $derived(isOther && description.trim().length < 2);
+
+    const shortfall = $derived(
+        mode === 'expense' ? Math.max(0, amount - availableToSpend(context)) : 0,
+    );
 
     const checks = $derived.by<RuleCheck[]>(() => {
         if (amount <= 0) return [];
@@ -108,12 +124,20 @@
             });
         }
 
-        return list;
+        // عند وجود عجز، تحذير «المتبقي بيصير سالب» يغطّيه FundingSourcePicker —
+        // لا نكرّره فيتشوّش الرسالة (STAGE3-funding بند 4و).
+        return shortfall > 0 ? list.filter((c) => c.severity !== 'danger') : list;
     });
 
     const blocked = $derived(isBlocked(checks));
+    const fundingReady = $derived(
+        shortfall === 0
+            || (funding.source === 'savings' && funding.savingsGoalId !== null)
+            || (funding.source === 'unlogged_income' && funding.incomeAmount >= shortfall)
+            || funding.source === 'overspend',
+    );
     const mustConfirm = $derived(needsConfirm(checks) && !confirmed);
-    const canSave = $derived(amount > 0 && !blocked && !submitting);
+    const canSave = $derived(amount > 0 && !blocked && fundingReady && !submitting);
 
     // ── معاينة الأثر ──────────────────────────────────────────────────
     const preview = $derived.by(() => {
@@ -162,6 +186,12 @@
         description = '';
         confirmed = false;
         categoryId = lastCategoryId;
+        funding = {
+            source: null,
+            savingsGoalId: null,
+            incomeAmount: 0,
+            incomeSource: '',
+        };
     }
 
     function close() {
@@ -185,13 +215,18 @@
                 amount: amount / 100,
                 category_id: mode === 'expense' ? categoryId : undefined,
                 description: description.trim() || undefined,
-                date: new Date().toISOString().slice(0, 10),
+                expense_date: mode === 'expense' ? new Date().toISOString().slice(0, 10) : undefined,
+                income_date: mode === 'income' ? new Date().toISOString().slice(0, 10) : undefined,
+                funding_source: mode === 'expense' && shortfall > 0 ? funding.source : undefined,
+                savings_goal_id: mode === 'expense' && shortfall > 0 ? funding.savingsGoalId ?? undefined : undefined,
+                income_amount: mode === 'expense' && shortfall > 0 ? funding.incomeAmount || undefined : undefined,
+                income_source: mode === 'expense' && shortfall > 0 ? funding.incomeSource || undefined : undefined,
             } as never,
             {
                 preserveScroll: true,
+                onSuccess: close,
                 onFinish: () => {
                     submitting = false;
-                    close();
                 },
             },
         );
@@ -356,6 +391,14 @@
                         </div>
                     {/each}
                 </div>
+            {/if}
+
+            {#if shortfall > 0}
+                <FundingSourcePicker
+                    {shortfall}
+                    goals={fundableGoals}
+                    bind:value={funding}
+                />
             {/if}
 
             <!-- معاينة الأثر -->

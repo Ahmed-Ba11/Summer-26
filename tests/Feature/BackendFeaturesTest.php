@@ -68,6 +68,11 @@ class BackendFeaturesTest extends TestCase
     {
         $user = User::factory()->create();
         $category = $user->categories()->first();
+        $user->incomes()->create([
+            'amount' => 100_000,
+            'source' => 'دخل اختباري',
+            'income_date' => now()->startOfMonth(),
+        ]);
 
         $this->actingAs($user)->post(route('expenses.store'), [
             'amount' => 12.50,
@@ -95,7 +100,7 @@ class BackendFeaturesTest extends TestCase
             'income_date' => '2026-08-01',
             'is_recurring' => true,
         ]);
-        $income = $user->incomes()->firstOrFail();
+        $income = $user->incomes()->latest('id')->firstOrFail();
         $this->assertTrue($income->is_recurring);
 
         $this->actingAs($user)->put(route('income.update', $income), [

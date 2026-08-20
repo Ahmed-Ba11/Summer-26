@@ -661,6 +661,12 @@
                         {generalError(formErrors) || generalError(serverErrors)}
                     </p>
                 {/if}
+                {#if formErrors.funding_source || errorText(serverErrors, 'funding_source')}
+                    <p class="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+                        {formErrors.funding_source || errorText(serverErrors, 'funding_source')}
+                        <a href="/dashboard" class="ms-1 font-semibold underline underline-offset-2">استخدم الإضافة السريعة</a>
+                    </p>
+                {/if}
                 <div class="flex flex-col gap-1.5">
                     <label for="expense-description" class="text-sm font-medium"
                         >الوصف</label

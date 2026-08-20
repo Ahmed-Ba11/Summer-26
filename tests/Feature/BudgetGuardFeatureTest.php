@@ -144,6 +144,7 @@ class BudgetGuardFeatureTest extends TestCase
                 'amount' => '20.00',
                 'category_id' => $category->id,
                 'expense_date' => now()->toDateString(),
+                'funding_source' => 'overspend',
             ])
             ->assertRedirect()
             ->assertSessionHas('warnings.0.severity', 'danger');
@@ -151,6 +152,7 @@ class BudgetGuardFeatureTest extends TestCase
         $this->assertDatabaseHas('expenses', [
             'user_id' => $user->id,
             'amount' => 2_000,
+            'funding_source' => 'overspend',
         ]);
     }
 }
