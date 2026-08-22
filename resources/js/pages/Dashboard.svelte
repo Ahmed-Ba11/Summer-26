@@ -30,13 +30,10 @@ import Vault from 'lucide-svelte/icons/vault';
     import Wallet from 'lucide-svelte/icons/wallet';
 
     import AppHead from '@/components/AppHead.svelte';
-    import BudgetRow from '@/components/BudgetRow.svelte';
-    import CategoryDonut from '@/components/CategoryDonut.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
     import MoneyStoryCard from '@/components/MoneyStoryCard.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
-    import MonthlyBars from '@/components/MonthlyBars.svelte';
     import UpcomingStrip from '@/components/UpcomingStrip.svelte';
     import StatTile from '@/components/StatTile.svelte';
     import Button from '@/components/ui/button/Button.svelte';
@@ -55,22 +52,6 @@ import Vault from 'lucide-svelte/icons/vault';
         installmentsCount: number;
         savingsRate: number;
         savingsTarget: number;
-    }
-
-    interface Category {
-        id: number;
-        name: string;
-        icon: string;
-        color: string;
-        amount: number;
-        budget: number;
-        rollover: number;
-    }
-
-    interface MonthlyPoint {
-        month: string;
-        income: number;
-        expenses: number;
     }
 
     interface CalEvent {
@@ -107,8 +88,6 @@ import Vault from 'lucide-svelte/icons/vault';
             savingsRate: 0,
             savingsTarget: 10,
         } as Stats,
-        categories = [] as Category[],
-        monthly = [] as MonthlyPoint[],
         calendarEvents = [] as CalEvent[],
         recentTransactions = [] as Transaction[],
         month = '',
@@ -117,8 +96,6 @@ import Vault from 'lucide-svelte/icons/vault';
         onboardingComplete = true,
     }: {
         stats?: Stats;
-        categories?: Category[];
-        monthly?: MonthlyPoint[];
         calendarEvents?: CalEvent[];
         recentTransactions?: Transaction[];
         month?: string;
@@ -131,12 +108,6 @@ import Vault from 'lucide-svelte/icons/vault';
         stats.prevExpenses > 0
             ? ((stats.totalExpenses - stats.prevExpenses) / stats.prevExpenses) * 100
             : 0,
-    );
-
-    const budgetedCategories = $derived(
-        [...categories]
-            .filter((c) => c.budget > 0)
-            .sort((a, b) => b.amount / (b.budget || 1) - a.amount / (a.budget || 1)),
     );
 
     const currentMonthLabel = $derived(availableMonths.find((m) => m.value === month)?.label ?? month);
@@ -158,7 +129,7 @@ import Vault from 'lucide-svelte/icons/vault';
         : 'صورة ميزانيتك الكاملة لهذا الشهر.'}
 />
 
-<div class="flex flex-1 flex-col gap-3 p-3 md:gap-[18px] md:p-6">
+<div class="flex flex-1 flex-col gap-3 p-3 md:gap-5 md:p-6">
     <!-- رأس الصفحة -->
     <div class="hidden flex-wrap items-start justify-between gap-4 md:flex">
         <div>
@@ -275,70 +246,7 @@ import Vault from 'lucide-svelte/icons/vault';
             />
         </div>
 
-        <!-- ٤ · الرسوم -->
-        <div class="grid gap-3.5 lg:grid-cols-2">
-            <section class="rounded-2xl border border-border bg-card shadow-xs">
-                <header class="flex items-center justify-between border-b border-border px-5 py-4">
-                    <h2 class="text-[14.5px] font-semibold">وين راحت مصاريفك؟</h2>
-                    <a href="/expenses" class="text-[12.5px] text-primary no-underline">جدول البيانات</a>
-                </header>
-                <div class="p-5 [&>div>div:first-child]:hidden md:[&>div>div:first-child]:block">
-                    {#if categories.some((c) => c.amount > 0)}
-                        <CategoryDonut {categories} />
-                    {:else}
-                        <EmptyState
-                            icon={ShoppingCart}
-                            title="ما سجّلت أي مصروف هالشهر"
-                            description="أضف أول مصروف وبتشوف التوزيع هنا."
-                            actionLabel="أضف مصروف"
-                            href="/expenses?new=1"
-                        />
-                    {/if}
-                </div>
-            </section>
-
-            <section class="hidden rounded-2xl border border-border bg-card shadow-xs md:block">
-                <header class="flex items-center justify-between border-b border-border px-5 py-4">
-                    <h2 class="text-[14.5px] font-semibold">الدخل مقابل المصاريف — ٦ أشهر</h2>
-                    <a href="/reports" class="text-[12.5px] text-primary no-underline">آخر ١٢ شهر</a>
-                </header>
-                <div class="p-5">
-                    {#if monthly.length}
-                        <MonthlyBars data={monthly} />
-                    {:else}
-                        <EmptyState title="ما فيه بيانات كافية بعد" description="بعد شهر من الاستخدام بتشوف اتجاهك هنا." />
-                    {/if}
-                </div>
-            </section>
-        </div>
-
-        <!-- ٥ · الميزانية حسب الفئة -->
-        {#if budgetedCategories.length}
-            <section class="rounded-2xl border border-border bg-card shadow-xs">
-                <header class="flex items-center justify-between border-b border-border px-5 py-4">
-                    <h2 class="text-[14.5px] font-semibold">ميزانيتك حسب الفئة</h2>
-                    <a href="/budgets" class="inline-flex items-center gap-1 text-[12.5px] text-primary no-underline">
-                        تعديل الميزانية
-                        <ArrowLeft class="size-3.5" />
-                    </a>
-                </header>
-                <div class="grid grid-cols-1 gap-3 p-3 md:grid-cols-2 md:p-5">
-                    {#each budgetedCategories.slice(0, 6) as c (c.id)}
-                        <BudgetRow
-                            name={c.name}
-                            icon={c.icon}
-                            color={c.color}
-                            spent={c.amount}
-                            budget={c.budget}
-                            rollover={c.rollover}
-                            onclick={() => router.visit('/budgets')}
-                        />
-                    {/each}
-                </div>
-            </section>
-        {/if}
-
-        <!-- ٦ · آخر المعاملات -->
+        <!-- ٤ · آخر المعاملات -->
         <section class="rounded-2xl border border-border bg-card shadow-xs">
             <header class="flex items-center justify-between border-b border-border px-5 py-4">
                 <h2 class="text-[14.5px] font-semibold">آخر المعاملات</h2>
@@ -365,7 +273,7 @@ import Vault from 'lucide-svelte/icons/vault';
                                         {t.desc}
                                     </span>
                                 </td>
-                                <td class="px-5 py-3 text-foreground/75">{t.category}</td>
+                                <td class="px-5 py-3 text-foreground/80">{t.category}</td>
                                 <td class="px-5 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
                                     {formatDate(t.date)}
                                 </td>

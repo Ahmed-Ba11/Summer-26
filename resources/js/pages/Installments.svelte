@@ -392,13 +392,13 @@
                             </div>
                             {#if !item.is_completed}
                                 <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                    class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
                                 >
                                     <Clock class="size-2.5" /> نشط
                                 </span>
                             {:else}
                                 <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
+                                    class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
                                 >
                                     <CheckCircle2 class="size-2.5" /> منتهي
                                 </span>

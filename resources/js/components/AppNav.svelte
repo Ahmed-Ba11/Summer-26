@@ -57,8 +57,8 @@
         onQuickAdd?: () => void;
     } = $props();
 
-    const url = $derived(page.url ?? '');
-    const user = $derived(page.props.auth?.user);
+    const url = $derived($page.url ?? '');
+    const user = $derived($page.props.auth?.user);
     let moreOpen = $state(false);
 
     /** الوجهات الأربع في الشريط السفلي — الأكثر تكراراً. */
@@ -285,18 +285,18 @@
     {#each PRIMARY.slice(0, 2) as item (item.href)}
         {@const active = isActive(item.href)}
         <Link href={item.href} aria-current={active ? 'page' : undefined}
-            class="relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-[3px] py-1.5 text-[9.5px] no-underline {active ? 'text-primary' : 'text-muted-foreground'}">
-            {#if active}<span class="absolute top-0 h-[2.5px] w-6 rounded-b-[3px] bg-primary"></span>{/if}
-            <item.icon class="size-[21px]" />
+            class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[10.5px] font-medium no-underline {active ? 'text-primary' : 'text-muted-foreground'}">
+            {#if active}<span class="absolute top-0 h-[3px] w-7 rounded-b-[3px] bg-primary"></span>{/if}
+            <item.icon class="size-6" />
             {item.title}
         </Link>
     {/each}
 
     <!-- زر الإضافة — أقرب نقطة للإبهام -->
-    <div class="grid w-[62px] shrink-0 place-items-center">
+    <div class="grid w-[68px] shrink-0 place-items-center">
         <button type="button" onclick={() => onQuickAdd?.()} aria-label="إضافة سريعة"
-            class="-mt-5 grid size-[52px] place-items-center rounded-full border-[3.5px] border-card bg-primary text-primary-foreground shadow-[0_5px_16px_rgba(44,74,110,.32)] transition-transform active:scale-95">
-            <Plus class="size-6" stroke-width="2.2" />
+            class="-mt-6 grid size-[58px] place-items-center rounded-full border-4 border-card bg-primary text-primary-foreground shadow-[0_5px_16px_rgba(44,74,110,.32)] transition-transform active:scale-95">
+            <Plus class="size-7" stroke-width="2.4" />
         </button>
     </div>
 
@@ -304,20 +304,20 @@
         {@const active = isActive(item.href)}
         {@const badge = item.badge?.() ?? 0}
         <Link href={item.href} aria-current={active ? 'page' : undefined}
-            class="relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-[3px] py-1.5 text-[9.5px] no-underline {active ? 'text-primary' : 'text-muted-foreground'}">
-            {#if active}<span class="absolute top-0 h-[2.5px] w-6 rounded-b-[3px] bg-primary"></span>{/if}
+            class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[10.5px] font-medium no-underline {active ? 'text-primary' : 'text-muted-foreground'}">
+            {#if active}<span class="absolute top-0 h-[3px] w-7 rounded-b-[3px] bg-primary"></span>{/if}
             {#if badge > 0}
                 <span class="absolute top-1 grid h-[15px] min-w-[15px] place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white tabular-nums" style="inset-inline-start:calc(50% + 7px)">{badge}</span>
             {/if}
-            <item.icon class="size-[21px]" />
+            <item.icon class="size-6" />
             {item.title}
         </Link>
     {/each}
 
     <button type="button" onclick={() => (moreOpen = !moreOpen)} aria-expanded={moreOpen}
-        class="relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-[3px] py-1.5 text-[9.5px] {moreOpen ? 'text-primary' : 'text-muted-foreground'}">
-        {#if moreOpen}<span class="absolute top-0 h-[2.5px] w-6 rounded-b-[3px] bg-primary"></span>{/if}
-        <Ellipsis class="size-[21px]" />
+        class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[10.5px] font-medium {moreOpen ? 'text-primary' : 'text-muted-foreground'}">
+        {#if moreOpen}<span class="absolute top-0 h-[3px] w-7 rounded-b-[3px] bg-primary"></span>{/if}
+        <Ellipsis class="size-6" />
         المزيد
     </button>
 </nav>

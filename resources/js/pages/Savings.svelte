@@ -530,14 +530,14 @@
                             </div>
                             {#if goal.is_completed}
                                 <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0"
+                                    class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0"
                                 >
                                     <CheckCircle2 class="size-2.5" />
                                     مكتمل
                                 </span>
                             {:else}
                                 <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 shrink-0"
+                                    class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 shrink-0"
                                 >
                                     قيد الادخار
                                 </span>

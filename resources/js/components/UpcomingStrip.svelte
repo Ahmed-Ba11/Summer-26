@@ -1,6 +1,6 @@
 <script lang="ts">
     /**
-     * «القادم قريباً» — يحلّ محل التقويم المالي في لوحة التحكم.
+     * «التقويم المالي» — عرض مضغوط لأقرب الاستحقاقات في لوحة التحكم.
      *
      * التقويم بأربعة عشر يوماً يحتاج تمريراً أفقياً على الجوال، وهذا
      * بالضبط ما نحاربه. ثلاثة أسطر تعطي نفس المعلومة بلا تمرير:
@@ -50,7 +50,7 @@
 
 <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
     <header class="flex items-center justify-between border-b border-border px-4 py-3 md:px-5 md:py-4">
-        <h2 class="text-[13px] font-semibold md:text-[14.5px]">القادم قريباً</h2>
+        <h2 class="text-[13px] font-semibold md:text-[14.5px]">التقويم المالي</h2>
         <Link
             href="/calendar"
             class="inline-flex items-center gap-1 text-[11.5px] text-primary no-underline md:text-[12.5px]"

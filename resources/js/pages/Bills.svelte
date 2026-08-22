@@ -477,7 +477,7 @@
                                     </div>
                                 </div>
                                 <span
-                                    class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {statusClass(
+                                    class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold {statusClass(
                                         bill,
                                     )}"
                                 >

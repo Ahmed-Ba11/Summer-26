@@ -14,8 +14,10 @@
     import WalletCards from 'lucide-svelte/icons/wallet-cards';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
+    import CategoryDonut from '@/components/CategoryDonut.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
+    import MonthlyBars from '@/components/MonthlyBars.svelte';
     import {
         Card,
         CardContent,
@@ -56,15 +58,17 @@
             ? `/reports/export?month=${encodeURIComponent(month)}`
             : '/reports/export',
     );
-    const maxMonthlyAmount = $derived(
-        Math.max(0, ...monthly.flatMap((point) => [point.income, point.expenses])),
+    const donutCategories = $derived(
+        categories
+            .filter((category) => category.amount > 0)
+            .map((category) => ({
+                id: category.id ?? category.name,
+                name: category.name,
+                icon: category.icon ?? 'ellipsis',
+                color: category.color ?? 'var(--chart-7)',
+                amount: category.amount,
+            })),
     );
-
-    function barHeight(value: number): number {
-        return maxMonthlyAmount > 0
-            ? Math.max(4, Math.round((value / maxMonthlyAmount) * 100))
-            : 0;
-    }
 
     function selectMonth(event: Event): void {
         const value = (event.currentTarget as HTMLInputElement).value;
@@ -144,46 +148,19 @@
             <Card>
                 <CardHeader><CardTitle>الدخل مقابل المصاريف</CardTitle></CardHeader>
                 <CardContent>
-                    <div class="flex h-56 items-end gap-2 overflow-x-auto border-b border-border pb-8 sm:gap-4">
-                        {#each monthly as point (point.month)}
-                            <div class="flex min-w-12 flex-1 flex-col items-center justify-end gap-2 self-stretch">
-                                <div class="flex h-full items-end gap-1">
-                                    <span class="w-3 rounded-t bg-[var(--chart-3)]" style="height: {barHeight(point.income)}%" title={`الدخل: ${formatCurrency(point.income)}`}></span>
-                                    <span class="w-3 rounded-t bg-[var(--chart-1)]" style="height: {barHeight(point.expenses)}%" title={`المصاريف: ${formatCurrency(point.expenses)}`}></span>
-                                </div>
-                                <span class="text-xs text-muted-foreground">{formatDate(`${point.month}-01`)}</span>
-                            </div>
-                        {/each}
-                    </div>
-                    <div class="mt-4 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                        <span class="inline-flex items-center gap-2"><i class="size-2.5 rounded-sm bg-[var(--chart-3)]"></i>الدخل</span>
-                        <span class="inline-flex items-center gap-2"><i class="size-2.5 rounded-sm bg-[var(--chart-1)]"></i>المصاريف</span>
-                    </div>
+                    <MonthlyBars data={monthly} />
                 </CardContent>
             </Card>
         {/if}
 
         <div class="grid gap-6 lg:grid-cols-2">
             <Card>
-                <CardHeader><CardTitle>المصاريف حسب الفئة</CardTitle></CardHeader>
+                <CardHeader><CardTitle>وين راحت مصاريفك؟</CardTitle></CardHeader>
                 <CardContent>
-                    {#if categories.filter((category) => category.amount > 0).length === 0}
+                    {#if donutCategories.length === 0}
                         <p class="py-8 text-center text-sm text-muted-foreground">لا توجد فئات في الفترة المحددة.</p>
                     {:else}
-                        <div class="flex flex-col gap-3">
-                            {#each categories.filter((category) => category.amount > 0) as category (category.id ?? category.name)}
-                                <div class="flex items-center gap-3">
-                                    <CategoryIcon icon={category.icon ?? 'ellipsis'} color={category.color ?? 'var(--chart-7)'} size="sm" />
-                                    <span class="min-w-0 flex-1 truncate text-sm">{category.name}</span>
-                                    <span class="text-sm font-semibold tabular-nums">{formatCurrency(category.amount)}</span>
-                                    {#if category.budget > 0}
-                                        <span class="w-28 text-end text-xs text-muted-foreground tabular-nums">{formatPercent(category.percentage)} من الميزانية</span>
-                                    {:else}
-                                        <span class="w-28 text-end text-xs text-muted-foreground">لا توجد ميزانية</span>
-                                    {/if}
-                                </div>
-                            {/each}
-                        </div>
+                        <CategoryDonut categories={donutCategories} />
                     {/if}
                 </CardContent>
             </Card>

@@ -112,7 +112,7 @@
                             </div>
                             {#if transaction.is_active}
                                 <span
-                                    class="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success-text"
+                                    class="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success-text"
                                 >
                                     <CircleCheck class="size-3" />
                                     نشطة

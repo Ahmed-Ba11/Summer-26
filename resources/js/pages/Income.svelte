@@ -546,7 +546,7 @@
                                             {inc.description || inc.source}
                                             {#if inc.is_recurring}
                                                 <span
-                                                    class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                                                    class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
                                                 >
                                                     <Repeat class="size-2.5" /> متكرر
                                                 </span>

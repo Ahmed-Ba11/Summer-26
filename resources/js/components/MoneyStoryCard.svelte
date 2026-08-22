@@ -1,22 +1,14 @@
 <script lang="ts">
     /**
-     * بطاقة القصّة المالية — مُعاد بناؤها mobile-first.
+     * بطاقة القصّة المالية — نسخة مضغوطة، mobile-first.
      *
-     * ══════════════════════════════════════════════════════════════════
-     *  الجوال هو التخطيط الأساسي، والديسكتوب توسّع له.
-     * ══════════════════════════════════════════════════════════════════
-     *
-     * على الجوال (< 768px):
-     *   الرقم البطل، سطر الحد اليومي، شريط التدفّق، ثم صف ثلاثي مضغوط
-     *   (دخلك · محجوز · صرفت) خلف فاصل. لا صناديق جانبية ولا أرقام عائمة.
-     *
-     * على الديسكتوب (≥ 768px):
-     *   نفس العناصر في صف أفقي واحد، وبطاقة «متوسط صرفك اليومي» جانبية.
-     *
-     * قواعد إخفاء الضجيج:
-     *   • قطع شريط التدفّق التي قيمتها صفر لا تُرسم أصلاً
-     *   • مفتاح الرسم يعرض البنود غير الصفرية فقط
-     *   • «متوسط صرفك اليومي» يظهر فقط بعد أول مصروف
+     * ملاحظات المستخدم المطبّقة:
+     *   • البطاقة كانت كبيرة جداً — الرقم البطل نزل من 40px إلى 28px على
+     *     الجوال، والحشوة من 24px إلى 14px.
+     *   • «دخلك» كان يطفو بجانب الرقم — صار ضمن صف ثلاثي مرتّب خلف فاصل.
+     *   • «متوسط صرفك اليومي 0» كان صندوقاً كبيراً بقيمة صفر — صار يختفي
+     *     تماماً قبل أول مصروف، وبعدها سطر واحد.
+     *   • قطع شريط التدفّق ومفتاحه: البنود الصفرية لا تُرسم إطلاقاً.
      */
     import Wallet from 'lucide-svelte/icons/wallet';
     import TriangleAlert from 'lucide-svelte/icons/triangle-alert';
@@ -47,7 +39,6 @@
     const safeDaily = $derived(daysLeft > 0 ? Math.floor(remaining / daysLeft) : remaining);
     const onTrack = $derived(avgDaily > 0 && safeDaily > 0 && avgDaily <= safeDaily);
 
-    /** القطع غير الصفرية فقط — الصفر لا يُرسم ولا يظهر في المفتاح. */
     const slices = $derived(
         [
             { key: 'bills', label: 'فواتير', amount: bills, color: 'var(--chart-7)' },
@@ -60,7 +51,6 @@
     const base = $derived(Math.max(income, reserved + expenses, 1));
     const restPct = $derived(Math.max(0, (Math.max(0, remaining) / base) * 100));
 
-    /** الأرقام الثلاثة المساندة. */
     const figures = $derived([
         { label: 'دخلك', value: income },
         { label: 'محجوز', value: reserved },
@@ -68,79 +58,66 @@
     ]);
 </script>
 
-<section class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs md:rounded-[22px]">
-    <div class="p-4 md:flex md:flex-wrap md:items-end md:gap-x-7 md:gap-y-6 md:px-7 md:pt-6 md:pb-5">
-        <!-- ── الرقم البطل ─────────────────────────────────────────── -->
+<section class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+    <div class="px-3.5 pt-3.5 pb-3 md:flex md:flex-wrap md:items-end md:gap-x-7 md:gap-y-5 md:px-6 md:pt-5 md:pb-4">
+        <!-- الرقم البطل -->
         <div class="md:shrink-0">
-            <p class="flex items-center gap-1.5 text-[11.5px] text-muted-foreground md:text-[12.5px]">
+            <p class="flex items-center gap-1.5 text-[12px] text-muted-foreground">
                 <Wallet class="size-3.5" />
                 المتبقي لك للصرف
             </p>
             <p
-                class="mt-1 text-[32px] leading-none font-semibold tracking-tighter md:text-4xl md:leading-[1.1] {isNegative
+                class="mt-0.5 text-[28px] leading-none font-semibold tracking-tighter md:text-[34px] {isNegative
                     ? 'text-destructive'
                     : ''}"
             >
-                {formatAmount(remaining)}<span class="ms-1 text-[14px] font-medium text-foreground/70 md:text-[17px]">
+                {formatAmount(remaining)}<span class="ms-1 text-[13px] font-medium text-foreground/80 md:text-[16px]">
                     ر.س
                 </span>
             </p>
 
             {#if isNegative}
-                <p class="mt-1.5 text-[11.5px] text-destructive md:text-[12.5px]">
+                <p class="mt-1 text-[12px] text-destructive">
                     تجاوزت دخلك بـ <b class="font-semibold">{formatCurrency(Math.abs(remaining))}</b>
                 </p>
             {:else if daysLeft === 0}
-                <p class="mt-1.5 text-[11.5px] text-foreground/75 md:text-[12.5px]">راتبك اليوم — ميزانية جديدة تبدأ 🎉</p>
+                <p class="mt-1 text-[12px] text-foreground/80">راتبك اليوم — ميزانية جديدة 🎉</p>
             {:else}
-                <p class="mt-1.5 text-[11.5px] text-foreground/75 md:text-[12.5px]">
-                    تقدر تصرف
-                    <b class="font-semibold text-success-text">{formatCurrency(safeDaily)} يومياً</b>
-                    بأمان
+                <p class="mt-1 text-[12px] text-foreground/80">
+                    تقدر تصرف <b class="font-semibold text-success-text">{formatCurrency(safeDaily)} يومياً</b>
                 </p>
             {/if}
         </div>
 
         <div class="hidden w-px self-stretch bg-border md:block"></div>
 
-        <!-- ── الأرقام المساندة: صف ثلاثي على الجوال ─────────────────── -->
-        <div
-            class="mt-3.5 grid grid-cols-3 gap-2 border-t border-border pt-3 md:mt-0 md:flex md:gap-7 md:border-0 md:pt-0"
-        >
+        <!-- صف الأرقام الثلاثة -->
+        <div class="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-2.5 md:mt-0 md:flex md:gap-7 md:border-0 md:pt-0">
             {#each figures as f (f.label)}
                 <div class="min-w-0">
-                    <p class="truncate text-[10.5px] text-muted-foreground md:text-xs">{f.label}</p>
-                    <p class="mt-0.5 text-[15px] font-semibold tracking-tight tabular-nums md:text-[19px]">
+                    <p class="truncate text-[11px] text-muted-foreground">{f.label}</p>
+                    <p class="mt-0.5 text-[15px] font-semibold tracking-tight tabular-nums md:text-[18px]">
                         {formatAmount(f.value)}
                     </p>
                 </div>
             {/each}
         </div>
 
-        <!-- ── متوسط الصرف اليومي — بطاقة على الديسكتوب فقط ──────────── -->
         {#if avgDaily > 0}
-            <div
-                class="hidden flex-col items-end gap-0.5 rounded-xl border border-border bg-secondary px-4 py-2.5 md:ms-auto md:flex"
-            >
+            <div class="hidden flex-col items-end gap-0.5 rounded-xl border border-border bg-secondary px-3.5 py-2 md:ms-auto md:flex">
                 <span class="text-[11.5px] text-muted-foreground">متوسط صرفك اليومي</span>
-                <span class="text-xl font-semibold tracking-tight tabular-nums">{formatAmount(avgDaily)} ر.س</span>
-                <span
-                    class="inline-flex items-center gap-1 text-[11.5px] {onTrack ? 'text-success-text' : 'text-destructive'}"
-                >
-                    {#if onTrack}
-                        <Check class="size-3" /> أقل من الحد الآمن
-                    {:else}
-                        <TriangleAlert class="size-3" /> أعلى من الحد الآمن
-                    {/if}
+                <span class="text-[18px] font-semibold tracking-tight tabular-nums">{formatAmount(avgDaily)} ر.س</span>
+                <span class="inline-flex items-center gap-1 text-[11.5px] {onTrack ? 'text-success-text' : 'text-destructive'}">
+                    {#if onTrack}<Check class="size-3" /> ضمن الحد الآمن{:else}<TriangleAlert class="size-3" /> أعلى من الحد الآمن{/if}
                 </span>
             </div>
         {/if}
     </div>
 
-    <!-- ── شريط التدفّق ──────────────────────────────────────────── -->
-    <div class="px-4 pb-4 md:px-7 md:pb-5">
+    <!-- شريط التدفّق -->
+    <div class="px-3.5 pb-3.5 md:px-6 md:pb-5">
         <div
-            class="flex h-7 gap-[2px] overflow-hidden rounded-[9px] bg-secondary md:h-[34px] md:rounded-[10px]"
+            class="flex h-[26px] gap-[2px] overflow-hidden rounded-lg bg-secondary md:h-8"
             role="img"
             aria-label="توزيع الدخل على الالتزامات والمصاريف والمتبقي"
         >
@@ -148,50 +125,42 @@
                 {@const p = (s.amount / base) * 100}
                 {#if p > 0.5}
                     <div
-                        class="grid place-items-center overflow-hidden text-[10px] font-semibold whitespace-nowrap text-white md:text-[11.5px]"
+                        class="grid place-items-center overflow-hidden text-[10.5px] font-semibold whitespace-nowrap text-white"
                         style="flex: {p}; background-color: {s.color}"
                         title="{s.label} — {formatAmount(s.amount)} ر.س"
                     >
-                        {#if p >= 10}{formatPercent(p)}{/if}
+                        {#if p >= 11}{formatPercent(p)}{/if}
                     </div>
                 {/if}
             {/each}
 
             {#if restPct > 0.5}
                 <div
-                    class="grid place-items-center overflow-hidden rounded-e-[7px] border border-dashed border-input text-[10px] font-semibold whitespace-nowrap text-foreground/70 md:text-[11.5px]"
+                    class="grid place-items-center overflow-hidden rounded-e-[6px] border border-dashed border-input text-[10.5px] font-semibold whitespace-nowrap text-foreground/80"
                     style="flex: {restPct}; background-image: repeating-linear-gradient(135deg, var(--secondary) 0 6px, var(--border) 6px 7px)"
                     title="متبقي لك — {formatAmount(Math.max(0, remaining))} ر.س"
                 >
-                    {#if restPct >= 22}متبقي {formatPercent(restPct)}{/if}
+                    {#if restPct >= 24}متبقي {formatPercent(restPct)}{/if}
                 </div>
             {/if}
         </div>
 
-        <!-- المفتاح — البنود غير الصفرية فقط -->
         {#if slices.length}
-            <div class="mt-2.5 flex flex-wrap gap-x-3.5 gap-y-1.5 text-[10.5px] text-foreground/75 md:text-[12.5px]">
+            <div class="mt-2 flex flex-wrap gap-x-3.5 gap-y-1 text-[11px] text-foreground/80 md:text-[12.5px]">
                 {#each slices as s (s.key)}
                     <span class="inline-flex items-center gap-1.5">
-                        <i class="inline-block size-2 rounded-[3px] md:size-2.5" style="background-color: {s.color}"></i>
+                        <i class="inline-block size-2 rounded-[3px]" style="background-color: {s.color}"></i>
                         <span>{s.label}</span>
                         <b class="font-semibold text-foreground tabular-nums">{formatAmount(s.amount)}</b>
                     </span>
                 {/each}
             </div>
         {:else}
-            <p class="mt-2.5 text-[10.5px] text-muted-foreground md:text-[11.5px]">
-                ما سجّلت أي مصروف أو التزام بعد — كل دخلك متاح لك.
-            </p>
+            <p class="mt-2 text-[11px] text-muted-foreground">ما فيه التزامات ولا مصاريف بعد — كل دخلك متاح لك.</p>
         {/if}
 
-        <!-- متوسط الصرف — سطر واحد على الجوال بدل بطاقة -->
         {#if avgDaily > 0}
-            <p
-                class="mt-2.5 inline-flex items-center gap-1.5 text-[10.5px] md:hidden {onTrack
-                    ? 'text-success-text'
-                    : 'text-destructive'}"
-            >
+            <p class="mt-2 inline-flex items-center gap-1.5 text-[11px] md:hidden {onTrack ? 'text-success-text' : 'text-destructive'}">
                 {#if onTrack}<Check class="size-3" />{:else}<TriangleAlert class="size-3" />{/if}
                 متوسط صرفك {formatAmount(avgDaily)} ر.س يومياً
             </p>

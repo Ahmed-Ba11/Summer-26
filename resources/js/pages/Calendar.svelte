@@ -5,7 +5,7 @@
 </script>
 
 <script lang="ts">
-    import { Link } from '@inertiajs/svelte';
+    import { Link, router } from '@inertiajs/svelte';
     import CalendarDays from 'lucide-svelte/icons/calendar-days';
     import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
     import ChevronLeft from 'lucide-svelte/icons/chevron-left';
@@ -14,6 +14,7 @@
     import Pencil from 'lucide-svelte/icons/pencil';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
+    import FinanceCalendar from '@/components/FinanceCalendar.svelte';
     import {
         Dialog,
         DialogContent,
@@ -189,21 +190,21 @@
                     </span>
                     <span class="mt-2 hidden w-full flex-col gap-1 md:flex">
                         {#each day.events.slice(0, 3) as event (event.id ?? event.kind + event.date)}
-                            <span class="flex min-w-0 items-center gap-1 text-[10px] text-foreground/75">
+                            <span class="flex min-w-0 items-center gap-1 text-[11px] text-foreground/80">
                                 <i class="size-1.5 shrink-0 rounded-full" style="background-color: {EVENT_KIND[event.kind].color}"></i>
                                 <span class="truncate">{event.label}</span>
                             </span>
                         {/each}
                     </span>
                     {#if day.events.length > 3}
-                        <span class="mt-auto text-[10px] text-muted-foreground">+{day.events.length - 3}</span>
+                        <span class="mt-auto text-[11px] text-muted-foreground">+{day.events.length - 3}</span>
                     {/if}
                 </button>
             {/each}
         </div>
     </section>
 
-    <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-foreground/75">
+    <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-foreground/80">
         {#each Object.values(EVENT_KIND) as value}
             <span class="inline-flex items-center gap-1.5">
                 <i class="size-2 rounded-full" style="background-color: {value.color}"></i>
@@ -211,6 +212,18 @@
             </span>
         {/each}
     </div>
+
+    <!-- الأيام القادمة — إعادة استخدامFinanceCalendar -->
+    {#if events.length}
+        <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+            <header class="flex items-center justify-between border-b border-border px-4 py-3 md:px-5 md:py-4">
+                <h2 class="text-[13px] font-semibold md:text-[14.5px]">الأيام القادمة</h2>
+            </header>
+            <div class="px-4 py-4 md:px-5">
+                <FinanceCalendar events={events} />
+            </div>
+        </section>
+    {/if}
 </div>
 
 <Dialog bind:open={sheetOpen}>
