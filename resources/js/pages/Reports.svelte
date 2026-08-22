@@ -13,6 +13,7 @@
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import WalletCards from 'lucide-svelte/icons/wallet-cards';
     import AppHead from '@/components/AppHead.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
     import {
@@ -80,9 +81,10 @@
 </script>
 
 <AppHead title="التقارير" />
+<MobileHeader title="التقارير" subtitle="اتجاهات دخلك وإنفاقك من بياناتك المسجلة" />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div class="hidden flex-col gap-4 md:flex md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="text-2xl font-semibold">التقارير</h1>
             <p class="text-sm text-muted-foreground">اقرأ اتجاهات دخلك وإنفاقك من بياناتك المسجلة.</p>

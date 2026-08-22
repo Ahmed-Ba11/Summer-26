@@ -17,6 +17,7 @@
     import Trash2 from 'lucide-svelte/icons/trash-2';
     import X from 'lucide-svelte/icons/x';
     import AppHead from '@/components/AppHead.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import {
         Card,
@@ -343,10 +344,11 @@
 </script>
 
 <AppHead title="المصاريف" />
+<MobileHeader title="المصاريف" subtitle={`${pagination.total} مصروف مسجل`} />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
     <div
-        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        class="hidden flex-col gap-4 md:flex md:flex-row md:items-center md:justify-between"
     >
         <div>
             <h1 class="text-2xl font-bold">المصاريف</h1>

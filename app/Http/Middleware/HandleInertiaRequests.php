@@ -47,9 +47,75 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'railExpanded' => $request->cookie('rail_expanded') === '1',
             'flash' => [
                 'warnings' => fn (): mixed => $request->session()->get('warnings'),
             ],
+            'navStats' => $user ? function () use ($user): array {
+                $context = BudgetGuard::for($user)->context();
+                $today = now();
+                $salaryDay = (int) ($user->salary_day ?? 27);
+                $salaryDate = $salaryDay === 0
+                    ? $today->copy()->endOfMonth()->startOfDay()
+                    : $today->copy()->setDay(min($salaryDay, $today->daysInMonth));
+
+                if ($salaryDate->lessThanOrEqualTo($today)) {
+                    $nextMonth = $today->copy()->addMonth();
+                    $salaryDate = $salaryDay === 0
+                        ? $nextMonth->endOfMonth()->startOfDay()
+                        : $nextMonth->setDay(min($salaryDay, $nextMonth->daysInMonth));
+                }
+
+                $daysLeft = max(0, (int) $today->diffInDays($salaryDate));
+                $monthlyIncome = $context['monthlyIncome'];
+                $budgetUsedPct = $context['budgetedTotal'] > 0
+                    ? (int) round(($context['spent'] / $context['budgetedTotal']) * 100)
+                    : 0;
+                $monthlySavings = (int) $user->savingsDeposits()
+                    ->whereBetween('deposited_at', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->sum('amount');
+                $savingsPct = $monthlyIncome > 0
+                    ? (int) round(($monthlySavings / $monthlyIncome) * 100)
+                    : 0;
+
+                $bills = (int) $user->bills()
+                    ->where('is_paid', false)
+                    ->whereBetween('due_date', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->sum('amount');
+                $installments = (int) $user->installments()
+                    ->where('is_completed', false)
+                    ->sum('monthly_amount');
+                $plannedSavings = max(0, $context['obligations'] - $bills - $installments);
+                $transactionsCount = $user->expenses()
+                    ->whereBetween('expense_date', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->count()
+                    + $user->incomes()
+                        ->whereBetween('income_date', [now()->startOfMonth(), now()->endOfMonth()])
+                        ->count();
+                $dueCommitments = $user->bills()
+                    ->where('is_paid', false)
+                    ->whereBetween('due_date', [now(), now()->addDays(7)])
+                    ->count();
+
+                $incomeSplit = $monthlyIncome > 0 ? [
+                    ['key' => 'bills', 'pct' => (int) round(($bills / $monthlyIncome) * 100), 'color' => 'var(--chart-7)'],
+                    ['key' => 'installments', 'pct' => (int) round(($installments / $monthlyIncome) * 100), 'color' => 'var(--chart-2)'],
+                    ['key' => 'savings', 'pct' => (int) round(($plannedSavings / $monthlyIncome) * 100), 'color' => 'var(--chart-3)'],
+                    ['key' => 'expenses', 'pct' => (int) round(($context['spent'] / $monthlyIncome) * 100), 'color' => 'var(--chart-1)'],
+                    ['key' => 'remaining', 'pct' => (int) round((max(0, $context['available']) / $monthlyIncome) * 100), 'color' => 'var(--secondary)'],
+                ] : [];
+
+                return [
+                    'remaining' => $context['available'],
+                    'dailySafe' => $daysLeft > 0 ? intdiv($context['available'], $daysLeft) : $context['available'],
+                    'daysLeft' => $daysLeft,
+                    'budgetUsedPct' => $budgetUsedPct,
+                    'transactionsCount' => $transactionsCount,
+                    'dueCommitments' => $dueCommitments,
+                    'savingsPct' => $savingsPct,
+                    'incomeSplit' => $incomeSplit,
+                ];
+            } : null,
             'dueBillsCount' => $request->user()
                 ? $request->user()->bills()->where('is_paid', false)
                     ->whereBetween('due_date', [now(), now()->addDays(7)])->count()

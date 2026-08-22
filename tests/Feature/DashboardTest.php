@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class DashboardTest extends TestCase
@@ -23,5 +24,67 @@ class DashboardTest extends TestCase
 
         $response = $this->get(route('dashboard'));
         $response->assertOk();
+    }
+
+    public function test_navigation_shared_data_and_temporary_redirects_are_available(): void
+    {
+        $user = User::factory()->create(['salary_day' => 27]);
+        $category = $user->categories()->firstOrFail();
+        $month = now()->format('Y-m');
+
+        $user->incomes()->create([
+            'amount' => 800000,
+            'source' => 'راتب',
+            'income_date' => now()->startOfMonth()->toDateString(),
+        ]);
+        $user->expenses()->create([
+            'category_id' => $category->id,
+            'amount' => 10000,
+            'description' => 'مصروف اختباري',
+            'expense_date' => now()->toDateString(),
+        ]);
+        $user->budgets()->create([
+            'category_id' => $category->id,
+            'amount' => 50000,
+            'month' => $month,
+        ]);
+        $goal = $user->savingsGoals()->create([
+            'name' => 'هدف اختباري',
+            'target_amount' => 100000,
+            'current_amount' => 0,
+            'target_date' => null,
+            'is_completed' => false,
+            'is_closed' => false,
+        ]);
+        $user->savingsDeposits()->create([
+            'savings_goal_id' => $goal->id,
+            'amount' => 40000,
+            'deposited_at' => now()->toDateString(),
+        ]);
+        $user->bills()->create([
+            'name' => 'فاتورة اختباريّة',
+            'amount' => 100000,
+            'due_date' => now()->addDay()->toDateString(),
+            'is_paid' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->withCookie('rail_expanded', '1')
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('railExpanded', true)
+                ->where('navStats.remaining', 690000)
+                ->where('navStats.budgetUsedPct', 20)
+                ->where('navStats.transactionsCount', 2)
+                ->where('navStats.dueCommitments', 1)
+                ->where('navStats.savingsPct', 5)
+                ->has('navStats.incomeSplit', 5));
+
+        $this->actingAs($user)
+            ->get('/transactions')
+            ->assertRedirect('/expenses');
+        $this->actingAs($user)
+            ->get('/commitments')
+            ->assertRedirect('/bills');
     }
 }

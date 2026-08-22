@@ -11,6 +11,7 @@
     import Sparkles from 'lucide-svelte/icons/sparkles';
     import TriangleAlert from 'lucide-svelte/icons/triangle-alert';
     import AppHead from '@/components/AppHead.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import { Card, CardContent } from '@/components/ui/card';
     import type { AssistantMessage } from '@/types';
 
@@ -79,10 +80,11 @@
 </script>
 
 <AppHead title="المساعد الذكي" />
+<MobileHeader title="المساعد الذكي" subtitle="واجهة محادثة أولية" />
 
 <main class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
     <section class="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5">
-        <header class="flex flex-wrap items-center justify-between gap-3">
+        <header class="hidden flex-wrap items-center justify-between gap-3 md:flex">
             <div>
                 <div class="flex items-center gap-2">
                     <h1 class="text-2xl font-semibold">المساعد الذكي</h1>

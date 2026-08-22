@@ -57,8 +57,8 @@
         onQuickAdd?: () => void;
     } = $props();
 
-    const url = $derived($page.url ?? '');
-    const user = $derived($page.props.auth?.user);
+    const url = $derived(page.url ?? '');
+    const user = $derived(page.props.auth?.user);
     let moreOpen = $state(false);
 
     /** الوجهات الأربع في الشريط السفلي — الأكثر تكراراً. */

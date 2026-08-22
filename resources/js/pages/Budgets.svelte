@@ -8,6 +8,7 @@
     import { page, router } from '@inertiajs/svelte';
     import CircleAlert from 'lucide-svelte/icons/circle-alert';
     import AppHead from '@/components/AppHead.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent } from '@/components/ui/card';
     import Plus from 'lucide-svelte/icons/plus';
@@ -248,9 +249,10 @@
 </script>
 
 <AppHead title="الميزانيات" />
+<MobileHeader title="الميزانية العامة" subtitle="وزّع دخلك على الفئات وراقب إنفاقك" />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-    <div class="flex items-center justify-between">
+    <div class="hidden items-center justify-between md:flex">
         <div>
             <h1 class="text-2xl font-bold">الميزانية العامة</h1>
             <p class="text-muted-foreground">

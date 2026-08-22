@@ -22,6 +22,17 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            railExpanded: boolean;
+            navStats: {
+                remaining: number;
+                dailySafe: number;
+                daysLeft: number;
+                budgetUsedPct: number;
+                transactionsCount: number;
+                dueCommitments: number;
+                savingsPct: number;
+                incomeSplit: { key: string; pct: number; color: string }[];
+            } | null;
             [key: string]: unknown;
         };
     }

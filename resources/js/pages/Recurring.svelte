@@ -11,6 +11,7 @@
     import RefreshCw from 'lucide-svelte/icons/refresh-cw';
     import Repeat2 from 'lucide-svelte/icons/repeat-2';
     import AppHead from '@/components/AppHead.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
     import Button from '@/components/ui/button/Button.svelte';
@@ -47,10 +48,11 @@
 </script>
 
 <AppHead title="المعاملات المتكررة" />
+<MobileHeader title="المعاملات المتكررة" subtitle="راجع الدخل والمصاريف التي تتكرر تلقائياً" />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
     <div
-        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        class="hidden flex-col gap-3 md:flex md:flex-row md:items-center md:justify-between"
     >
         <div>
             <h1 class="text-2xl font-bold">المعاملات المتكررة</h1>

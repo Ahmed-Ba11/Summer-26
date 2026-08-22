@@ -12,6 +12,7 @@
     import AppHead from '@/components/AppHead.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { formatCurrency, toHalalas } from '@/lib/format';
     import type {
@@ -352,10 +353,11 @@
 </script>
 
 <AppHead title="إعداد ميزانيتك" />
+<MobileHeader title="إعداد ميزانيتك" subtitle="ثلاث خطوات بسيطة لترتيب ميزانيتك" showAssistant={false} />
 
 <main class="min-h-screen bg-background px-4 py-8 sm:px-6 sm:py-12">
     <section class="mx-auto flex w-full max-w-2xl flex-col gap-6">
-        <div class="text-center">
+        <div class="hidden text-center md:block">
             <div class="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground">
                 <Sparkles class="size-6" />
             </div>

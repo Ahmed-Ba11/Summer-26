@@ -14,6 +14,7 @@
     import Vault from 'lucide-svelte/icons/vault';
     import X from 'lucide-svelte/icons/x';
     import AppHead from '@/components/AppHead.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import {
         Card,
@@ -331,11 +332,12 @@
 </script>
 
 <AppHead title="الادخار" />
+<MobileHeader title="الادخار" subtitle="أهدافك الادخارية" />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
     <!-- Header -->
     <div
-        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        class="hidden flex-col gap-4 md:flex md:flex-row md:items-center md:justify-between"
     >
         <div>
             <h1 class="text-2xl font-bold">الادخار</h1>

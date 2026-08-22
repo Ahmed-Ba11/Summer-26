@@ -1,0 +1,279 @@
+<script module lang="ts">
+    export const layout = {
+        breadcrumbs: [{ title: 'التقويم المالي', href: '/calendar' }],
+    };
+</script>
+
+<script lang="ts">
+    import { Link } from '@inertiajs/svelte';
+    import CalendarDays from 'lucide-svelte/icons/calendar-days';
+    import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
+    import ChevronLeft from 'lucide-svelte/icons/chevron-left';
+    import ChevronRight from 'lucide-svelte/icons/chevron-right';
+    import CircleAlert from 'lucide-svelte/icons/circle-alert';
+    import Pencil from 'lucide-svelte/icons/pencil';
+    import AppHead from '@/components/AppHead.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
+    import {
+        Dialog,
+        DialogContent,
+        DialogDescription,
+        DialogFooter,
+        DialogTitle,
+    } from '@/components/ui/dialog';
+    import { calendar } from '@/routes';
+    import { pay as payBill } from '@/routes/bills';
+    import { pay as payInstallment } from '@/routes/installments';
+    import { formatCurrency, formatFullDate } from '@/lib/format';
+
+    type EventKind = 'salary' | 'bill' | 'installment' | 'savings';
+
+    interface CalendarEvent {
+        id: number | null;
+        date: string;
+        kind: EventKind;
+        label: string;
+        amount: number;
+        isPaid: boolean;
+        canPay: boolean;
+        editUrl: string | null;
+    }
+
+    interface CalendarDay {
+        date: string;
+        day: number;
+        events: CalendarEvent[];
+    }
+
+    let {
+        month = '',
+        monthLabel = '',
+        previousMonth = '',
+        nextMonth = '',
+        events = [],
+    }: {
+        month?: string;
+        monthLabel?: string;
+        previousMonth?: string;
+        nextMonth?: string;
+        events?: CalendarEvent[];
+    } = $props();
+
+    const WEEKDAYS = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+    const EVENT_KIND = {
+        salary: { label: 'راتب', color: 'var(--success)' },
+        bill: { label: 'فاتورة', color: 'var(--chart-7)' },
+        installment: { label: 'قسط', color: 'var(--chart-2)' },
+        savings: { label: 'ادخار', color: 'var(--chart-3)' },
+    } as const;
+
+    const days = $derived.by<CalendarDay[]>(() => {
+        if (!/^\d{4}-\d{2}$/.test(month)) {
+            return [];
+        }
+
+        const [year, monthNumber] = month.split('-').map(Number);
+        const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+        const eventsByDate = new Map<string, CalendarEvent[]>();
+
+        for (const event of events) {
+            const current = eventsByDate.get(event.date) ?? [];
+            current.push(event);
+            eventsByDate.set(event.date, current);
+        }
+
+        return Array.from({ length: daysInMonth }, (_, index) => {
+            const day = index + 1;
+            const date = `${month}-${String(day).padStart(2, '0')}`;
+
+            return {
+                date,
+                day,
+                events: eventsByDate.get(date) ?? [],
+            };
+        });
+    });
+
+    const leadingEmptyDays = $derived.by(() => {
+        if (!/^\d{4}-\d{2}$/.test(month)) {
+            return 0;
+        }
+
+        const [year, monthNumber] = month.split('-').map(Number);
+
+        return new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
+    });
+
+    let selectedDate = $state<string | null>(null);
+    let sheetOpen = $state(false);
+    const selectedEvents = $derived(
+        selectedDate ? days.find((day) => day.date === selectedDate)?.events ?? [] : [],
+    );
+    const selectedDateLabel = $derived(selectedDate ? formatFullDate(selectedDate) : '');
+
+    function selectDay(date: string): void {
+        selectedDate = date;
+        sheetOpen = true;
+    }
+
+    function closeSheet(): void {
+        selectedDate = null;
+        sheetOpen = false;
+    }
+
+    function markPaid(event: CalendarEvent): void {
+        if (event.id === null || !event.canPay) {
+            return;
+        }
+
+        const action = event.kind === 'bill' ? payBill(event.id) : payInstallment(event.id);
+
+        router.put(action, {}, {
+            preserveScroll: true,
+            onSuccess: closeSheet,
+        });
+    }
+</script>
+
+<AppHead title="التقويم المالي" />
+<MobileHeader title="التقويم المالي" subtitle="كل استحقاقاتك وأحداثك المالية" />
+
+<div class="flex flex-1 flex-col gap-3 p-3 md:gap-6 md:p-6">
+    <div class="flex items-center justify-between gap-3">
+        <div class="hidden md:block">
+            <h1 class="text-[22px] font-semibold tracking-tight">التقويم المالي</h1>
+            <p class="text-[13px] text-muted-foreground">تابع استحقاقاتك وأحداثك المالية خلال الشهر.</p>
+        </div>
+        <div class="flex items-center gap-1.5 rounded-xl border border-border bg-card p-1">
+            <Link
+                href={calendar.url({ query: { month: previousMonth } })}
+                aria-label="الشهر السابق"
+                class="grid min-h-11 min-w-11 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+                <ChevronRight class="size-4" />
+            </Link>
+            <span class="min-w-24 text-center text-sm font-semibold">{monthLabel}</span>
+            <Link
+                href={calendar.url({ query: { month: nextMonth } })}
+                aria-label="الشهر التالي"
+                class="grid min-h-11 min-w-11 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+                <ChevronLeft class="size-4" />
+            </Link>
+        </div>
+    </div>
+
+    <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
+        <div class="grid grid-cols-7 border-b border-border bg-secondary text-center text-[11px] text-muted-foreground md:text-xs">
+            {#each WEEKDAYS as weekday}
+                <span class="px-1 py-3">{weekday}</span>
+            {/each}
+        </div>
+
+        <div class="grid grid-cols-7 gap-1 p-2 md:gap-2 md:p-4">
+            {#each Array(leadingEmptyDays) as _}
+                <span class="min-h-20 rounded-xl bg-background/50 md:min-h-28"></span>
+            {/each}
+
+            {#each days as day (day.date)}
+                <button
+                    type="button"
+                    onclick={() => selectDay(day.date)}
+                    class="flex min-h-20 min-w-0 flex-col items-start rounded-xl border border-border bg-background p-1.5 text-start transition-colors hover:border-primary hover:bg-accent md:min-h-28 md:p-2.5"
+                >
+                    <span class="text-xs font-semibold tabular-nums md:text-sm">{day.day}</span>
+                    <span class="mt-1 flex flex-wrap gap-1 md:hidden">
+                        {#each day.events.slice(0, 4) as event (event.id ?? event.kind + event.date)}
+                            <i class="size-1.5 rounded-full" style="background-color: {EVENT_KIND[event.kind].color}"></i>
+                        {/each}
+                    </span>
+                    <span class="mt-2 hidden w-full flex-col gap-1 md:flex">
+                        {#each day.events.slice(0, 3) as event (event.id ?? event.kind + event.date)}
+                            <span class="flex min-w-0 items-center gap-1 text-[10px] text-foreground/75">
+                                <i class="size-1.5 shrink-0 rounded-full" style="background-color: {EVENT_KIND[event.kind].color}"></i>
+                                <span class="truncate">{event.label}</span>
+                            </span>
+                        {/each}
+                    </span>
+                    {#if day.events.length > 3}
+                        <span class="mt-auto text-[10px] text-muted-foreground">+{day.events.length - 3}</span>
+                    {/if}
+                </button>
+            {/each}
+        </div>
+    </section>
+
+    <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-foreground/75">
+        {#each Object.values(EVENT_KIND) as value}
+            <span class="inline-flex items-center gap-1.5">
+                <i class="size-2 rounded-full" style="background-color: {value.color}"></i>
+                {value.label}
+            </span>
+        {/each}
+    </div>
+</div>
+
+<Dialog bind:open={sheetOpen}>
+    <DialogContent class="calendar-sheet max-w-lg rounded-t-3xl p-5 md:rounded-3xl">
+        <DialogTitle>{selectedDateLabel}</DialogTitle>
+        <DialogDescription>أحداث هذا اليوم ومواعيد استحقاقها.</DialogDescription>
+
+        {#if selectedEvents.length}
+            <ul class="mt-5 flex flex-col gap-3">
+                {#each selectedEvents as event (event.id ?? event.kind + event.date)}
+                    <li class="rounded-xl border border-border bg-secondary p-3">
+                        <div class="flex items-center gap-3">
+                            <span class="grid size-9 shrink-0 place-items-center rounded-[10px]" style="background-color: color-mix(in srgb, {EVENT_KIND[event.kind].color} 12%, transparent); color: {EVENT_KIND[event.kind].color}">
+                                {#if event.isPaid}
+                                    <CheckCircle2 class="size-[17px]" />
+                                {:else}
+                                    <CircleAlert class="size-[17px]" />
+                                {/if}
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm font-medium">{event.label}</p>
+                                <p class="text-xs text-muted-foreground">{EVENT_KIND[event.kind].label} · {event.isPaid ? 'تم الدفع' : 'غير مدفوع'}</p>
+                            </div>
+                            <span class="shrink-0 text-sm font-semibold tabular-nums">{formatCurrency(event.amount)}</span>
+                        </div>
+                        <div class="mt-3 flex gap-2">
+                            {#if event.canPay}
+                                <button type="button" onclick={() => markPaid(event)} class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground">
+                                    <CheckCircle2 class="size-4" /> تم الدفع
+                                </button>
+                            {/if}
+                            {#if event.editUrl}
+                                <Link href={event.editUrl} onclick={closeSheet} class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-input bg-card px-3 text-xs font-medium no-underline hover:bg-background">
+                                    <Pencil class="size-4" /> تعديل
+                                </Link>
+                            {/if}
+                        </div>
+                    </li>
+                {/each}
+            </ul>
+        {:else}
+            <div class="mt-5 rounded-xl border border-border bg-secondary">
+                <div class="p-4 text-center">
+                    <CalendarDays class="mx-auto size-6 text-muted-foreground" />
+                    <p class="mt-2 text-sm font-medium">لا توجد أحداث في هذا اليوم</p>
+                </div>
+            </div>
+        {/if}
+
+        <DialogFooter class="mt-5">
+            <button type="button" onclick={closeSheet} class="min-h-11 rounded-lg border border-input bg-card px-4 text-sm font-medium hover:bg-secondary">إغلاق</button>
+        </DialogFooter>
+    </DialogContent>
+</Dialog>
+
+<style>
+    :global(div:has(> .calendar-sheet)) {
+        align-items: flex-end;
+    }
+
+    @media (min-width: 768px) {
+        :global(div:has(> .calendar-sheet)) {
+            align-items: center;
+        }
+    }
+</style>

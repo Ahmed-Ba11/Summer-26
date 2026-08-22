@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AssistantController;
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\RecurringTransactionController;
@@ -30,12 +31,16 @@ Route::inertia('/', 'Welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    Route::get('/calendar', CalendarController::class)->name('calendar');
 
     // Onboarding is available to authenticated users, but is not enforced by middleware.
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding/income', [OnboardingController::class, 'income'])->name('onboarding.income');
     Route::post('/onboarding/commitments', [OnboardingController::class, 'commitments'])->name('onboarding.commitments');
     Route::post('/onboarding/budget', [OnboardingController::class, 'budget'])->name('onboarding.budget');
+
+    Route::redirect('/transactions', '/expenses');
+    Route::redirect('/commitments', '/bills');
 
     // Expenses
     Route::get('/expenses', function (ExpenseIndexRequest $request) {

@@ -34,9 +34,10 @@ import Vault from 'lucide-svelte/icons/vault';
     import CategoryDonut from '@/components/CategoryDonut.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
-    import FinanceCalendar from '@/components/FinanceCalendar.svelte';
     import MoneyStoryCard from '@/components/MoneyStoryCard.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import MonthlyBars from '@/components/MonthlyBars.svelte';
+    import UpcomingStrip from '@/components/UpcomingStrip.svelte';
     import StatTile from '@/components/StatTile.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { formatAmount, formatDate, formatPercent } from '@/lib/format';
@@ -150,10 +151,16 @@ import Vault from 'lucide-svelte/icons/vault';
 </script>
 
 <AppHead title="لوحة التحكم" />
+<MobileHeader
+    title="لوحة التحكم"
+    subtitle={stats.daysLeft > 0
+        ? `صورة ميزانيتك الكاملة — باقي ${stats.daysLeft} يوم على الراتب.`
+        : 'صورة ميزانيتك الكاملة لهذا الشهر.'}
+/>
 
-<div class="flex flex-1 flex-col gap-[18px] p-4 sm:p-6">
+<div class="flex flex-1 flex-col gap-3 p-3 md:gap-[18px] md:p-6">
     <!-- رأس الصفحة -->
-    <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="hidden flex-wrap items-start justify-between gap-4 md:flex">
         <div>
             <h1 class="text-[22px] font-semibold tracking-tight">لوحة التحكم</h1>
             <p class="text-[13px] text-muted-foreground">
@@ -231,17 +238,7 @@ import Vault from 'lucide-svelte/icons/vault';
         />
 
         <!-- ٢ · التقويم المالي -->
-        {#if calendarEvents.length}
-            <section class="rounded-2xl border border-border bg-card shadow-xs">
-                <header class="flex items-center justify-between border-b border-border px-5 py-4">
-                    <h2 class="text-[14.5px] font-semibold">التقويم المالي — الأسبوعين القادمين</h2>
-                    <a href="/bills" class="text-[12.5px] text-primary no-underline">عرض الشهر كامل</a>
-                </header>
-                <div class="px-5 pt-4 pb-3.5">
-                    <FinanceCalendar events={calendarEvents} />
-                </div>
-            </section>
-        {/if}
+        <UpcomingStrip events={calendarEvents} />
 
         <!-- ٣ · بطاقات مختصرة -->
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -285,7 +282,7 @@ import Vault from 'lucide-svelte/icons/vault';
                     <h2 class="text-[14.5px] font-semibold">وين راحت مصاريفك؟</h2>
                     <a href="/expenses" class="text-[12.5px] text-primary no-underline">جدول البيانات</a>
                 </header>
-                <div class="p-5">
+                <div class="p-5 [&>div>div:first-child]:hidden md:[&>div>div:first-child]:block">
                     {#if categories.some((c) => c.amount > 0)}
                         <CategoryDonut {categories} />
                     {:else}
@@ -300,7 +297,7 @@ import Vault from 'lucide-svelte/icons/vault';
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-border bg-card shadow-xs">
+            <section class="hidden rounded-2xl border border-border bg-card shadow-xs md:block">
                 <header class="flex items-center justify-between border-b border-border px-5 py-4">
                     <h2 class="text-[14.5px] font-semibold">الدخل مقابل المصاريف — ٦ أشهر</h2>
                     <a href="/reports" class="text-[12.5px] text-primary no-underline">آخر ١٢ شهر</a>
@@ -325,7 +322,7 @@ import Vault from 'lucide-svelte/icons/vault';
                         <ArrowLeft class="size-3.5" />
                     </a>
                 </header>
-                <div class="grid gap-3 p-5 sm:grid-cols-2">
+                <div class="grid grid-cols-1 gap-3 p-3 md:grid-cols-2 md:p-5">
                     {#each budgetedCategories.slice(0, 6) as c (c.id)}
                         <BudgetRow
                             name={c.name}

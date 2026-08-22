@@ -16,6 +16,7 @@
     import ReceiptText from 'lucide-svelte/icons/receipt-text';
     import Trash2 from 'lucide-svelte/icons/trash-2';
     import AppHead from '@/components/AppHead.svelte';
+    import MobileHeader from '@/components/MobileHeader.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
     import Button from '@/components/ui/button/Button.svelte';
@@ -320,10 +321,22 @@
     }
 
     onMount(() => {
-        if (new URLSearchParams(window.location.search).get('new') === '1') {
+        const url = new URL(window.location.href);
+
+        if (url.searchParams.get('new') === '1') {
             openAddModal();
-            window.history.replaceState({}, '', window.location.pathname);
+        } else {
+            const editId = Number(url.searchParams.get('edit'));
+            const bill = billItems.find((item) => item.id === editId);
+
+            if (bill) {
+                openEditModal(bill);
+            }
         }
+
+        url.searchParams.delete('new');
+        url.searchParams.delete('edit');
+        window.history.replaceState({}, '', url);
     });
 
     const tabs = $derived([
@@ -334,10 +347,11 @@
 </script>
 
 <AppHead title="الفواتير" />
+<MobileHeader title="الفواتير" subtitle="التزاماتك الدورية ومواعيد استحقاقها" />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
     <div
-        class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        class="hidden flex-col gap-4 md:flex md:flex-row md:items-center md:justify-between"
     >
         <div>
             <h1 class="text-2xl font-bold">الفواتير</h1>

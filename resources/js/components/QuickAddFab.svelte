@@ -17,8 +17,8 @@
     import Vault from 'lucide-svelte/icons/vault';
     import QuickAddSheet from '@/components/QuickAddSheet.svelte';
 
+    let { sheetOpen = $bindable(false) }: { sheetOpen?: boolean } = $props();
     let open = $state(false);
-    let sheetOpen = $state(false);
     let sheetMode = $state<'expense' | 'income'>('expense');
     const quickAdd = $derived(page.props.quickAdd ?? null);
 
@@ -32,7 +32,7 @@
     function go(action: (typeof actions)[number]) {
         open = false;
 
-        if ('kind' in action) {
+        if ('kind' in action && action.kind) {
             sheetMode = action.kind;
             sheetOpen = true;
 
@@ -60,7 +60,7 @@
     ></button>
 {/if}
 
-<div class="fixed bottom-6 z-50 flex flex-col items-start gap-2.5" style="inset-inline-end: 1.5rem">
+<div class="fixed bottom-6 z-50 hidden flex-col items-start gap-2.5 md:flex" style="inset-inline-end: 1.5rem">
     {#if open}
         <div class="flex flex-col gap-1.5">
             {#each actions as a, i (a.label)}
