@@ -57,8 +57,8 @@
         onQuickAdd?: () => void;
     } = $props();
 
-    const url = $derived($page.url ?? '');
-    const user = $derived($page.props.auth?.user);
+    const url = $derived(page.url ?? '');
+    const user = $derived(page.props.auth?.user);
     let moreOpen = $state(false);
 
     /** الوجهات الأربع في الشريط السفلي — الأكثر تكراراً. */
@@ -130,7 +130,7 @@
         {#if expanded}
             <div class="min-w-0 flex-1">
                 <b class="block truncate text-[14.5px] font-semibold">ميزانيتي</b>
-                <span class="block text-[10.5px] text-muted-foreground">{currentMonth}</span>
+                <span class="block text-[11px] text-muted-foreground">{currentMonth}</span>
             </div>
             <button type="button" onclick={toggle} aria-label="طيّ الشريط" aria-expanded="true"
                 class="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
@@ -150,7 +150,7 @@
                     <i class="block h-full" style="width:{s.pct}%;background-color:{s.color}"></i>
                 {/each}
             </div>
-            <div class="mt-1.5 flex justify-between text-[10.5px] text-muted-foreground">
+            <div class="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
                 <span class="tabular-nums">{formatAmount(stats.dailySafe)} ر.س يومياً</span>
                 <span class="tabular-nums">{stats.daysLeft} يوم للراتب</span>
             </div>
@@ -174,7 +174,7 @@
     <nav class="flex w-full flex-col gap-0.5 {expanded ? '' : 'items-center'}">
         {#each RAIL as g (g.group)}
             {#if expanded}
-                <p class="px-3 pt-3 pb-1 text-[10.5px] text-muted-foreground">{g.group}</p>
+                <p class="px-3 pt-3 pb-1 text-[11px] text-muted-foreground">{g.group}</p>
             {/if}
             {#each g.items as item (item.href)}
                 {@const active = isActive(item.href)}
@@ -192,13 +192,13 @@
                     {#if expanded}
                         <span class="min-w-0 flex-1 truncate">{item.title}</span>
                         {#if badge > 0}
-                            <span class="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-white tabular-nums">{badge}</span>
+                            <span class="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1.5 text-[11px] font-bold text-white tabular-nums">{badge}</span>
                         {:else if item.stat}
-                            <span class="text-[10.5px] text-muted-foreground tabular-nums">{item.stat()}</span>
+                            <span class="text-[11px] text-muted-foreground tabular-nums">{item.stat()}</span>
                         {/if}
                     {:else}
                         {#if badge > 0}
-                            <span class="absolute top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9.5px] font-bold text-white tabular-nums" style="inset-inline-start:6px">{badge}</span>
+                            <span class="absolute top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[11px] font-bold text-white tabular-nums" style="inset-inline-start:6px">{badge}</span>
                         {/if}
                         <span class="pointer-events-none absolute top-1/2 z-30 -translate-y-1/2 rounded-lg bg-foreground px-2.5 py-1 text-[11.5px] whitespace-nowrap text-background opacity-0 transition-opacity group-hover:opacity-100" style="inset-inline-end:calc(100% + 8px)">
                             {item.title}
@@ -224,7 +224,7 @@
         {#if expanded}
             <span class="min-w-0">
                 <b class="block text-[12.5px] font-semibold">المساعد الذكي</b>
-                <span class="block text-[10.5px] text-muted-foreground">اسألني عن ميزانيتك</span>
+                <span class="block text-[11px] text-muted-foreground">اسألني عن ميزانيتك</span>
             </span>
         {/if}
     </Link>
@@ -237,7 +237,7 @@
             {#if expanded}
                 <span class="min-w-0">
                     <b class="block truncate text-[12.5px] font-medium">{user?.name ?? 'حسابي'}</b>
-                    <span class="block text-[10px] text-muted-foreground">الإعدادات</span>
+                    <span class="block text-[11px] text-muted-foreground">الإعدادات</span>
                 </span>
             {/if}
         </Link>
@@ -255,7 +255,7 @@
             role="dialog" aria-modal="true" aria-label="وجهات إضافية">
             <div class="mx-auto mt-1.5 mb-3 h-1 w-9 rounded-full bg-input"></div>
             {#each SECONDARY as g (g.group)}
-                <p class="px-3 pt-2 pb-1 text-[10px] text-muted-foreground">{g.group}</p>
+                <p class="px-3 pt-2 pb-1 text-[11px] text-muted-foreground">{g.group}</p>
                 {#each g.items as item (item.href)}
                     {@const active = isActive(item.href)}
                     <Link href={item.href} onclick={() => (moreOpen = false)}
@@ -285,7 +285,7 @@
     {#each PRIMARY.slice(0, 2) as item (item.href)}
         {@const active = isActive(item.href)}
         <Link href={item.href} aria-current={active ? 'page' : undefined}
-            class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[10.5px] font-medium no-underline {active ? 'text-primary' : 'text-muted-foreground'}">
+            class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium no-underline {active ? 'text-primary' : 'text-muted-foreground'}">
             {#if active}<span class="absolute top-0 h-[3px] w-7 rounded-b-[3px] bg-primary"></span>{/if}
             <item.icon class="size-6" />
             {item.title}
@@ -304,10 +304,10 @@
         {@const active = isActive(item.href)}
         {@const badge = item.badge?.() ?? 0}
         <Link href={item.href} aria-current={active ? 'page' : undefined}
-            class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[10.5px] font-medium no-underline {active ? 'text-primary' : 'text-muted-foreground'}">
+            class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium no-underline {active ? 'text-primary' : 'text-muted-foreground'}">
             {#if active}<span class="absolute top-0 h-[3px] w-7 rounded-b-[3px] bg-primary"></span>{/if}
             {#if badge > 0}
-                <span class="absolute top-1 grid h-[15px] min-w-[15px] place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white tabular-nums" style="inset-inline-start:calc(50% + 7px)">{badge}</span>
+                <span class="absolute top-1 grid h-[15px] min-w-[15px] place-items-center rounded-full bg-destructive px-1 text-[11px] font-bold text-white tabular-nums" style="inset-inline-start:calc(50% + 7px)">{badge}</span>
             {/if}
             <item.icon class="size-6" />
             {item.title}
@@ -315,7 +315,7 @@
     {/each}
 
     <button type="button" onclick={() => (moreOpen = !moreOpen)} aria-expanded={moreOpen}
-        class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[10.5px] font-medium {moreOpen ? 'text-primary' : 'text-muted-foreground'}">
+        class="relative flex min-h-[62px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium {moreOpen ? 'text-primary' : 'text-muted-foreground'}">
         {#if moreOpen}<span class="absolute top-0 h-[3px] w-7 rounded-b-[3px] bg-primary"></span>{/if}
         <Ellipsis class="size-6" />
         المزيد

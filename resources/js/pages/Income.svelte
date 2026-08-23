@@ -21,6 +21,7 @@
     import X from 'lucide-svelte/icons/x';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
+    import CategoryIcon from '@/components/CategoryIcon.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import {
         Card,
@@ -481,8 +482,8 @@
     <!-- Income table -->
     <Card>
         <CardContent class="p-0">
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+            <div class="hidden md:block">
+                <table class="hidden w-full text-sm md:table">
                     <thead>
                         <tr class="border-b text-muted-foreground">
                             <th class="px-6 py-3 text-start font-medium"
@@ -588,6 +589,61 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- بطاقات مكدّسة على الجوال — صفر تمرير أفقي -->
+            <ul class="divide-y divide-border md:hidden">
+                {#if pagedIncomes.length === 0}
+                    <li class="px-4 py-8 text-center text-muted-foreground">
+                        لا يوجد دخل مطابق للبحث
+                    </li>
+                {:else}
+                    {#each pagedIncomes as inc}
+                        <li class="flex items-center gap-3 px-4 py-3">
+                            <CategoryIcon
+                                icon="banknote"
+                                color="var(--chart-3)"
+                                size="sm"
+                            />
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-[13px]">
+                                    {inc.description || inc.source}
+                                    {#if inc.is_recurring}
+                                        <span
+                                            class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                                        >
+                                            <Repeat class="size-2.5" /> متكرر
+                                        </span>
+                                    {/if}
+                                </p>
+                                <p class="text-[11px] text-muted-foreground">
+                                    {inc.source} · {formatDate(inc.date)}
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
+                                    onclick={() => openEditModal(inc)}
+                                >
+                                    <Pencil class="size-3.5" /> تعديل
+                                </button>
+                                <button
+                                    type="button"
+                                    class="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs text-destructive hover:text-destructive/80"
+                                    onclick={() => confirmDelete(inc.id)}
+                                >
+                                    <Trash2 class="size-3.5" /> حذف
+                                </button>
+                            </div>
+                            <span
+                                class="shrink-0 text-[13px] font-semibold tabular-nums text-green-600 dark:text-green-400"
+                            >
+                                {formatCurrency(inc.amount)}
+                            </span>
+                        </li>
+                    {/each}
+                {/if}
+            </ul>
 
             {#if totalPages > 1}
                 <div

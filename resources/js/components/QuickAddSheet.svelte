@@ -334,7 +334,7 @@
                             style={categoryId === c.id ? `color:${c.color};background:color-mix(in srgb,${c.color} 7%,transparent)` : ''}
                         >
                             <CategoryIcon icon={c.icon} color={c.color} size="sm" />
-                            <span class="max-w-full truncate text-[10.5px] {categoryId === c.id ? 'font-semibold text-foreground' : 'text-foreground/70'}">
+                            <span class="max-w-full truncate text-[11px] {categoryId === c.id ? 'font-semibold text-foreground' : 'text-foreground/70'}">
                                 {c.name}
                             </span>
                         </button>

@@ -36,7 +36,9 @@
 <AppShell variant="sidebar">
     <AppNav stats={navStats} bind:expanded onQuickAdd={() => (quickAddOpen = true)} />
     <AppContent variant="sidebar" class="overflow-x-hidden pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-0">
-        <AppSidebarHeader {breadcrumbs} />
+        <div class="hidden md:block">
+            <AppSidebarHeader {breadcrumbs} />
+        </div>
         {@render children?.()}
     </AppContent>
     <QuickAddFab bind:sheetOpen={quickAddOpen} />

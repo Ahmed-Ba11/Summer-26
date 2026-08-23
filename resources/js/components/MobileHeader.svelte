@@ -29,7 +29,7 @@
     <div class="min-w-0">
         <h1 class="truncate text-[15px] font-semibold tracking-tight">{title}</h1>
         {#if subtitle}
-            <p class="truncate text-[10.5px] text-muted-foreground">{subtitle}</p>
+            <p class="truncate text-[11px] text-muted-foreground">{subtitle}</p>
         {/if}
     </div>
 

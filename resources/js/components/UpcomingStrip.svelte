@@ -75,7 +75,7 @@
 
                     <div class="min-w-0 flex-1">
                         <p class="truncate text-[13px] font-medium">{e.label}</p>
-                        <p class="text-[10.5px] {urgent ? 'font-medium text-warning-text' : 'text-muted-foreground'}">
+                        <p class="text-[11px] {urgent ? 'font-medium text-warning-text' : 'text-muted-foreground'}">
                             {formatRelativeDays(e.date)}
                         </p>
                     </div>

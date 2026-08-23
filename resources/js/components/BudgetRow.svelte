@@ -53,7 +53,7 @@
         <div class="mb-1.5 flex items-baseline justify-between gap-2">
             <span class="text-[13.5px] font-medium">{name}</span>
             <span
-                class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold {badge.cls}"
+                class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold {badge.cls}"
             >
                 {#if state === 'safe'}
                     <Check class="size-2.5" />

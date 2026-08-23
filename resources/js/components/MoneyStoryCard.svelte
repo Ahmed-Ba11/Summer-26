@@ -125,7 +125,7 @@
                 {@const p = (s.amount / base) * 100}
                 {#if p > 0.5}
                     <div
-                        class="grid place-items-center overflow-hidden text-[10.5px] font-semibold whitespace-nowrap text-white"
+                        class="grid place-items-center overflow-hidden text-[11px] font-semibold whitespace-nowrap text-white"
                         style="flex: {p}; background-color: {s.color}"
                         title="{s.label} — {formatAmount(s.amount)} ر.س"
                     >
@@ -136,7 +136,7 @@
 
             {#if restPct > 0.5}
                 <div
-                    class="grid place-items-center overflow-hidden rounded-e-[6px] border border-dashed border-input text-[10.5px] font-semibold whitespace-nowrap text-foreground/80"
+                    class="grid place-items-center overflow-hidden rounded-e-[6px] border border-dashed border-input text-[11px] font-semibold whitespace-nowrap text-foreground/80"
                     style="flex: {restPct}; background-image: repeating-linear-gradient(135deg, var(--secondary) 0 6px, var(--border) 6px 7px)"
                     title="متبقي لك — {formatAmount(Math.max(0, remaining))} ر.س"
                 >

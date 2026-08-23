@@ -18,6 +18,7 @@
     import X from 'lucide-svelte/icons/x';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
+    import CategoryIcon from '@/components/CategoryIcon.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import {
         Card,
@@ -41,6 +42,8 @@
         id: number;
         description: string | null;
         category: string | null;
+        category_icon: string;
+        category_color: string;
         amount: number;
         date: string;
         is_recurring: boolean;
@@ -432,8 +435,8 @@
 
     <Card>
         <CardContent class="p-0">
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+            <div class="hidden md:block">
+                <table class="hidden w-full text-sm md:table">
                     <thead>
                         <tr class="border-b text-muted-foreground">
                             <th class="px-6 py-3 text-start font-medium"
@@ -546,6 +549,64 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- بطاقات مكدّسة على الجوال — صفر تمرير أفقي -->
+            <ul class="divide-y divide-border md:hidden">
+                {#if expenses.length === 0}
+                    <li class="px-4 py-12 text-center text-muted-foreground">
+                        لا توجد مصاريف مطابقة للفلاتر
+                    </li>
+                {:else}
+                    {#each expenses as expense (expense.id)}
+                        <li class="flex items-center gap-3 px-4 py-3">
+                            <CategoryIcon
+                                icon={expense.category_icon}
+                                color={expense.category_color}
+                                size="sm"
+                            />
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-[13px]">
+                                    {expense.description || expense.category || 'مصروف'}
+                                    {#if expense.is_recurring}
+                                        <span
+                                            class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                                            title="متكرر"
+                                        >
+                                            <Repeat class="size-2.5" /> متكرر
+                                        </span>
+                                    {/if}
+                                </p>
+                                <p class="text-[11px] text-muted-foreground">
+                                    {expense.category} · {formatDate(expense.date)}
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    class="grid size-9 place-items-center rounded-lg text-muted-foreground hover:text-foreground"
+                                    aria-label="تعديل"
+                                    onclick={() => openEditModal(expense)}
+                                >
+                                    <Pencil class="size-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="grid size-9 place-items-center rounded-lg text-destructive hover:text-destructive"
+                                    aria-label="حذف"
+                                    onclick={() => openDeleteConfirm(expense)}
+                                >
+                                    <Trash2 class="size-4" />
+                                </button>
+                            </div>
+                            <span
+                                class="shrink-0 text-[13px] font-semibold tabular-nums text-destructive"
+                            >
+                                {formatCurrency(expense.amount)}
+                            </span>
+                        </li>
+                    {/each}
+                {/if}
+            </ul>
 
             {#if totalPages > 1}
                 <div

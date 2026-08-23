@@ -63,7 +63,7 @@
                     onclick={() => (openDay = openDay === day.iso ? null : day.iso)}
                     aria-label="{day.weekday} {day.dayNumber} — {day.events.length} أحداث"
                 >
-                    <span class="block text-[10px] text-muted-foreground">{day.weekday}</span>
+                    <span class="block text-[11px] text-muted-foreground">{day.weekday}</span>
                     <span class="block text-[15px] font-semibold tabular-nums">{day.dayNumber}</span>
                     <span class="mt-1 flex h-1.5 justify-center gap-[3px]">
                         {#each day.events.slice(0, 3) as e}

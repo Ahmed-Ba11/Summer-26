@@ -79,6 +79,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'id' => $expense->id,
             'description' => $expense->description,
             'category' => $expense->category?->name,
+            'category_icon' => $expense->category?->icon ?? 'ellipsis',
+            'category_color' => $expense->category?->color ?? 'var(--chart-1)',
             'amount' => (int) $expense->amount,
             'date' => $expense->expense_date->format('Y-m-d'),
             'is_recurring' => $expense->is_recurring,
