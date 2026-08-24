@@ -64,8 +64,11 @@ class CommitmentsTest extends TestCase
                 'payment_method' => 'manual',
                 'due_type' => 'month_day',
                 'due_day' => 5,
+                'notify_when' => 'before_3',
+                'reserve_in_budget' => true,
             ])
-            ->assertRedirect();
+            ->assertRedirect()
+            ->assertSessionHas('success', 'تمت إضافة فاتورة «كهرباء»');
 
         $this->assertDatabaseHas('commitments', [
             'user_id' => $user->id,
@@ -76,7 +79,7 @@ class CommitmentsTest extends TestCase
         ]);
     }
 
-    public function test_installment_monthly_is_computed_server_side(): void
+    public function test_installment_monthly_uses_the_entered_amount(): void
     {
         $user = $this->userWithIncome();
 
@@ -97,7 +100,7 @@ class CommitmentsTest extends TestCase
             'user_id' => $user->id,
             'kind' => 'installment',
             'name' => 'سيارة',
-            'amount' => 1_000,
+            'amount' => 999,
             'total_amount' => 36_000,
             'months_count' => 36,
         ]);
@@ -211,6 +214,74 @@ class CommitmentsTest extends TestCase
     public function test_guests_are_redirected_from_commitments(): void
     {
         $this->get(route('commitments'))->assertRedirect(route('login'));
+    }
+
+    public function test_reserve_in_budget_controls_dashboard_remaining(): void
+    {
+        $user = User::factory()->create(['salary_day' => 27]);
+        $user->incomes()->create([
+            'amount' => 100_000,
+            'source' => 'راتب',
+            'income_date' => now()->toDateString(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page->where('navStats.remaining', 100_000));
+
+        $user->commitments()->create([
+            'kind' => 'bill',
+            'name' => 'غير محجوز',
+            'amount' => 20_000,
+            'payment_method' => 'manual',
+            'due_type' => 'month_day',
+            'due_day' => 12,
+            'reserve_in_budget' => false,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page->where('navStats.remaining', 100_000));
+
+        $user->commitments()->create([
+            'kind' => 'bill',
+            'name' => 'محجوز',
+            'amount' => 30_000,
+            'payment_method' => 'manual',
+            'due_type' => 'month_day',
+            'due_day' => 12,
+            'reserve_in_budget' => true,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page->where('navStats.remaining', 70_000));
+    }
+
+    public function test_commitment_appears_in_dashboard_calendar_immediately(): void
+    {
+        $user = $this->userWithIncome();
+        $user->commitments()->create([
+            'kind' => 'bill',
+            'name' => 'فاتورة الشهر',
+            'amount' => 15_000,
+            'payment_method' => 'manual',
+            'due_type' => 'month_day',
+            'due_day' => 12,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('stats.commitmentsTotal', 15_000)
+                ->where('stats.commitmentsReserved', 15_000)
+                ->has('calendarEvents', 1)
+                ->where('calendarEvents.0.kind', 'bill')
+                ->where('calendarEvents.0.label', 'فاتورة الشهر')
+                ->where('calendarEvents.0.amount', 15_000));
     }
 
     public function test_archive_hides_commitment_from_index(): void

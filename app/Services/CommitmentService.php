@@ -26,7 +26,7 @@ final class CommitmentService
     ];
 
     private const KIND_ICON = [
-        'bill' => 'receipt', 'rent' => 'home', 'installment' => 'credit-card', 'subscription' => 'repeat',
+        'bill' => 'receipt', 'rent' => 'house', 'installment' => 'credit-card', 'subscription' => 'repeat',
     ];
 
     private const KIND_COLOR = [
@@ -142,7 +142,7 @@ final class CommitmentService
         $period ??= $this->currentPeriod();
         $total = 0;
 
-        foreach ($this->user->commitments()->active()->get() as $c) {
+        foreach ($this->user->commitments()->get() as $c) {
             $payment = $c->payments()->where('period_key', $period['key'])->first();
 
             if ($payment) {
@@ -152,6 +152,10 @@ final class CommitmentService
             }
 
             if (! $c->reserve_in_budget) {
+                continue;
+            }
+
+            if (! $c->is_active) {
                 continue;
             }
 
@@ -184,7 +188,17 @@ final class CommitmentService
         return $total;
     }
 
-    /** عدد الالتزامات غير المدفوعة التي تستحق خلال الأيام القادمة. */
+    /** مجموع المدفوعات الفعلية في فترة الراتب الحالية. */
+    public function paidForPeriod(?array $period = null): int
+    {
+        $period ??= $this->currentPeriod();
+
+        return (int) $this->user->commitmentPayments()
+            ->where('period_key', $period['key'])
+            ->sum('commitment_payments.amount');
+    }
+
+    /** عدد الالتزامات غير المدفوعة — المتأخّرة وما يستحق قريباً. */
     public function dueSoonCount(int $days = 7, ?array $period = null): int
     {
         $period ??= $this->currentPeriod();
@@ -218,7 +232,6 @@ final class CommitmentService
         $dueDate = match ($c->due_type) {
             'salary_day' => $period['salaryDate']->copy(),
             'month_day' => $this->dayWithinWindow((int) ($c->due_day ?? 1), $period),
-            'fixed_date' => $this->dayWithinWindow((int) ($c->due_date?->day ?? 1), $period),
             default => $period['salaryDate']->copy(),
         };
 

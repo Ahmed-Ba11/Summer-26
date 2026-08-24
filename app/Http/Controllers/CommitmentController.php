@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Commitment;
 use App\Services\BudgetGuard;
 use App\Services\CommitmentService;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -46,7 +45,16 @@ class CommitmentController extends Controller
         $obligations = $service->obligationsForPeriod($period);
         $income = $service->periodIncome($period);
 
-        $response = redirect()->back();
+        $label = [
+            'bill' => 'فاتورة',
+            'rent' => 'إيجار',
+            'installment' => 'قسط',
+            'subscription' => 'اشتراك',
+        ][$validated['kind']];
+        $message = "تمت إضافة {$label} «{$validated['name']}»";
+        // الصفحة تعرض إشعار النجاح في onSuccess — لا نكرّره من الخادم
+        // وإلا ظهر مرّتين متطابقتين.
+        $response = redirect()->back()->with('success', $message);
 
         // القاعدة الحاكمة: فاتورة/إيجار/اشتراك تجاوز الدخل تُحفظ، وتُحذّر فقط.
         if ($validated['kind'] !== 'installment' && $income > 0 && $obligations > $income) {
@@ -186,33 +194,37 @@ class CommitmentController extends Controller
 
         $rules = [
             'kind' => ['required', 'in:bill,rent,installment,subscription'],
-            'name' => ['required', 'string', 'max:255'],
-            'amount' => ['nullable', 'numeric', 'min:0'],
+            'name' => ['required', 'string', 'max:60'],
+            'amount' => ['nullable', 'integer', 'min:0'],
+            'monthly_amount' => ['nullable', 'integer', 'min:0'],
             'total_amount' => ['nullable', 'integer', 'min:0'],
             'months_count' => ['nullable', 'integer'],
             'is_variable' => ['boolean'],
             'payment_method' => ['required', 'in:auto,manual'],
-            'due_type' => ['required', 'in:salary_day,month_day,fixed_date'],
+            'due_type' => ['required', 'in:salary_day,month_day'],
             'due_day' => ['nullable', 'integer', 'between:1,31'],
-            'due_date' => ['nullable', 'date'],
-            'notify_before' => ['boolean'],
-            'notify_on_due' => ['boolean'],
-            'notify_late' => ['boolean'],
+            'notify_when' => ['required', 'in:before_3,on_due,none'],
             'reserve_in_budget' => ['boolean'],
         ];
+
+        if ($isInstallment && ! $request->has('amount')) {
+            $request->merge(['amount' => $request->input('monthly_amount')]);
+        }
 
         $request->merge([
             'amount' => $request->input('amount') ?? 0,
             'total_amount' => $request->input('total_amount') ?? 0,
             'months_count' => $request->input('months_count') ?? 0,
             'is_variable' => $request->boolean('is_variable'),
-            'notify_before' => $request->has('notify_before') ? $request->boolean('notify_before') : true,
-            'notify_on_due' => $request->has('notify_on_due') ? $request->boolean('notify_on_due') : true,
-            'notify_late' => $request->has('notify_late') ? $request->boolean('notify_late') : true,
+            'notify_when' => $request->input('notify_when', 'before_3'),
             'reserve_in_budget' => $request->has('reserve_in_budget') ? $request->boolean('reserve_in_budget') : true,
         ]);
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, [
+            'name.required' => 'الاسم مطلوب — بدونه لن تعرف الالتزام في القائمة.',
+            'name.max' => 'الاسم يجب ألا يتجاوز 60 حرفاً.',
+            'amount.integer' => 'المبلغ يجب أن يكون بالهللات.',
+        ]);
 
         if ($isInstallment) {
             $monthCount = (int) $validated['months_count'];
@@ -224,6 +236,11 @@ class CommitmentController extends Controller
             if ((int) $validated['total_amount'] <= 0) {
                 throw ValidationException::withMessages([
                     'total_amount' => 'أدخل المبلغ الكامل للقسط.',
+                ]);
+            }
+            if ((int) $validated['amount'] <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' => 'أدخل قيمة القسط الشهري.',
                 ]);
             }
         } elseif (in_array($validated['kind'], self::FIXED_AMOUNT_KINDS, true)) {
@@ -247,8 +264,7 @@ class CommitmentController extends Controller
 
         // ▸ المنع الوحيد: قسط جديد يرفع الالتزامات فوق الدخل.
         if ($isInstallment) {
-            $monthly = $this->calculateInstallmentMonthly((int) $validated['total_amount'], (int) $validated['months_count']);
-            BudgetGuard::for($user)->assertCommitmentFits($monthly, 0, 'amount');
+            BudgetGuard::for($user)->assertCommitmentFits((int) $validated['amount'], $existing?->amount ?? 0, 'amount');
         }
 
         return $validated;
@@ -264,19 +280,6 @@ class CommitmentController extends Controller
             if ($day < 1 || $day > 31) {
                 throw ValidationException::withMessages([
                     'due_day' => 'يوم الاستحقاق بين 1 و 31.',
-                ]);
-            }
-        }
-
-        if ($type === 'fixed_date') {
-            if (empty($validated['due_date'])) {
-                throw ValidationException::withMessages([
-                    'due_date' => 'اختر تاريخ الاستحقاق.',
-                ]);
-            }
-            if (CarbonImmutable::parse($validated['due_date'])->lessThanOrEqualTo(now())) {
-                throw ValidationException::withMessages([
-                    'due_date' => 'تاريخ الاستحقاق يجب أن يكون مستقبلياً.',
                 ]);
             }
         }
@@ -297,13 +300,11 @@ class CommitmentController extends Controller
         $kind = $validated['kind'];
         $isInstallment = $kind === 'installment';
 
-        $monthly = $isInstallment
-            ? $this->calculateInstallmentMonthly((int) $validated['total_amount'], (int) $validated['months_count'])
-            : (int) $validated['amount'];
+        $monthly = (int) $validated['amount'];
 
         $icon = [
             'bill' => 'receipt',
-            'rent' => 'home',
+            'rent' => 'house',
             'installment' => 'credit-card',
             'subscription' => 'repeat',
         ][$kind] ?? 'ellipsis';
@@ -314,9 +315,7 @@ class CommitmentController extends Controller
             'name' => $validated['name'],
             'icon' => $icon,
             'color' => null,
-            'amount' => $isInstallment
-                ? $monthly
-                : ($kind === 'bill' && $validated['is_variable'] ? null : (int) $validated['amount']),
+            'amount' => $kind === 'bill' && $validated['is_variable'] ? null : $monthly,
             'is_variable' => (bool) $validated['is_variable'],
             'total_amount' => $isInstallment ? (int) $validated['total_amount'] : 0,
             'months_count' => $isInstallment ? (int) $validated['months_count'] : 0,
@@ -324,18 +323,10 @@ class CommitmentController extends Controller
             'payment_method' => $validated['payment_method'],
             'due_type' => $validated['due_type'],
             'due_day' => $validated['due_type'] === 'month_day' ? (int) $validated['due_day'] : null,
-            'due_date' => $validated['due_type'] === 'fixed_date' ? $validated['due_date'] : null,
-            'notify_before' => (bool) $validated['notify_before'],
-            'notify_on_due' => (bool) $validated['notify_on_due'],
-            'notify_late' => (bool) $validated['notify_late'],
+            'notify_when' => $validated['notify_when'],
             'reserve_in_budget' => (bool) $validated['reserve_in_budget'],
             'is_active' => true,
         ];
-    }
-
-    private function calculateInstallmentMonthly(int $total, int $months): int
-    {
-        return $months > 0 ? (int) ceil($total / $months) : 0;
     }
 
     private function resolvePayAmount(Request $request, Commitment $commitment, CommitmentService $service): int

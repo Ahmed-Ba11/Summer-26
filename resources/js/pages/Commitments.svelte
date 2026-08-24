@@ -126,22 +126,13 @@
 <AppLayout>
     <div class="mx-auto w-full max-w-3xl p-3 md:p-6">
         <!-- الرأس -->
-        <header class="mb-3 flex items-start justify-between gap-3">
-            <div class="min-w-0">
-                <h1 class="truncate text-[17px] font-semibold tracking-tight">التزاماتي</h1>
-                <p class="mt-0.5 truncate text-[11.5px] text-muted-foreground">
-                    {commitments.length} التزام
-                    {#if totals.overdueCount}· <span class="font-medium text-destructive">{totals.overdueCount} متأخّر</span>{/if}
-                    {#if periodLabel}· {periodLabel}{/if}
-                </p>
-            </div>
-            <button
-                type="button"
-                onclick={() => (sheetOpen = true)}
-                class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[12.5px] font-semibold text-primary-foreground transition-transform active:scale-[.98]"
-            >
-                <Plus class="size-4" /> إضافة
-            </button>
+        <header class="mb-3">
+            <h1 class="truncate text-[17px] font-semibold tracking-tight">التزاماتي</h1>
+            <p class="mt-0.5 truncate text-[11.5px] text-muted-foreground">
+                {commitments.length} التزام
+                {#if totals.overdueCount}· <span class="font-medium text-destructive">{totals.overdueCount} متأخّر</span>{/if}
+                {#if periodLabel}· {periodLabel}{/if}
+            </p>
         </header>
 
         <div class="space-y-3">
@@ -163,6 +154,18 @@
                     />
                 {/each}
             </div>
+
+            <!--
+                زر الإضافة داخل التدفّق تحت بطاقات الأنواع مباشرة: نصّ صريح،
+                لا أيقونة مبهمة ولا زر عائم يغطّي البطاقة التي خلفه.
+            -->
+            <button
+                type="button"
+                onclick={() => (sheetOpen = true)}
+                class="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-input bg-card text-[12.5px] font-semibold text-primary transition-colors hover:bg-secondary"
+            >
+                <Plus class="size-4" /> إضافة التزام
+            </button>
 
             {#if filter}
                 <div class="flex items-center justify-between gap-2 px-0.5">

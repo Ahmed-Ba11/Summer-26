@@ -17,23 +17,21 @@
 
     let {
         income = 0,
-        bills = 0,
-        installments = 0,
+        commitments = 0,
         savings = 0,
         expenses = 0,
         daysLeft = 0,
         avgDaily = 0,
     }: {
         income?: number;
-        bills?: number;
-        installments?: number;
+        commitments?: number;
         savings?: number;
         expenses?: number;
         daysLeft?: number;
         avgDaily?: number;
     } = $props();
 
-    const reserved = $derived(bills + installments + savings);
+    const reserved = $derived(commitments + savings);
     const remaining = $derived(income - reserved - expenses);
     const isNegative = $derived(remaining < 0);
     const safeDaily = $derived(daysLeft > 0 ? Math.floor(remaining / daysLeft) : remaining);
@@ -41,8 +39,7 @@
 
     const slices = $derived(
         [
-            { key: 'bills', label: 'فواتير', amount: bills, color: 'var(--chart-7)' },
-            { key: 'inst', label: 'أقساط', amount: installments, color: 'var(--chart-2)' },
+            { key: 'commitments', label: 'التزامات', amount: commitments, color: 'var(--chart-7)' },
             { key: 'save', label: 'ادخار', amount: savings, color: 'var(--chart-3)' },
             { key: 'exp', label: 'مصاريف', amount: expenses, color: 'var(--chart-1)' },
         ].filter((s) => s.amount > 0),

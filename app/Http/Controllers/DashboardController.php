@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\User;
+use App\Services\CommitmentService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -53,6 +55,8 @@ class DashboardController extends Controller
         $user = $request->user();
 
         $month = $this->resolveMonth($request->query('month'));
+        $commitmentService = CommitmentService::for($user);
+        $commitmentPeriod = $commitmentService->currentPeriod();
         $start = CarbonImmutable::parse($month.'-01')->startOfMonth();
         $end = $start->endOfMonth();
         $prev = $start->subMonth()->format('Y-m');
@@ -70,21 +74,10 @@ class DashboardController extends Controller
         $prevExpenses = (int) $user->expenses()
             ->where('expense_date', 'like', $prev.'%')->sum('amount');
 
-        $billsDue = (int) $user->bills()
-            ->where('is_paid', false)
-            ->whereBetween('due_date', [$start, $end])
-            ->sum('amount');
-
-        $billsCount = $user->bills()
-            ->where('is_paid', false)
-            ->whereBetween('due_date', [$start, $end])
-            ->count();
-
-        $installmentsMonthly = (int) $user->installments()
-            ->where('is_completed', false)->sum('monthly_amount');
-
-        $installmentsCount = $user->installments()
-            ->where('is_completed', false)->count();
+        $commitmentsTotal = $commitmentService->obligationsForPeriod($commitmentPeriod);
+        $commitmentsReserved = $commitmentService->reservedForPeriod($commitmentPeriod);
+        $commitmentsPaid = $commitmentService->paidForPeriod($commitmentPeriod);
+        $commitmentsDueSoon = $commitmentService->dueSoonCount(7, $commitmentPeriod);
 
         $savingsMonthly = $this->monthlySavingsNeed($user);
 
@@ -167,8 +160,7 @@ class DashboardController extends Controller
         $hasData = $totalIncome > 0
             || $totalExpenses > 0
             || $user->budgets()->exists()
-            || $user->bills()->exists()
-            || $user->installments()->exists();
+            || $user->commitments()->exists();
 
         return Inertia::render('Dashboard', [
             'month' => $month,
@@ -180,13 +172,13 @@ class DashboardController extends Controller
                 'totalIncome' => $totalIncome,
                 'totalExpenses' => $totalExpenses,
                 'prevExpenses' => $prevExpenses,
-                'bills' => $billsDue,
-                'installments' => $installmentsMonthly,
+                'commitmentsTotal' => $commitmentsTotal,
+                'commitmentsReserved' => $commitmentsReserved,
+                'commitmentsPaid' => $commitmentsPaid,
+                'commitmentsDueSoon' => $commitmentsDueSoon,
                 'savings' => $savingsMonthly,
                 'avgDaily' => $avgDaily,
                 'daysLeft' => $daysLeft,
-                'billsCount' => $billsCount,
-                'installmentsCount' => $installmentsCount,
                 'savingsRate' => $totalIncome > 0
                     ? (int) round(($savingsMonthly / $totalIncome) * 100)
                     : 0,
@@ -195,7 +187,7 @@ class DashboardController extends Controller
 
             'categories' => $categories,
             'monthly' => $monthly,
-            'calendarEvents' => $this->calendarEvents($user, $salaryDay),
+            'calendarEvents' => $this->calendarEvents($user),
             'recentTransactions' => $recentTransactions,
         ]);
     }
@@ -259,53 +251,44 @@ class DashboardController extends Controller
     }
 
     /**
-     * أحداث الأربعة عشر يوماً القادمة: فواتير مستحقة، أقساط، ويوم الراتب.
+     * أحداث فترة الراتب: الالتزامات غير المدفوعة (المتأخّرة والقادمة)
+     * حتى أربعة عشر يوماً أمام اليوم، ويوم الراتب القادم.
      *
      * @return list<array{date: string, kind: string, label: string, amount: int}>
      */
-    private function calendarEvents($user, int $salaryDay): array
+    private function calendarEvents(User $user): array
     {
+        $service = CommitmentService::for($user);
+        $period = $service->currentPeriod();
         $today = CarbonImmutable::today();
         $horizon = $today->addDays(14);
         $events = [];
 
-        foreach ($user->bills()->where('is_paid', false)->get() as $bill) {
-            $due = CarbonImmutable::parse($bill->due_date);
-            if ($due->betweenIncluded($today, $horizon)) {
+        foreach ($user->commitments()->active()->get() as $commitment) {
+            if ($commitment->payments()->where('period_key', $period['key'])->exists()) {
+                continue;
+            }
+
+            $due = $service->dueDateFor($commitment, $period);
+
+            if ($due->betweenIncluded($period['salaryDate'], $horizon)) {
                 $events[] = [
                     'date' => $due->format('Y-m-d'),
-                    'kind' => 'bill',
-                    'label' => $bill->name,
-                    'amount' => (int) $bill->amount,
+                    'kind' => $commitment->kind,
+                    'label' => $commitment->name,
+                    'amount' => $service->expectedAmount($commitment),
                 ];
             }
         }
 
-        foreach ($user->installments()->where('is_completed', false)->get() as $inst) {
-            $dueDay = (int) CarbonImmutable::parse($inst->start_date)->day;
-            foreach ([$today, $today->addMonth()] as $anchor) {
-                $due = $anchor->setDay(min($dueDay, $anchor->daysInMonth));
-                if ($due->betweenIncluded($today, $horizon)) {
-                    $events[] = [
-                        'date' => $due->format('Y-m-d'),
-                        'kind' => 'installment',
-                        'label' => $inst->name,
-                        'amount' => (int) $inst->monthly_amount,
-                    ];
-                }
-            }
-        }
-
-        foreach ([$today, $today->addMonth()] as $anchor) {
-            $pay = $anchor->setDay(min($salaryDay, $anchor->daysInMonth));
-            if ($pay->betweenIncluded($today, $horizon)) {
-                $events[] = [
-                    'date' => $pay->format('Y-m-d'),
-                    'kind' => 'salary',
-                    'label' => 'الراتب',
-                    'amount' => (int) $user->incomes()->where('is_recurring', true)->sum('amount'),
-                ];
-            }
+        $salaryAmount = (int) $user->incomes()->where('is_recurring', true)->sum('amount');
+        if ($salaryAmount > 0 && $period['nextSalary']->betweenIncluded($today, $horizon)) {
+            $events[] = [
+                'date' => $period['nextSalary']->format('Y-m-d'),
+                'kind' => 'salary',
+                'label' => 'الراتب',
+                'amount' => $salaryAmount,
+            ];
         }
 
         return $events;

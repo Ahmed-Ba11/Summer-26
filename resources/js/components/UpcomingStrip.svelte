@@ -12,6 +12,8 @@
     import Banknote from 'lucide-svelte/icons/banknote';
     import CalendarDays from 'lucide-svelte/icons/calendar-days';
     import CreditCard from 'lucide-svelte/icons/credit-card';
+    import House from 'lucide-svelte/icons/house';
+    import Repeat from 'lucide-svelte/icons/repeat';
     import Vault from 'lucide-svelte/icons/vault';
     import Zap from 'lucide-svelte/icons/zap';
     import { Link } from '@inertiajs/svelte';
@@ -20,7 +22,7 @@
 
     interface CalEvent {
         date: string;
-        kind: 'salary' | 'bill' | 'installment' | 'savings';
+        kind: 'salary' | 'bill' | 'rent' | 'installment' | 'subscription' | 'savings';
         label: string;
         amount: number;
     }
@@ -30,7 +32,9 @@
     const KIND = {
         salary: { color: 'var(--success)', icon: Banknote, label: 'راتب' },
         bill: { color: 'var(--chart-7)', icon: Zap, label: 'فاتورة' },
+        rent: { color: 'var(--chart-5)', icon: House, label: 'إيجار' },
         installment: { color: 'var(--chart-2)', icon: CreditCard, label: 'قسط' },
+        subscription: { color: 'var(--chart-3)', icon: Repeat, label: 'اشتراك' },
         savings: { color: 'var(--chart-3)', icon: Vault, label: 'ادخار' },
     } as const;
 

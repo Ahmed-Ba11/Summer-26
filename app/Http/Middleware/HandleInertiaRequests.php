@@ -51,9 +51,14 @@ class HandleInertiaRequests extends Middleware
             'railExpanded' => $request->cookie('rail_expanded') === '1',
             'flash' => [
                 'warnings' => fn (): mixed => $request->session()->get('warnings'),
+                'success' => fn (): mixed => $request->session()->get('success'),
+                'toast' => fn (): mixed => $request->session()->get('toast'),
             ],
             'navStats' => $user ? function () use ($user): array {
                 $context = BudgetGuard::for($user)->context();
+                $commitmentService = CommitmentService::for($user);
+                $commitmentPeriod = $commitmentService->currentPeriod();
+                $commitmentsTotal = $commitmentService->obligationsForPeriod($commitmentPeriod);
                 $today = now();
                 $salaryDay = (int) ($user->salary_day ?? 27);
                 $salaryDate = $salaryDay === 0
@@ -79,25 +84,17 @@ class HandleInertiaRequests extends Middleware
                     ? (int) round(($monthlySavings / $monthlyIncome) * 100)
                     : 0;
 
-                $bills = (int) $user->bills()
-                    ->where('is_paid', false)
-                    ->whereBetween('due_date', [now()->startOfMonth(), now()->endOfMonth()])
-                    ->sum('amount');
-                $installments = (int) $user->installments()
-                    ->where('is_completed', false)
-                    ->sum('monthly_amount');
-                $plannedSavings = max(0, $context['obligations'] - $bills - $installments);
+                $plannedSavings = max(0, $context['obligations'] - $commitmentsTotal);
                 $transactionsCount = $user->expenses()
                     ->whereBetween('expense_date', [now()->startOfMonth(), now()->endOfMonth()])
                     ->count()
                     + $user->incomes()
                         ->whereBetween('income_date', [now()->startOfMonth(), now()->endOfMonth()])
                         ->count();
-                $dueCommitments = CommitmentService::for($user)->dueSoonCount();
+                $dueCommitments = $commitmentService->dueSoonCount(7, $commitmentPeriod);
 
                 $incomeSplit = $monthlyIncome > 0 ? [
-                    ['key' => 'bills', 'pct' => (int) round(($bills / $monthlyIncome) * 100), 'color' => 'var(--chart-7)'],
-                    ['key' => 'installments', 'pct' => (int) round(($installments / $monthlyIncome) * 100), 'color' => 'var(--chart-2)'],
+                    ['key' => 'commitments', 'pct' => (int) round(($commitmentsTotal / $monthlyIncome) * 100), 'color' => 'var(--chart-7)'],
                     ['key' => 'savings', 'pct' => (int) round(($plannedSavings / $monthlyIncome) * 100), 'color' => 'var(--chart-3)'],
                     ['key' => 'expenses', 'pct' => (int) round(($context['spent'] / $monthlyIncome) * 100), 'color' => 'var(--chart-1)'],
                     ['key' => 'remaining', 'pct' => (int) round((max(0, $context['available']) / $monthlyIncome) * 100), 'color' => 'var(--secondary)'],
@@ -114,10 +111,7 @@ class HandleInertiaRequests extends Middleware
                     'incomeSplit' => $incomeSplit,
                 ];
             } : null,
-            'dueBillsCount' => $request->user()
-                ? $request->user()->bills()->where('is_paid', false)
-                    ->whereBetween('due_date', [now(), now()->addDays(7)])->count()
-                : 0,
+            'dueBillsCount' => $user ? CommitmentService::for($user)->dueSoonCount() : 0,
             'quickAdd' => $user ? function () use ($user): array {
                 $month = now()->format('Y-m');
                 $context = BudgetGuard::for($user)->context();

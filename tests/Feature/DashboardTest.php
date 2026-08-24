@@ -81,7 +81,7 @@ class DashboardTest extends TestCase
                 ->where('navStats.budgetUsedPct', 20)
                 ->where('navStats.transactionsCount', 2)
                 ->where('navStats.savingsPct', 5)
-                ->has('navStats.incomeSplit', 5));
+                ->has('navStats.incomeSplit', 4));
 
         $this->actingAs($user)
             ->get('/transactions')

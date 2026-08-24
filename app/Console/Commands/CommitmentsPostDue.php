@@ -69,6 +69,10 @@ class CommitmentsPostDue extends Command
                         }
                     });
 
+                    if ($commitment->notify_when !== 'none') {
+                        $this->line("تنبيه {$commitment->name}: تم تسجيل الخصم التلقائي.");
+                    }
+
                     $count++;
                 });
         });

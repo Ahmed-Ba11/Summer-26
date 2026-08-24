@@ -43,20 +43,20 @@ import Vault from 'lucide-svelte/icons/vault';
         totalIncome: number;
         totalExpenses: number;
         prevExpenses: number;
-        bills: number;
-        installments: number;
+        commitmentsTotal: number;
+        commitmentsReserved: number;
+        commitmentsPaid: number;
+        commitmentsDueSoon: number;
         savings: number;
         avgDaily: number;
         daysLeft: number;
-        billsCount: number;
-        installmentsCount: number;
         savingsRate: number;
         savingsTarget: number;
     }
 
     interface CalEvent {
         date: string;
-        kind: 'salary' | 'bill' | 'installment' | 'savings';
+        kind: 'salary' | 'bill' | 'rent' | 'installment' | 'subscription' | 'savings';
         label: string;
         amount: number;
     }
@@ -78,13 +78,13 @@ import Vault from 'lucide-svelte/icons/vault';
             totalIncome: 0,
             totalExpenses: 0,
             prevExpenses: 0,
-            bills: 0,
-            installments: 0,
+            commitmentsTotal: 0,
+            commitmentsReserved: 0,
+            commitmentsPaid: 0,
+            commitmentsDueSoon: 0,
             savings: 0,
             avgDaily: 0,
             daysLeft: 0,
-            billsCount: 0,
-            installmentsCount: 0,
             savingsRate: 0,
             savingsTarget: 10,
         } as Stats,
@@ -200,8 +200,7 @@ import Vault from 'lucide-svelte/icons/vault';
         <!-- ١ · بطاقة القصّة المالية -->
         <MoneyStoryCard
             income={stats.totalIncome}
-            bills={stats.bills}
-            installments={stats.installments}
+            commitments={stats.commitmentsTotal}
             savings={stats.savings}
             expenses={stats.totalExpenses}
             daysLeft={stats.daysLeft}
@@ -232,10 +231,10 @@ import Vault from 'lucide-svelte/icons/vault';
             />
             <StatTile
                 label="المحجوز"
-                amount={stats.bills + stats.installments + stats.savings}
+                amount={stats.commitmentsTotal}
                 icon={Lock}
                 color="var(--chart-7)"
-                note="{stats.billsCount} فواتير · {stats.installmentsCount} أقساط"
+                note={`${formatAmount(stats.commitmentsPaid)} مدفوع · ${stats.commitmentsDueSoon} قريب`}
             />
             <StatTile
                 label="الادخار"

@@ -5,6 +5,7 @@
      */
     import type { Snippet } from 'svelte';
     import Button from '@/components/ui/button/Button.svelte';
+    import { iconFor } from '@/lib/category-icons';
     import type { IconComponent } from '@/types';
 
     let {
@@ -13,19 +14,24 @@
         description = '',
         actionLabel = '',
         onaction,
+        onAction,
         href = '',
         children,
     }: {
-        icon?: IconComponent;
+        /** مكوّن أيقونة أو اسم أيقونة من خريطة category-icons (مثل "receipt"). */
+        icon?: IconComponent | string;
         title: string;
         description?: string;
         actionLabel?: string;
         onaction?: () => void;
+        /** صيغة camelCase — تستخدمها بعض الصفحات. */
+        onAction?: () => void;
         href?: string;
         children?: Snippet;
     } = $props();
 
-    const Icon = $derived(icon);
+    const Icon = $derived(typeof icon === 'string' ? iconFor(icon) : icon);
+    const handleAction = $derived(onAction ?? onaction);
 </script>
 
 <div class="flex flex-col items-center justify-center px-6 py-14 text-center">
@@ -46,7 +52,7 @@
             {#if href}
                 <Button size="sm" {href}>{actionLabel}</Button>
             {:else}
-                <Button size="sm" onclick={onaction}>{actionLabel}</Button>
+                <Button size="sm" onclick={handleAction}>{actionLabel}</Button>
             {/if}
         </div>
     {/if}

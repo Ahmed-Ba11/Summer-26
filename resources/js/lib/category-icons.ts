@@ -33,12 +33,14 @@ import Phone from 'lucide-svelte/icons/phone';
 import Pill from 'lucide-svelte/icons/pill';
 import Plane from 'lucide-svelte/icons/plane';
 import Repeat from 'lucide-svelte/icons/repeat';
+import Receipt from 'lucide-svelte/icons/receipt';
 import Scissors from 'lucide-svelte/icons/scissors';
 import Shirt from 'lucide-svelte/icons/shirt';
 import ShoppingCart from 'lucide-svelte/icons/shopping-cart';
 import Utensils from 'lucide-svelte/icons/utensils';
 import Wifi from 'lucide-svelte/icons/wifi';
 import Zap from 'lucide-svelte/icons/zap';
+import FileText from 'lucide-svelte/icons/file-text';
 
 export type IconKey = keyof typeof ICONS;
 
@@ -69,6 +71,8 @@ export const ICONS = {
     'credit-card': CreditCard,
     banknote: Banknote,
     repeat: Repeat,
+    receipt: Receipt,
+    'file-text': FileText,
     ellipsis: Ellipsis,
 } as const;
 
@@ -103,6 +107,8 @@ export const ICON_LABELS: Record<IconKey, string> = {
     'credit-card': 'أقساط',
     banknote: 'نقد',
     repeat: 'اشتراكات',
+    receipt: 'فاتورة',
+    'file-text': 'مستند',
     ellipsis: 'أخرى',
 };
 

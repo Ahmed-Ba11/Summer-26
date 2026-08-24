@@ -5,7 +5,23 @@
 
 export type CommitmentKind = 'bill' | 'rent' | 'installment' | 'subscription';
 export type PaymentMethod = 'auto' | 'manual';
-export type DueType = 'salary_day' | 'month_day' | 'fixed_date';
+/**
+ * نوعان فقط للاستحقاق — لا ثالث لهما:
+ *   salary_day → يتحرّك مع يوم راتبك تلقائياً
+ *   month_day  → يوم ثابت من كل شهر يظهر فوراً في التقويم المالي
+ * («تاريخ واحد» حُذف: كل التزام في التطبيق متكرّر شهرياً بطبيعته،
+ *  ووجود خيار ثالث كان يربك بلا فائدة.)
+ */
+export type DueType = 'salary_day' | 'month_day';
+
+/** تنبيه واحد لا أكثر — تعدّد التنبيهات لنفس الالتزام إزعاج لا فائدة. */
+export type NotifyWhen = 'before_3' | 'on_due' | 'none';
+
+export const NOTIFY_LABEL: Record<NotifyWhen, string> = {
+    before_3: 'قبل 3 أيام',
+    on_due: 'يوم الاستحقاق',
+    none: 'لا تنبّهني',
+};
 
 export interface Commitment {
     id: number;
@@ -46,7 +62,7 @@ export const KIND_LABEL_PLURAL: Record<CommitmentKind, string> = {
 
 export const KIND_ICON: Record<CommitmentKind, string> = {
     bill: 'receipt',
-    rent: 'home',
+    rent: 'house',
     installment: 'credit-card',
     subscription: 'repeat',
 };
