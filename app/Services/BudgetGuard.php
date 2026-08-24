@@ -82,17 +82,10 @@ final class BudgetGuard
         ];
     }
 
-    /** الفواتير الثابتة غير المدفوعة + الأقساط النشطة + الادخار الشهري المطلوب. */
+    /** التزامات فترة الراتب (مدفوعات + محجوز) + الادخار الشهري المطلوب. */
     private function obligations(CarbonImmutable $start, CarbonImmutable $end): int
     {
-        $bills = (int) $this->user->bills()
-            ->where('is_paid', false)
-            ->whereBetween('due_date', [$start, $end])
-            ->sum('amount');
-
-        $installments = (int) $this->user->installments()
-            ->where('is_completed', false)
-            ->sum('monthly_amount');
+        $commitments = CommitmentService::for($this->user)->obligationsForPeriod();
 
         $savings = (int) $this->user->savingsGoals()
             ->where('is_completed', false)
@@ -105,7 +98,7 @@ final class BudgetGuard
                 return $remaining / $months;
             });
 
-        return $bills + $installments + $savings;
+        return $commitments + $savings;
     }
 
     // ═══════════════════════════════════════════════════════════════════

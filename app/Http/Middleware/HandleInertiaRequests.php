@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Category;
 use App\Services\BudgetGuard;
+use App\Services\CommitmentService;
 use App\Services\ExpenseFundingService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -92,10 +93,7 @@ class HandleInertiaRequests extends Middleware
                     + $user->incomes()
                         ->whereBetween('income_date', [now()->startOfMonth(), now()->endOfMonth()])
                         ->count();
-                $dueCommitments = $user->bills()
-                    ->where('is_paid', false)
-                    ->whereBetween('due_date', [now(), now()->addDays(7)])
-                    ->count();
+                $dueCommitments = CommitmentService::for($user)->dueSoonCount();
 
                 $incomeSplit = $monthlyIncome > 0 ? [
                     ['key' => 'bills', 'pct' => (int) round(($bills / $monthlyIncome) * 100), 'color' => 'var(--chart-7)'],

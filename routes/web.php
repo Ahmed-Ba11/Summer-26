@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\CommitmentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\RecurringTransactionController;
@@ -33,6 +34,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/calendar', CalendarController::class)->name('calendar');
 
+    // Commitments (فواتير · إيجارات · أقساط · اشتراكات موحّدة)
+    Route::get('/commitments', [CommitmentController::class, 'index'])->name('commitments');
+    Route::post('/commitments', [CommitmentController::class, 'store'])->name('commitments.store');
+    Route::post('/commitments/{commitment}/pay', [CommitmentController::class, 'pay'])->name('commitments.pay');
+    Route::delete('/commitments/{commitment}/pay', [CommitmentController::class, 'undoPay'])->name('commitments.undo');
+    Route::get('/commitments/{commitment}/edit', [CommitmentController::class, 'edit'])->name('commitments.edit');
+    Route::put('/commitments/{commitment}', [CommitmentController::class, 'update'])->name('commitments.update');
+    Route::delete('/commitments/{commitment}', [CommitmentController::class, 'destroy'])->name('commitments.destroy');
+
+    // المسارات القديمة للفواتير والأقساط → إعادة توجيه إلى صفحة الالتزامات الموحّدة
+    Route::redirect('/bills', '/commitments');
+    Route::redirect('/installments', '/commitments');
+
     // Onboarding is available to authenticated users, but is not enforced by middleware.
     Route::get('/onboarding', [OnboardingController::class, 'show'])->name('onboarding');
     Route::post('/onboarding/income', [OnboardingController::class, 'income'])->name('onboarding.income');
@@ -40,7 +54,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/onboarding/budget', [OnboardingController::class, 'budget'])->name('onboarding.budget');
 
     Route::redirect('/transactions', '/expenses');
-    Route::redirect('/commitments', '/bills');
 
     // Expenses
     Route::get('/expenses', function (ExpenseIndexRequest $request) {

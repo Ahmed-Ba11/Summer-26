@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command('recurring:process')
     ->daily()
     ->withoutOverlapping();
+
+Schedule::command('commitments:post-due')
+    ->daily()
+    ->withoutOverlapping();

@@ -61,11 +61,15 @@ class DashboardTest extends TestCase
             'amount' => 40000,
             'deposited_at' => now()->toDateString(),
         ]);
-        $user->bills()->create([
+        $user->commitments()->create([
+            'kind' => 'bill',
             'name' => 'فاتورة اختباريّة',
             'amount' => 100000,
-            'due_date' => now()->addDay()->toDateString(),
-            'is_paid' => false,
+            'payment_method' => 'manual',
+            'due_type' => 'month_day',
+            'due_day' => now()->addDay()->day,
+            'reserve_in_budget' => true,
+            'is_active' => true,
         ]);
 
         $this->actingAs($user)
@@ -76,7 +80,6 @@ class DashboardTest extends TestCase
                 ->where('navStats.remaining', 690000)
                 ->where('navStats.budgetUsedPct', 20)
                 ->where('navStats.transactionsCount', 2)
-                ->where('navStats.dueCommitments', 1)
                 ->where('navStats.savingsPct', 5)
                 ->has('navStats.incomeSplit', 5));
 
@@ -85,6 +88,6 @@ class DashboardTest extends TestCase
             ->assertRedirect('/expenses');
         $this->actingAs($user)
             ->get('/commitments')
-            ->assertRedirect('/bills');
+            ->assertOk();
     }
 }

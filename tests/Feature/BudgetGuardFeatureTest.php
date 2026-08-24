@@ -132,11 +132,16 @@ class BudgetGuardFeatureTest extends TestCase
             'source' => 'راتب',
             'income_date' => now()->startOfMonth(),
         ]);
-        $user->bills()->create([
+        $user->commitments()->create([
+            'kind' => 'bill',
             'name' => 'فاتورة',
             'amount' => 9_000,
-            'due_date' => now()->toDateString(),
-            'is_paid' => false,
+            'is_variable' => false,
+            'payment_method' => 'manual',
+            'due_type' => 'month_day',
+            'due_day' => 1,
+            'reserve_in_budget' => true,
+            'is_active' => true,
         ]);
 
         $this->actingAs($user)
