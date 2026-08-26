@@ -122,12 +122,8 @@ final class ExpenseFundingService
             ]);
         }
 
-        $goal->decrement('current_amount', $shortfall);
-
-        // السحب يلغي اكتمال الهدف إن كان مكتملاً
-        if ($goal->is_completed && (int) $goal->fresh()->current_amount < (int) $goal->target_amount) {
-            $goal->update(['is_completed' => false]);
-        }
+        // السحب صفّ سالب في دفتر الادخار — والرصيد والاكتمال يُحدَّثان معه
+        SavingsLedger::for($this->user)->withdraw($goal, $shortfall);
     }
 
     /** @throws ValidationException */

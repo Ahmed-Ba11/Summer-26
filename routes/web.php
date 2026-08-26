@@ -15,10 +15,12 @@ use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Installment;
+use App\Models\SalaryPeriod;
 use App\Models\SavingsGoal;
 use App\Services\BudgetGuard;
 use App\Services\ExpenseFundingService;
 use App\Services\RecurringTransactionService;
+use App\Services\SavingsLedger;
 use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -496,9 +498,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         $totalSaved = (int) $user->savingsGoals()->sum('current_amount');
         $monthlyIncome = (int) $user->incomes()->where('income_date', 'like', $currentMonth.'%')->sum('amount');
-        $monthlyDeposits = (int) $user->savingsDeposits()
-            ->whereBetween('deposited_at', [now()->startOfMonth(), now()->endOfMonth()])
-            ->sum('amount');
+        $monthlyDeposits = SavingsLedger::for($user)->netForPeriod(SalaryPeriod::keyFor($user));
 
         return Inertia::render('Savings', [
             'goals' => $goals,
@@ -559,18 +559,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ]);
         }
 
-        DB::transaction(function () use ($goal, $newAmount, $addition): void {
-            $goal->update([
-                'current_amount' => $newAmount,
-                'is_completed' => $newAmount >= (int) $goal->target_amount,
-            ]);
-
-            $goal->user->savingsDeposits()->create([
-                'savings_goal_id' => $goal->id,
-                'amount' => $addition,
-                'deposited_at' => now()->toDateString(),
-            ]);
-        });
+        SavingsLedger::for(auth()->user())->deposit($goal, $addition);
 
         $response = redirect()->back();
         $overage = $newAmount - (int) $goal->target_amount;

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\SavingsGoal;
 use App\Models\User;
+use App\Services\SavingsLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -89,11 +90,7 @@ class ValidationRedirectTest extends TestCase
             'is_completed' => false,
             'is_closed' => false,
         ]);
-        $user->savingsDeposits()->create([
-            'savings_goal_id' => $goal->id,
-            'amount' => 5_000,
-            'deposited_at' => now()->startOfMonth(),
-        ]);
+        SavingsLedger::for($user)->deposit($goal, 5_000);
 
         $this->actingAs($user)
             ->withoutMiddleware(HandleInertiaRequests::class)

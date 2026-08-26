@@ -29,7 +29,12 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'salary_day', 'onboarding_completed_at'])]
+#[Fillable([
+    'name', 'email', 'password', 'display_name', 'monthly_income', 'salary_day',
+    'monthly_savings_target', 'currency', 'locale', 'theme', 'font_scale',
+    'biometric_lock', 'notify_due', 'notify_budget', 'notify_salary',
+    'onboarding_step', 'onboarding_completed_at',
+])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -55,6 +60,14 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'onboarding_completed_at' => 'datetime',
+            'monthly_income' => 'integer',
+            'salary_day' => 'integer',
+            'monthly_savings_target' => 'integer',
+            'biometric_lock' => 'boolean',
+            'notify_due' => 'boolean',
+            'notify_budget' => 'boolean',
+            'notify_salary' => 'boolean',
+            'onboarding_step' => 'integer',
         ];
     }
 
@@ -96,6 +109,11 @@ class User extends Authenticatable implements PasskeyUser
     public function savingsDeposits(): HasMany
     {
         return $this->hasMany(SavingsDeposit::class);
+    }
+
+    public function salaryPeriods(): HasMany
+    {
+        return $this->hasMany(SalaryPeriod::class);
     }
 
     public function installments(): HasMany

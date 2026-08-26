@@ -12,6 +12,7 @@ class SavingsDeposit extends Model
         'savings_goal_id',
         'amount',
         'deposited_at',
+        'period_key',
     ];
 
     protected function casts(): array
