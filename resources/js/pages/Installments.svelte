@@ -13,7 +13,8 @@
     import CreditCard from 'lucide-svelte/icons/credit-card';
     import Plus from 'lucide-svelte/icons/plus';
     import Trash2 from 'lucide-svelte/icons/trash-2';
-    import X from 'lucide-svelte/icons/x';
+    import Wallet from 'lucide-svelte/icons/wallet';
+    import Check from 'lucide-svelte/icons/check';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import Button from '@/components/ui/button/Button.svelte';
@@ -26,7 +27,12 @@
     } from '@/components/ui/card';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
-    import { formatCurrency, formatDate } from '@/lib/format';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
+    import SheetField from '@/components/ui/SheetField.svelte';
+    import AmountSheet from '@/components/ui/AmountSheet.svelte';
+    import DateSheet from '@/components/ui/DateSheet.svelte';
+    import ConfirmSheet from '@/components/ui/ConfirmSheet.svelte';
+    import { formatAmount, formatCurrency, formatDate } from '@/lib/format';
     import {
         destroy as destroyInstallment,
         pay as payInstallmentRoute,
@@ -127,20 +133,6 @@
         selectedInstallment = null;
     }
 
-    function handleKeydown(event: KeyboardEvent): void {
-        if (event.key !== 'Escape') {
-            return;
-        }
-
-        if (showDetailsModal) {
-            closeDetailsModal();
-        } else if (showFormModal) {
-            closeFormModal();
-        } else if (deleteId !== null) {
-            cancelDelete();
-        }
-    }
-
     function payInstallment() {
         if (!selectedInstallment) return;
 
@@ -159,9 +151,13 @@
     let formName = $state('');
     let formReason = $state('');
     let formIcon = $state('ellipsis');
-    let formMonthly = $state('');
+    /** القسط الشهري بالهللات */
+    let formMonthly = $state(0);
     let formTotalMonths = $state('');
+    /** ISO كامل — يُقصّ إلى Y-m عند الإرسال */
     let formStartDate = $state('');
+    let monthlySheetOpen = $state(false);
+    let startDateSheetOpen = $state(false);
     let formErrors = $state<Record<string, string>>({});
     let submitting = $state(false);
 
@@ -170,9 +166,9 @@
         formName = '';
         formReason = '';
         formIcon = 'ellipsis';
-        formMonthly = '';
+        formMonthly = 0;
         formTotalMonths = '';
-        formStartDate = new Date().toISOString().slice(0, 7);
+        formStartDate = new Date().toISOString().slice(0, 10);
         formErrors = {};
         showFormModal = true;
     }
@@ -184,7 +180,7 @@
 
     function submitForm() {
         formErrors = {};
-        const monthlySar = parseFloat(formMonthly);
+        const monthlySar = formMonthly / 100;
         const totalMonthsNum = parseInt(formTotalMonths);
 
         if (!formName.trim()) {
@@ -215,7 +211,7 @@
                 monthly_amount: monthlySar,
                 total_amount: monthlySar * totalMonthsNum,
                 total_months: totalMonthsNum,
-                start_date: formStartDate,
+                start_date: formStartDate.slice(0, 7),
             },
             {
                 preserveScroll: true,
@@ -234,13 +230,11 @@
 
     // Delete
     let deleteId = $state<number | null>(null);
+    let deleteOpen = $state(false);
 
     function confirmDelete(id: number) {
         deleteId = id;
-    }
-
-    function cancelDelete() {
-        deleteId = null;
+        deleteOpen = true;
     }
 
     function executeDelete() {
@@ -252,6 +246,7 @@
             preserveScroll: true,
             onSuccess: () => {
                 deleteId = null;
+                deleteOpen = false;
                 if (showDetailsModal && selectedInstallment?.id === id) {
                     closeDetailsModal();
                 }
@@ -496,313 +491,192 @@
     {/if}
 </div>
 
-<!-- Details Modal -->
-{#if showDetailsModal && selectedInstallment}
-    {@const item = selectedInstallment}
-    <div class="fixed inset-0 z-50 flex items-center justify-center">
-        <button type="button" class="fixed inset-0 bg-black/50" aria-label="إغلاق" onclick={closeDetailsModal}></button>
-        <div
-            class="relative z-10 mx-4 w-full max-w-lg rounded-xl border bg-card p-0 shadow-lg"
-        >
-            <div class="flex items-center justify-between border-b px-6 py-4">
-                <h2 class="flex items-center gap-2 text-lg font-semibold">
-                    <CategoryIcon icon={item.icon} color="#4a3aa7" size="md" />
-                    {item.name}
-                </h2>
-                <button
-                    class="text-muted-foreground hover:text-foreground cursor-pointer"
-                    onclick={closeDetailsModal}
-                >
-                    <X class="size-5" />
-                </button>
-            </div>
-            <div class="space-y-4 px-6 py-4">
-                <div class="rounded-lg bg-muted/50 p-4">
-                    <div class="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                            <span class="text-muted-foreground">السبب</span>
-                            <p class="font-medium">{item.reason}</p>
-                        </div>
-                        <div>
-                            <span class="text-muted-foreground">الحالة</span>
-                            <p class="font-medium">
-                                {#if !item.is_completed}
-                                    <span
-                                        class="text-green-600 dark:text-green-400"
-                                        >نشط</span
-                                    >
-                                {:else}
-                                    <span class="text-muted-foreground"
-                                        >منتهي</span
-                                    >
-                                {/if}
-                            </p>
-                        </div>
-                        <div>
-                            <span class="text-muted-foreground"
-                                >القسط الشهري</span
-                            >
-                            <p class="font-bold tabular-nums">
-                                {formatCurrency(item.monthly_amount)}
-                            </p>
-                        </div>
-                        <div>
-                            <span class="text-muted-foreground"
-                                >المبلغ الإجمالي</span
-                            >
-                            <p class="font-bold tabular-nums">
-                                {formatCurrency(item.total_amount)}
-                            </p>
-                        </div>
-                        <div>
-                            <span class="text-muted-foreground">المدفوع</span>
-                            <p class="font-medium tabular-nums">
-                                {item.paid_months} / {item.total_months} شهر
-                            </p>
-                        </div>
-                        <div>
-                            <span class="text-muted-foreground">المتبقي</span>
-                            <p class="font-medium tabular-nums">
-                                {#if remainingMonths(item) > 0}
-                                    {remainingMonths(item)} أشهر · {formatCurrency(
-                                        remainingAmount(item),
-                                    )}
-                                {:else}
-                                    <span
-                                        class="text-green-600 dark:text-green-400"
-                                        >مكتمل</span
-                                    >
-                                {/if}
-                            </p>
-                        </div>
-                        <div>
-                            <span class="text-muted-foreground"
-                                >تاريخ البداية</span
-                            >
-                            <p class="font-medium tabular-nums">
-                                {formatDate(item.start_date)}
-                            </p>
-                        </div>
-                        <div>
-                            <span class="text-muted-foreground"
-                                >المدفوع حتى الآن</span
-                            >
-                            <p
-                                class="font-bold tabular-nums text-green-600 dark:text-green-400"
-                            >
-                                {formatCurrency(paidAmount(item))}
-                            </p>
-                        </div>
-                    </div>
+<!-- لوح تفاصيل القسط -->
+<SheetShell
+    bind:open={showDetailsModal}
+    title={selectedInstallment?.name ?? 'تفاصيل القسط'}
+    subtitle={selectedInstallment?.reason ?? ''}
+    onClose={closeDetailsModal}
+>
+    {#if selectedInstallment}
+        {@const item = selectedInstallment}
+        {@const pct = Math.round((item.paid_months / item.total_months) * 100)}
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+                <CategoryIcon icon={item.icon} color="#4a3aa7" size="md" />
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-[14px] font-semibold">{item.name}</p>
+                    <p class="truncate text-[11.5px] text-muted-foreground">
+                        {item.is_completed ? 'منتهي' : 'نشط'} · {formatDate(item.start_date)}
+                    </p>
                 </div>
+            </div>
 
-                {#if !item.is_completed}
-                    <div
-                        class="relative h-3 w-full overflow-hidden rounded-full bg-secondary"
-                    >
+            {#if !item.is_completed}
+                <div>
+                    <div class="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
                         <div
                             class="absolute inset-y-0 h-full rounded-full bg-primary transition-all"
-                            style="inset-inline-start: 0; width: {Math.round(
-                                (item.paid_months / item.total_months) * 100,
-                            )}%"
+                            style="inset-inline-start: 0; width: {pct}%"
                         ></div>
                     </div>
-                    <div
-                        class="flex justify-between text-sm text-muted-foreground"
-                    >
-                        <span
-                            >{Math.round(
-                                (item.paid_months / item.total_months) * 100,
-                            )}% مكتمل</span
-                        >
+                    <div class="mt-1.5 flex justify-between text-[11.5px] text-muted-foreground tabular-nums">
+                        <span>{pct}% مكتمل</span>
                         <span>{remainingMonths(item)} أشهر متبقية</span>
                     </div>
-                {/if}
-            </div>
-            <div class="flex justify-end gap-2 border-t px-6 py-4">
-                {#if !item.is_completed}
-                    <Button onclick={payInstallment} class="gap-1.5">
-                        <CheckCircle2 class="size-4" />
-                        سداد قسط
-                    </Button>
-                {:else}
-                    <Button variant="outline" onclick={closeDetailsModal}
-                        >إغلاق</Button
-                    >
-                {/if}
-            </div>
-        </div>
-    </div>
-{/if}
+                </div>
+            {/if}
 
-<!-- Add Modal -->
-{#if showFormModal}
-    <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-[10vh]">
-        <button type="button" class="fixed inset-0 bg-black/50" aria-label="إغلاق" onclick={closeFormModal}></button>
-        <div
-            class="relative z-10 mx-4 w-full max-w-md rounded-xl border bg-card p-0 shadow-lg"
-        >
-            <div class="flex items-center justify-between border-b px-6 py-4">
-                <h2 class="text-lg font-semibold">إضافة قسط جديد</h2>
-                <button
-                    class="text-muted-foreground hover:text-foreground cursor-pointer"
-                    onclick={closeFormModal}
-                >
-                    <X class="size-5" />
-                </button>
-            </div>
-            <div class="space-y-4 px-6 py-4">
-                {#if generalError(formErrors) || generalError(serverErrors)}
-                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                        <CircleAlert class="size-4 shrink-0" />
-                        {generalError(formErrors) || generalError(serverErrors)}
-                    </p>
-                {/if}
-                <div>
-                    <label
-                        for="inst-name"
-                        class="mb-1.5 block text-sm font-medium"
-                        >اسم القسط</label
-                    >
-                    <input
-                        id="inst-name"
-                        type="text"
-                        placeholder="مثال: تقسيط سيارة"
-                        bind:value={formName}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.name || errorText(serverErrors, 'name')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.name || errorText(serverErrors, 'name')}
-                        </p>
-                    {/if}
-                </div>
-                <div>
-                    <label
-                        for="inst-reason"
-                        class="mb-1.5 block text-sm font-medium"
-                        >السبب / الوصف</label
-                    >
-                    <input
-                        id="inst-reason"
-                        type="text"
-                        placeholder="مثال: سيارة تويوتا 2025"
-                        bind:value={formReason}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                </div>
-                <div>
-                    <label
-                        for="inst-icon"
-                        class="mb-1.5 block text-sm font-medium">الأيقونة</label
-                    >
-                    <div class="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
-                        {#each ICON_PICKER as key}
-                            <button
-                                type="button"
-                                class="flex size-9 items-center justify-center rounded-lg border transition-all {formIcon ===
-                                key
-                                    ? 'border-primary ring-2 ring-primary/20'
-                                    : 'border-border hover:border-primary/50'}"
-                                aria-label={ICON_LABELS[key]}
-                                aria-pressed={formIcon === key}
-                                onclick={() => (formIcon = key)}
-                            >
-                                <CategoryIcon icon={key} size="sm" />
-                            </button>
-                        {/each}
+            <div class="grid grid-cols-2 gap-2">
+                {#each [{ l: 'القسط الشهري', v: formatCurrency(item.monthly_amount) }, { l: 'المبلغ الإجمالي', v: formatCurrency(item.total_amount) }, { l: 'المدفوع', v: `${item.paid_months} / ${item.total_months} شهر` }, { l: 'المبلغ المتبقي', v: formatCurrency(remainingAmount(item)) }, { l: 'المدفوع حتى الآن', v: formatCurrency(paidAmount(item)) }, { l: 'تاريخ البداية', v: formatDate(item.start_date) }] as cell (cell.l)}
+                    <div class="rounded-2xl border border-border bg-card p-3">
+                        <p class="text-[11.5px] text-muted-foreground">{cell.l}</p>
+                        <p class="mt-0.5 text-[14px] font-semibold tabular-nums">{cell.v}</p>
                     </div>
-                </div>
-                <div>
-                    <label
-                        for="inst-monthly"
-                        class="mb-1.5 block text-sm font-medium"
-                        >القسط الشهري (ر.س)</label
-                    >
-                    <input
-                        id="inst-monthly"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0.00"
-                        bind:value={formMonthly}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.monthly_amount || errorText(serverErrors, 'monthly_amount')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.monthly_amount || errorText(serverErrors, 'monthly_amount')}
-                        </p>
-                    {/if}
-                </div>
-                <div>
-                    <label
-                        for="inst-months"
-                        class="mb-1.5 block text-sm font-medium"
-                        >عدد الأشهر</label
-                    >
-                    <input
-                        id="inst-months"
-                        type="number"
-                        min="1"
-                        placeholder="12"
-                        bind:value={formTotalMonths}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.total_months || errorText(serverErrors, 'total_months')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.total_months || errorText(serverErrors, 'total_months')}
-                        </p>
-                    {/if}
-                </div>
-                <div>
-                    <label
-                        for="inst-start"
-                        class="mb-1.5 block text-sm font-medium"
-                        >تاريخ البداية</label
-                    >
-                    <input
-                        id="inst-start"
-                        type="month"
-                        bind:value={formStartDate}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.start_date || errorText(serverErrors, 'start_date')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.start_date || errorText(serverErrors, 'start_date')}
-                        </p>
-                    {/if}
-                </div>
-            </div>
-            <div class="flex justify-end gap-2 border-t px-6 py-4">
-                <Button variant="outline" onclick={closeFormModal}>إلغاء</Button
-                >
-                <Button onclick={submitForm} disabled={submitting}>
-                    {submitting ? 'جاري الإضافة...' : 'إضافة'}
-                </Button>
+                {/each}
             </div>
         </div>
-    </div>
-{/if}
+    {/if}
 
-<!-- Delete confirmation -->
-{#if deleteId !== null}
-    <div class="fixed inset-0 z-50 flex items-center justify-center">
-        <button type="button" class="fixed inset-0 bg-black/50" aria-label="إغلاق" onclick={cancelDelete}></button>
-        <div
-            class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg"
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeDetailsModal}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85"
         >
-            <h2 class="text-lg font-semibold">تأكيد الحذف</h2>
-            <p class="mt-2 text-sm text-muted-foreground">
-                هل أنت متأكد من حذف هذا القسط؟ لا يمكن التراجع عن هذا الإجراء.
+            إغلاق
+        </button>
+        {#if selectedInstallment && !selectedInstallment.is_completed}
+            <button
+                type="button"
+                onclick={payInstallment}
+                class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99]"
+            >
+                <CheckCircle2 class="size-[18px]" />
+                سداد قسط
+            </button>
+        {/if}
+    {/snippet}
+</SheetShell>
+
+<!-- لوح إضافة قسط -->
+<SheetShell bind:open={showFormModal} title="إضافة قسط جديد" subtitle="التزام شهري ثابت" onClose={closeFormModal}>
+    <div class="flex flex-col gap-3">
+        {#if generalError(formErrors) || generalError(serverErrors)}
+            <p class="flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive" role="alert">
+                <CircleAlert class="mt-px size-4 shrink-0" />
+                {generalError(formErrors) || generalError(serverErrors)}
             </p>
-            <div class="mt-4 flex justify-end gap-2">
-                <Button variant="outline" onclick={cancelDelete}>إلغاء</Button>
-                <Button variant="destructive" onclick={executeDelete}
-                    >حذف</Button
-                >
+        {/if}
+
+        <SheetField
+            label="القسط الشهري"
+            icon={Wallet}
+            value={formMonthly > 0 ? `${formatAmount(formMonthly)} ر.س` : ''}
+            placeholder="اضغط لإدخال المبلغ"
+            error={formErrors.monthly_amount || errorText(serverErrors, 'monthly_amount')}
+            onclick={() => (monthlySheetOpen = true)}
+        />
+
+        <SheetField
+            label="شهر البداية"
+            icon={CalendarClock}
+            value={formStartDate ? formStartDate.slice(0, 7) : ''}
+            placeholder="اختر الشهر"
+            error={formErrors.start_date || errorText(serverErrors, 'start_date')}
+            onclick={() => (startDateSheetOpen = true)}
+        />
+
+        <div class="flex flex-col gap-1.5">
+            <label for="inst-months" class="text-[11.5px] text-muted-foreground">عدد الأشهر</label>
+            <input
+                id="inst-months"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                placeholder="12"
+                bind:value={formTotalMonths}
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] font-semibold tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if formErrors.total_months || errorText(serverErrors, 'total_months')}
+                <p class="text-[11.5px] text-destructive">
+                    {formErrors.total_months || errorText(serverErrors, 'total_months')}
+                </p>
+            {/if}
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label for="inst-name" class="text-[11.5px] text-muted-foreground">اسم القسط</label>
+            <input
+                id="inst-name"
+                type="text"
+                placeholder="مثال: تقسيط سيارة"
+                bind:value={formName}
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if formErrors.name || errorText(serverErrors, 'name')}
+                <p class="text-[11.5px] text-destructive">{formErrors.name || errorText(serverErrors, 'name')}</p>
+            {/if}
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label for="inst-reason" class="text-[11.5px] text-muted-foreground">السبب / الوصف</label>
+            <input
+                id="inst-reason"
+                type="text"
+                placeholder="مثال: سيارة تويوتا 2025"
+                bind:value={formReason}
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <span class="text-[11.5px] text-muted-foreground">الأيقونة</span>
+            <div class="flex flex-wrap gap-2">
+                {#each ICON_PICKER as key (key)}
+                    <button
+                        type="button"
+                        class="grid size-11 place-items-center rounded-xl border transition-colors {formIcon === key
+                            ? 'border-primary bg-primary/8'
+                            : 'border-border'}"
+                        aria-label={ICON_LABELS[key]}
+                        aria-pressed={formIcon === key}
+                        onclick={() => (formIcon = key)}
+                    >
+                        <CategoryIcon icon={key} size="sm" />
+                    </button>
+                {/each}
             </div>
         </div>
     </div>
-{/if}
 
-<svelte:window onkeydown={handleKeydown} />
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeFormModal}
+            disabled={submitting}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85 disabled:opacity-45"
+        >
+            إلغاء
+        </button>
+        <button
+            type="button"
+            onclick={submitForm}
+            disabled={submitting}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-45"
+        >
+            <Check class="size-[18px]" />
+            {submitting ? 'جارٍ الإضافة…' : 'إضافة'}
+        </button>
+    {/snippet}
+</SheetShell>
+
+<AmountSheet bind:open={monthlySheetOpen} bind:value={formMonthly} title="القسط الشهري" quickAdd={[100, 500, 1000]} />
+
+<DateSheet bind:open={startDateSheetOpen} bind:value={formStartDate} title="شهر بداية القسط" />
+
+<ConfirmSheet
+    bind:open={deleteOpen}
+    message="سيُحذف هذا القسط نهائياً ولا يمكن التراجع."
+    onConfirm={executeDelete}
+/>

@@ -29,7 +29,14 @@
         CardHeader,
         CardTitle,
     } from '@/components/ui/card';
-    import { formatCurrency, formatDate, toRiyals } from '@/lib/format';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
+    import SheetField from '@/components/ui/SheetField.svelte';
+    import AmountSheet from '@/components/ui/AmountSheet.svelte';
+    import DateSheet from '@/components/ui/DateSheet.svelte';
+    import ConfirmSheet from '@/components/ui/ConfirmSheet.svelte';
+    import CalendarDays from 'lucide-svelte/icons/calendar-days';
+    import Check from 'lucide-svelte/icons/check';
+    import { formatAmount, formatCurrency, formatDate, formatFullDate } from '@/lib/format';
     import type { ValidationErrors } from '@/types';
     import {
         destroy as destroyIncome,
@@ -220,8 +227,10 @@
     let showModal = $state(false);
     let editingId = $state<number | null>(null);
 
-    // Form state
-    let formAmount = $state('');
+    // Form state — المبلغ بالهللات
+    let formAmount = $state(0);
+    let amountSheetOpen = $state(false);
+    let dateSheetOpen = $state(false);
     let formSource = $state('');
     let formDescription = $state('');
     let formDate = $state('');
@@ -232,7 +241,7 @@
     function openAddModal() {
         formSubmitting = false;
         editingId = null;
-        formAmount = '';
+        formAmount = 0;
         formSource = '';
         formDescription = '';
         formDate = new Date().toISOString().split('T')[0];
@@ -243,10 +252,10 @@
 
     function openEditModal(inc: IncomeRecord) {
         editingId = inc.id;
-        formAmount = String(toRiyals(inc.amount));
+        formAmount = inc.amount;
         formSource = inc.source;
         formDescription = inc.description;
-        formDate = inc.date;
+        formDate = inc.date.slice(0, 10);
         formIsRecurring = inc.is_recurring;
         formErrors = {};
         showModal = true;
@@ -260,7 +269,7 @@
 
     function submitForm() {
         formErrors = {};
-        const amountSar = parseFloat(formAmount);
+        const amountSar = formAmount / 100;
 
         if (!amountSar || amountSar <= 0) {
             formErrors.amount = 'المبلغ مطلوب';
@@ -319,14 +328,17 @@
 
     // Delete
     let deleteId = $state<number | null>(null);
+    let deleteOpen = $state(false);
     let deleteSubmitting = $state(false);
 
     function confirmDelete(id: number) {
         deleteId = id;
+        deleteOpen = true;
     }
 
     function cancelDelete() {
         deleteId = null;
+        deleteOpen = false;
     }
 
     function executeDelete() {
@@ -338,6 +350,7 @@
         router.delete(destroyIncome(deleteId), {
             onSuccess: () => {
                 deleteId = null;
+                deleteOpen = false;
             },
             onFinish: () => {
                 deleteSubmitting = false;
@@ -348,18 +361,6 @@
     const recurringIncomes = $derived(
         recurringIncomeItems ?? incomes.data.filter((i) => i.is_recurring),
     );
-
-    function handleKeydown(event: KeyboardEvent): void {
-        if (event.key !== 'Escape') {
-            return;
-        }
-
-        if (showModal) {
-            closeModal();
-        } else if (deleteId !== null) {
-            cancelDelete();
-        }
-    }
 
     onMount(() => {
         if (new URLSearchParams(window.location.search).get('new') === '1') {
@@ -719,166 +720,122 @@
     {/if}
 </div>
 
-<!-- Add / Edit Modal -->
-{#if showModal}
-    <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-[10vh]">
-        <button type="button" class="fixed inset-0 cursor-default bg-black/50" aria-label="إغلاق" onclick={closeModal}></button>
-        <div
-            class="relative z-10 mx-4 w-full max-w-md rounded-xl border bg-card p-0 shadow-lg"
-        >
-            <div class="flex items-center justify-between border-b px-6 py-4">
-                <h2 class="text-lg font-semibold">
-                    {editingId ? 'تعديل الدخل' : 'إضافة دخل جديد'}
-                </h2>
-                <button
-                    class="text-muted-foreground hover:text-foreground cursor-pointer"
-                    onclick={closeModal}
-                >
-                    <X class="size-5" />
-                </button>
-            </div>
-            <div class="space-y-4 px-6 py-4">
-                {#if generalError(formErrors) || generalError(serverErrors)}
-                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                        <CircleAlert class="size-4 shrink-0" />
-                        {generalError(formErrors) || generalError(serverErrors)}
-                    </p>
-                {/if}
-                <div>
-                    <label
-                        for="income-amount"
-                        class="mb-1.5 block text-sm font-medium"
-                        >المبلغ (ر.س)</label
-                    >
-                    <input
-                        id="income-amount"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0.00"
-                        bind:value={formAmount}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.amount || errorText(serverErrors, 'amount')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.amount || errorText(serverErrors, 'amount')}
-                        </p>
-                    {/if}
-                </div>
-                <div>
-                    <label
-                        for="income-source"
-                        class="mb-1.5 block text-sm font-medium">المصدر</label
-                    >
-                    <input
-                        id="income-source"
-                        type="text"
-                        placeholder="مثال: وظيفة، عمل حر"
-                        bind:value={formSource}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.source || errorText(serverErrors, 'source')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.source || errorText(serverErrors, 'source')}
-                        </p>
-                    {/if}
-                </div>
-                <div>
-                    <label
-                        for="income-desc"
-                        class="mb-1.5 block text-sm font-medium">الوصف</label
-                    >
-                    <input
-                        id="income-desc"
-                        type="text"
-                        placeholder="مثال: راتب شهري"
-                        bind:value={formDescription}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.description || errorText(serverErrors, 'description')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.description || errorText(serverErrors, 'description')}
-                        </p>
-                    {/if}
-                </div>
-                <div>
-                    <label
-                        for="income-date"
-                        class="mb-1.5 block text-sm font-medium">التاريخ</label
-                    >
-                    <input
-                        id="income-date"
-                        type="date"
-                        bind:value={formDate}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.income_date || errorText(serverErrors, 'income_date')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.income_date || errorText(serverErrors, 'income_date')}
-                        </p>
-                    {/if}
-                </div>
-                <div class="flex items-center gap-2">
-                    <input
-                        id="income-recurring"
-                        type="checkbox"
-                        bind:checked={formIsRecurring}
-                        class="size-4 rounded border-border accent-primary"
-                    />
-                    <label
-                        for="income-recurring"
-                        class="text-sm text-muted-foreground cursor-pointer"
-                        >دخل متكرر</label
-                    >
-                </div>
-            </div>
-            <div class="flex justify-end gap-2 border-t px-6 py-4">
-                <Button
-                    variant="outline"
-                    onclick={closeModal}
-                    disabled={formSubmitting}>إلغاء</Button
-                >
-                <Button onclick={submitForm} disabled={formSubmitting}>
-                    {#if formSubmitting}
-                        <LoaderCircle class="size-4 animate-spin" />
-                    {/if}
-                    {editingId ? 'حفظ التعديلات' : 'إضافة'}
-                </Button>
-            </div>
-        </div>
-    </div>
-{/if}
-
-<!-- Delete confirmation -->
-{#if deleteId !== null}
-    <div class="fixed inset-0 z-50 flex items-center justify-center">
-        <button type="button" class="fixed inset-0 cursor-default bg-black/50" aria-label="إغلاق" onclick={cancelDelete}></button>
-        <div
-            class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg"
-        >
-            <h2 class="text-lg font-semibold">تأكيد الحذف</h2>
-            <p class="mt-2 text-sm text-muted-foreground">
-                هل أنت متأكد من حذف هذا الدخل؟ لا يمكن التراجع عن هذا الإجراء.
+<!-- لوح إضافة/تعديل دخل -->
+<SheetShell
+    bind:open={showModal}
+    title={editingId ? 'تعديل الدخل' : 'إضافة دخل جديد'}
+    subtitle={editingId ? 'عدّل بيانات الدخل' : 'أدخل بيانات الدخل الجديد'}
+    onClose={closeModal}
+>
+    <div class="flex flex-col gap-3">
+        {#if generalError(formErrors) || generalError(serverErrors)}
+            <p class="flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive" role="alert">
+                <CircleAlert class="mt-px size-4 shrink-0" />
+                {generalError(formErrors) || generalError(serverErrors)}
             </p>
-            <div class="mt-4 flex justify-end gap-2">
-                <Button
-                    variant="outline"
-                    onclick={cancelDelete}
-                    disabled={deleteSubmitting}>إلغاء</Button
-                >
-                <Button
-                    variant="destructive"
-                    onclick={executeDelete}
-                    disabled={deleteSubmitting}
-                >
-                    {#if deleteSubmitting}
-                        <LoaderCircle class="size-4 animate-spin" />
-                    {/if}
-                    حذف
-                </Button>
-            </div>
-        </div>
-    </div>
-{/if}
+        {/if}
 
-<svelte:window onkeydown={handleKeydown} />
+        <SheetField
+            label="المبلغ"
+            icon={Wallet}
+            value={formAmount > 0 ? `${formatAmount(formAmount)} ر.س` : ''}
+            placeholder="اضغط لإدخال المبلغ"
+            error={formErrors.amount || errorText(serverErrors, 'amount')}
+            onclick={() => (amountSheetOpen = true)}
+        />
+
+        <SheetField
+            label="التاريخ"
+            icon={CalendarDays}
+            value={formDate ? formatFullDate(formDate) : ''}
+            placeholder="اختر التاريخ"
+            error={formErrors.income_date || errorText(serverErrors, 'income_date')}
+            onclick={() => (dateSheetOpen = true)}
+        />
+
+        <div class="flex flex-col gap-1.5">
+            <label for="income-source" class="text-[11.5px] text-muted-foreground">المصدر</label>
+            <input
+                id="income-source"
+                type="text"
+                placeholder="مثال: وظيفة، عمل حر"
+                bind:value={formSource}
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if formErrors.source || errorText(serverErrors, 'source')}
+                <p class="text-[11.5px] text-destructive">
+                    {formErrors.source || errorText(serverErrors, 'source')}
+                </p>
+            {/if}
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label for="income-desc" class="text-[11.5px] text-muted-foreground">الوصف</label>
+            <input
+                id="income-desc"
+                type="text"
+                placeholder="مثال: راتب شهري"
+                bind:value={formDescription}
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if formErrors.description || errorText(serverErrors, 'description')}
+                <p class="text-[11.5px] text-destructive">
+                    {formErrors.description || errorText(serverErrors, 'description')}
+                </p>
+            {/if}
+        </div>
+
+        <button
+            type="button"
+            onclick={() => (formIsRecurring = !formIsRecurring)}
+            aria-pressed={formIsRecurring}
+            class="inline-flex min-h-11 items-center gap-2.5 rounded-2xl border px-3 text-start transition-transform active:scale-[.99] {formIsRecurring
+                ? 'border-primary bg-primary/8'
+                : 'border-input'}"
+        >
+            <span
+                class="grid size-5 shrink-0 place-items-center rounded-md border {formIsRecurring
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-input'}"
+            >
+                {#if formIsRecurring}<Check class="size-3.5" />{/if}
+            </span>
+            <span class="text-[13px] {formIsRecurring ? 'font-semibold text-primary' : ''}">دخل متكرر</span>
+        </button>
+    </div>
+
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeModal}
+            disabled={formSubmitting}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85 disabled:opacity-45"
+        >
+            إلغاء
+        </button>
+        <button
+            type="button"
+            onclick={submitForm}
+            disabled={formSubmitting}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-45"
+        >
+            {#if formSubmitting}
+                <LoaderCircle class="size-[18px] animate-spin" />
+            {:else}
+                <Check class="size-[18px]" />
+            {/if}
+            {editingId ? 'حفظ التعديلات' : 'إضافة'}
+        </button>
+    {/snippet}
+</SheetShell>
+
+<AmountSheet bind:open={amountSheetOpen} bind:value={formAmount} title="مبلغ الدخل" quickAdd={[100, 500, 1000]} />
+
+<DateSheet bind:open={dateSheetOpen} bind:value={formDate} title="تاريخ الدخل" />
+
+<ConfirmSheet
+    bind:open={deleteOpen}
+    message="سيُحذف هذا الدخل نهائياً ولا يمكن التراجع."
+    loading={deleteSubmitting}
+    onConfirm={executeDelete}
+/>

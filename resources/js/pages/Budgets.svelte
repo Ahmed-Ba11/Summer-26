@@ -12,11 +12,13 @@
     import Button from '@/components/ui/button/Button.svelte';
     import { Card, CardContent } from '@/components/ui/card';
     import Plus from 'lucide-svelte/icons/plus';
-    import X from 'lucide-svelte/icons/x';
     import BudgetRow from '@/components/BudgetRow.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
-    import { formatCurrency, toRiyals } from '@/lib/format';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
+    import AmountSheet from '@/components/ui/AmountSheet.svelte';
+    import Check from 'lucide-svelte/icons/check';
+    import { formatCurrency } from '@/lib/format';
     import {
         store as storeBudget,
         update as updateBudget,
@@ -139,13 +141,14 @@
     // Edit budget modal
     let editingBudget = $state<BudgetRecord | null>(null);
     let showBudgetModal = $state(false);
-    let budgetAmount = $state('');
+    /** الميزانية بالهللات */
+    let budgetAmount = $state(0);
     let budgetErrors = $state<Record<string, string>>({});
     let budgetSubmitting = $state(false);
 
     function openBudgetModal(b: BudgetRecord) {
         editingBudget = b;
-        budgetAmount = b.budget > 0 ? toRiyals(b.budget).toFixed(2) : '';
+        budgetAmount = b.budget;
         budgetErrors = {};
         showBudgetModal = true;
     }
@@ -153,15 +156,15 @@
     function closeBudgetModal() {
         showBudgetModal = false;
         editingBudget = null;
-        budgetAmount = '';
+        budgetAmount = 0;
         budgetErrors = {};
     }
 
-    function handleBudgetSave() {
+    function handleBudgetSave(halalas: number) {
         budgetErrors = {};
         budgetSubmitting = true;
-        const amt = parseFloat(budgetAmount);
-        if (!budgetAmount || amt < 0) {
+        const amt = halalas / 100;
+        if (amt <= 0) {
             budgetErrors.amount = 'المبلغ مطلوب';
             budgetSubmitting = false;
             return;
@@ -367,189 +370,102 @@
         </CardContent>
     </Card>
 
-    <!-- مودال إضافة فئة -->
-    {#if showCatModal}
-        <div class="fixed inset-0 z-50 flex items-center justify-center">
-            <button
-                type="button"
-                class="fixed inset-0 bg-black/50 cursor-default"
-                onclick={closeCatModal}
-                aria-label="إغلاق"
-            ></button>
-            <div
-                class="relative z-10 mx-4 w-full max-w-md rounded-xl border bg-card p-0 shadow-lg"
-            >
-                <div
-                    class="flex items-center justify-between border-b px-6 py-4"
-                >
-                    <h2 class="text-lg font-semibold">إضافة فئة جديدة</h2>
-                    <button
-                        class="cursor-pointer text-muted-foreground hover:text-foreground"
-                        onclick={closeCatModal}
-                        aria-label="إغلاق"><X class="size-5" /></button
-                    >
-                </div>
-                <div class="space-y-4 px-6 py-4">
-                    {#if generalError(catErrors) || generalError(serverErrors)}
-                        <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                            <CircleAlert class="size-4 shrink-0" />
-                            {generalError(catErrors) || generalError(serverErrors)}
-                        </p>
-                    {/if}
-                    <div>
-                        <label for="category-name" class="mb-1.5 block text-sm font-medium"
-                            >اسم الفئة</label
-                        >
-                        <input
-                            id="category-name"
-                            type="text"
-                            bind:value={catName}
-                            class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                            placeholder="مثال: سكن، ملابس..."
-                        />
-                        {#if catErrors.name || errorText(serverErrors, 'name')}<p
-                                class="mt-1 text-xs text-destructive"
-                            >
-                                {catErrors.name || errorText(serverErrors, 'name')}
-                            </p>{/if}
-                    </div>
-                    <div>
-                        <span class="mb-1.5 block text-sm font-medium">الأيقونة</span>
-                        <div
-                            class="flex max-h-40 flex-wrap gap-2 overflow-y-auto"
-                        >
-                            {#each ICON_PICKER as key}
-                                <button
-                                    type="button"
-                                    class="flex size-9 items-center justify-center rounded-lg border transition-all {catIcon ===
-                                    key
-                                        ? 'border-primary ring-2 ring-primary/20'
-                                        : 'border-border hover:border-primary/50'}"
-                                    aria-label={ICON_LABELS[key]}
-                                    aria-pressed={catIcon === key}
-                                    onclick={() => (catIcon = key)}
-                                >
-                                    <CategoryIcon
-                                        icon={key}
-                                        size="sm"
-                                        color={catColor}
-                                    />
-                                </button>
-                            {/each}
-                        </div>
-                    </div>
-                    <div>
-                        <span class="mb-1.5 block text-sm font-medium">اللون</span>
-                        <div class="flex flex-wrap gap-2">
-                            {#each colors as clr}
-                                <button
-                                    type="button"
-                                    class="size-8 rounded-full border-2 transition-all {catColor ===
-                                    clr
-                                        ? 'border-primary ring-2 ring-primary/20 scale-110'
-                                        : 'border-transparent'}"
-                                    aria-label={`اختيار اللون ${clr}`}
-                                    style="background: {clr}"
-                                    onclick={() => (catColor = clr)}
-                                ></button>
-                            {/each}
-                        </div>
-                    </div>
-                </div>
-                <div class="flex justify-end gap-2 border-t px-6 py-4">
-                    <Button variant="outline" size="sm" onclick={closeCatModal}
-                        >إلغاء</Button
-                    >
-                    <Button
-                        size="sm"
-                        disabled={catSubmitting}
-                        onclick={handleCatSave}
-                    >
-                        {catSubmitting ? 'جاري الحفظ...' : 'حفظ'}
-                    </Button>
-                </div>
-            </div>
-        </div>
-    {/if}
-
-    <!-- مودال تعديل الميزانية -->
-    {#if showBudgetModal && editingBudget}
-        <div class="fixed inset-0 z-50 flex items-center justify-center">
-            <button
-                type="button"
-                class="fixed inset-0 bg-black/50 cursor-default"
-                onclick={closeBudgetModal}
-                aria-label="إغلاق"
-            ></button>
-            <div
-                class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-0 shadow-lg"
-            >
-                <div
-                    class="flex items-center justify-between border-b px-6 py-4"
-                >
-                    <div class="flex items-center gap-2">
-                        <CategoryIcon
-                            icon={editingBudget.icon}
-                            color={editingBudget.color}
-                            size="md"
-                        />
-                        <h2 class="text-lg font-semibold">
-                            {editingBudget.name}
-                        </h2>
-                    </div>
-                    <button
-                        class="cursor-pointer text-muted-foreground hover:text-foreground"
-                        onclick={closeBudgetModal}
-                        aria-label="إغلاق"><X class="size-5" /></button
-                    >
-                </div>
-                <div class="space-y-3 px-6 py-4">
-                    {#if budgetErrors.category_id || errorText(serverErrors, 'category_id') || generalError(budgetErrors) || generalError(serverErrors)}
-                        <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                            <CircleAlert class="size-4 shrink-0" />
-                            {budgetErrors.category_id || errorText(serverErrors, 'category_id') || generalError(budgetErrors) || generalError(serverErrors)}
-                        </p>
-                    {/if}
-                    <p class="text-sm text-muted-foreground">
-                        المصروف هذا الشهر: <span
-                            class="font-bold text-foreground"
-                            >{formatCurrency(editingBudget.spent)}</span
-                        >
-                    </p>
-                    <div>
-                        <label for="budget-amount" class="mb-1.5 block text-sm font-medium"
-                            >الميزانية الشهرية (ر.س)</label
-                        >
-                        <input
-                            id="budget-amount"
-                            type="number"
-                            step="0.01"
-                            bind:value={budgetAmount}
-                            class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                            placeholder="0.00"
-                        />
-                        {#if budgetErrors.amount || errorText(serverErrors, 'amount')}<p
-                                class="mt-1 text-xs text-destructive"
-                            >
-                                {budgetErrors.amount || errorText(serverErrors, 'amount')}
-                            </p>{/if}
-                    </div>
-                </div>
-                <div class="flex justify-end gap-2 border-t px-6 py-4">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onclick={closeBudgetModal}>إلغاء</Button
-                    >
-                    <Button
-                        size="sm"
-                        disabled={budgetSubmitting}
-                        onclick={handleBudgetSave}
-                    >
-                        {budgetSubmitting ? 'جاري الحفظ...' : 'حفظ'}
-                    </Button>
-                </div>
-            </div>
-        </div>
-    {/if}
 </div>
+
+<!-- لوح إضافة فئة -->
+<SheetShell bind:open={showCatModal} title="إضافة فئة جديدة" subtitle="اسم وأيقونة ولون" onClose={closeCatModal}>
+    <div class="flex flex-col gap-3">
+        {#if generalError(catErrors) || generalError(serverErrors)}
+            <p class="flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive" role="alert">
+                <CircleAlert class="mt-px size-4 shrink-0" />
+                {generalError(catErrors) || generalError(serverErrors)}
+            </p>
+        {/if}
+
+        <div class="flex flex-col gap-1.5">
+            <label for="category-name" class="text-[11.5px] text-muted-foreground">اسم الفئة</label>
+            <input
+                id="category-name"
+                type="text"
+                bind:value={catName}
+                placeholder="مثال: سكن، ملابس…"
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if catErrors.name || errorText(serverErrors, 'name')}
+                <p class="text-[11.5px] text-destructive">{catErrors.name || errorText(serverErrors, 'name')}</p>
+            {/if}
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <span class="text-[11.5px] text-muted-foreground">الأيقونة</span>
+            <div class="flex flex-wrap gap-2">
+                {#each ICON_PICKER as key (key)}
+                    <button
+                        type="button"
+                        class="grid size-11 place-items-center rounded-xl border transition-colors {catIcon === key
+                            ? 'border-primary bg-primary/8'
+                            : 'border-border'}"
+                        aria-label={ICON_LABELS[key]}
+                        aria-pressed={catIcon === key}
+                        onclick={() => (catIcon = key)}
+                    >
+                        <CategoryIcon icon={key} size="sm" color={catColor} />
+                    </button>
+                {/each}
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <span class="text-[11.5px] text-muted-foreground">اللون</span>
+            <div class="flex flex-wrap gap-2">
+                {#each colors as clr (clr)}
+                    <button
+                        type="button"
+                        class="grid size-11 place-items-center rounded-xl border transition-colors {catColor === clr
+                            ? 'border-primary'
+                            : 'border-border'}"
+                        aria-label={`اختيار اللون ${clr}`}
+                        aria-pressed={catColor === clr}
+                        onclick={() => (catColor = clr)}
+                    >
+                        <span class="block size-6 rounded-full" style="background: {clr}"></span>
+                    </button>
+                {/each}
+            </div>
+        </div>
+    </div>
+
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeCatModal}
+            disabled={catSubmitting}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85 disabled:opacity-45"
+        >
+            إلغاء
+        </button>
+        <button
+            type="button"
+            onclick={handleCatSave}
+            disabled={catSubmitting}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-45"
+        >
+            <Check class="size-[18px]" />
+            {catSubmitting ? 'جارٍ الحفظ…' : 'حفظ'}
+        </button>
+    {/snippet}
+</SheetShell>
+
+<!-- لوح تعديل ميزانية الفئة -->
+<AmountSheet
+    bind:open={showBudgetModal}
+    bind:value={budgetAmount}
+    title={editingBudget ? `ميزانية ${editingBudget.name}` : 'الميزانية الشهرية'}
+    subtitle={editingBudget ? `المصروف هذا الشهر ${formatCurrency(editingBudget.spent)}` : ''}
+    hint={budgetErrors.amount ||
+        errorText(serverErrors, 'amount') ||
+        generalError(budgetErrors) ||
+        generalError(serverErrors)}
+    quickAdd={[100, 500, 1000]}
+    onSave={handleBudgetSave}
+/>

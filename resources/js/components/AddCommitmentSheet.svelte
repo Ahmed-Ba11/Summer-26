@@ -19,9 +19,12 @@
     import Hand from 'lucide-svelte/icons/hand';
     import Info from 'lucide-svelte/icons/info';
     import TriangleAlert from 'lucide-svelte/icons/triangle-alert';
-    import X from 'lucide-svelte/icons/x';
+    import Wallet from 'lucide-svelte/icons/wallet';
     import Zap from 'lucide-svelte/icons/zap';
-    import AmountInput from '@/components/AmountInput.svelte';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
+    import SheetField from '@/components/ui/SheetField.svelte';
+    import AmountSheet from '@/components/ui/AmountSheet.svelte';
+    import DayOfMonthPicker from '@/components/ui/DayOfMonthPicker.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import { formatAmount, formatCurrency } from '@/lib/format';
     import {
@@ -66,6 +69,9 @@
     let dueDay = $state(1);
     let notifyWhen = $state<NotifyWhen>('before_3');
     let reserve = $state(true);
+
+    let amountSheetOpen = $state(false);
+    let monthlySheetOpen = $state(false);
 
     /** الحقول التي لمسها المستخدم — لا نُظهر خطأ حقل لم يصله بعد. */
     let touched = $state<Record<string, boolean>>({});
@@ -175,43 +181,19 @@
         reset();
     }
 
-    function onKeydown(e: KeyboardEvent) {
-        if (e.key === 'Escape' && open) close();
-    }
-
-    const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+    const KIND_HINT = $derived(
+        kind === 'bill'
+            ? 'كهرباء'
+            : kind === 'rent'
+              ? 'إيجار الشقة'
+              : kind === 'installment'
+                ? 'قسط السيارة'
+                : 'اشتراك جوال',
+    );
 </script>
 
-<svelte:window on:keydown={onKeydown} />
-
-{#if open}
-    <div class="fixed inset-0 z-50 flex items-end justify-center md:items-center">
-        <button type="button" class="absolute inset-0 bg-black/45" aria-label="إغلاق" onclick={close}></button>
-
-        <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="إضافة التزام"
-            class="relative flex max-h-[92vh] w-full flex-col rounded-t-3xl bg-card shadow-lg md:max-w-md md:rounded-3xl"
-        >
-            <!-- الرأس الثابت -->
-            <div class="shrink-0 px-4 pt-2 pb-3">
-                <div class="mx-auto mb-3 h-1 w-9 rounded-full bg-border md:hidden"></div>
-                <div class="flex items-center justify-between gap-2">
-                    <h2 class="text-[15px] font-semibold">إضافة التزام</h2>
-                    <button
-                        type="button"
-                        onclick={close}
-                        aria-label="إغلاق"
-                        class="inline-flex size-9 items-center justify-center rounded-xl border border-input text-muted-foreground"
-                    >
-                        <X class="size-4" />
-                    </button>
-                </div>
-            </div>
-
-            <!-- المحتوى القابل للتمرير -->
-            <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
+<SheetShell bind:open title="إضافة التزام" subtitle="فاتورة · إيجار · قسط · اشتراك" onClose={close}>
+    <div class="flex flex-col">
                 <!-- النوع -->
                 <div class="grid grid-cols-4 gap-1.5">
                     {#each KIND_ORDER as k (k)}
@@ -236,21 +218,27 @@
                 <!-- المبلغ -->
                 <div class="mt-4">
                     {#if isVariable}
-                        <p class="rounded-xl border border-dashed border-input bg-secondary px-3 py-3 text-center text-[12px] text-muted-foreground">
+                        <p class="rounded-2xl border border-dashed border-input bg-secondary px-3 py-3 text-center text-[12px] text-muted-foreground">
                             المبلغ يُسجَّل عند الدفع كل شهر — لا حاجة لإدخاله الآن
                         </p>
                     {:else}
-                        <AmountInput
-                            bind:value={amount}
+                        <SheetField
                             label={isInstallment ? 'المبلغ الكامل للقسط' : 'المبلغ الشهري'}
+                            icon={Wallet}
+                            value={amount > 0 ? `${formatAmount(amount)} ر.س` : ''}
+                            placeholder="اضغط لإدخال المبلغ"
                             error={errorFor('amount')}
+                            onclick={() => {
+                                touch('amount');
+                                amountSheetOpen = true;
+                            }}
                         />
                     {/if}
                 </div>
 
                 <!-- الاسم -->
                 <div class="mt-3">
-                    <label for="c-name" class="mb-1.5 block text-[11.5px] font-medium">
+                    <label for="c-name" class="mb-1.5 block text-[11.5px] text-muted-foreground">
                         الاسم <span class="text-destructive">*</span>
                     </label>
                     <input
@@ -258,14 +246,8 @@
                         bind:value={name}
                         onblur={() => touch('name')}
                         aria-invalid={!!errorFor('name')}
-                        placeholder={kind === 'bill'
-                            ? 'كهرباء'
-                            : kind === 'rent'
-                              ? 'إيجار الشقة'
-                              : kind === 'installment'
-                                ? 'قسط السيارة'
-                                : 'اشتراك جوال'}
-                        class="min-h-11 w-full rounded-xl border bg-secondary px-3 text-[13px] outline-none focus:border-primary {errorFor(
+                        placeholder={KIND_HINT}
+                        class="min-h-11 w-full rounded-2xl border bg-background px-3 text-[14px] outline-none focus:border-primary {errorFor(
                             'name',
                         )
                             ? 'border-destructive'
@@ -280,15 +262,16 @@
                 {#if isInstallment}
                     <div class="mt-3 grid grid-cols-2 gap-2">
                         <div>
-                            <label for="c-months" class="mb-1.5 block text-[11.5px] font-medium">عدد الأشهر</label>
+                            <label for="c-months" class="mb-1.5 block text-[11.5px] text-muted-foreground">عدد الأشهر</label>
                             <input
                                 id="c-months"
                                 type="number"
+                                inputmode="numeric"
                                 min="2"
                                 max="480"
                                 bind:value={months}
                                 onblur={() => touch('months')}
-                                class="min-h-11 w-full rounded-xl border bg-secondary px-3 text-[13px] tabular-nums outline-none focus:border-primary {errorFor(
+                                class="min-h-11 w-full rounded-2xl border bg-background px-3 text-[14px] font-semibold tabular-nums outline-none focus:border-primary {errorFor(
                                     'months',
                                 )
                                     ? 'border-destructive'
@@ -299,37 +282,26 @@
                             {/if}
                         </div>
 
-                        <div>
-                            <label for="c-monthly" class="mb-1.5 block text-[11.5px] font-medium">القسط الشهري</label>
-                            <input
-                                id="c-monthly"
-                                type="number"
-                                min="0"
-                                step="1"
-                                value={Math.round(monthlyAmount / 100)}
-                                oninput={(e) => {
-                                    monthlyTouched = true;
-                                    monthlyAmount = Math.round(Number(e.currentTarget.value || 0) * 100);
-                                }}
-                                onblur={() => touch('monthly')}
-                                class="min-h-11 w-full rounded-xl border bg-secondary px-3 text-[13px] font-semibold tabular-nums outline-none focus:border-primary {errorFor(
-                                    'monthly',
-                                )
-                                    ? 'border-destructive'
-                                    : 'border-input'}"
-                            />
-                            {#if errorFor('monthly')}
-                                <p class="mt-1 text-[11.5px] text-destructive">{errorFor('monthly')}</p>
-                            {:else if !monthlyTouched && suggestedMonthly > 0}
-                                <p class="mt-1 text-[10.5px] text-muted-foreground">
-                                    مقترح: {formatAmount(suggestedMonthly)} — عدّله لو مختلف
-                                </p>
-                            {/if}
-                        </div>
+                        <SheetField
+                            label="القسط الشهري"
+                            value={monthlyAmount > 0 ? `${formatAmount(monthlyAmount)} ر.س` : ''}
+                            placeholder="اضغط لإدخاله"
+                            error={errorFor('monthly')}
+                            onclick={() => {
+                                touch('monthly');
+                                monthlySheetOpen = true;
+                            }}
+                        />
                     </div>
 
+                    {#if !monthlyTouched && suggestedMonthly > 0 && !errorFor('monthly')}
+                        <p class="mt-1 text-[11px] text-muted-foreground">
+                            مقترح: {formatAmount(suggestedMonthly)} ر.س — عدّله لو مختلف
+                        </p>
+                    {/if}
+
                     {#if monthlyAmount > 0 && months >= 2}
-                        <div class="mt-2 rounded-xl border border-primary/20 bg-primary/6 px-3 py-2.5 text-[12px] text-foreground/85">
+                        <div class="mt-2 rounded-2xl border border-primary/20 bg-primary/6 px-3 py-2.5 text-[12px] text-foreground/85">
                             <p>
                                 يخلص في <b class="font-semibold">{finishLabel(months)}</b>
                                 {#if income > 0}
@@ -430,25 +402,15 @@
                     </div>
 
                     {#if dueType === 'month_day'}
-                        <div class="mt-2 flex items-center gap-2">
-                            <label for="c-day" class="shrink-0 text-[12px] text-muted-foreground">يوم</label>
-                            <select
-                                id="c-day"
-                                bind:value={dueDay}
-                                onblur={() => touch('dueDay')}
-                                class="min-h-11 flex-1 rounded-xl border border-input bg-secondary px-3 text-[13px] font-semibold tabular-nums outline-none focus:border-primary"
-                            >
-                                {#each DAYS as d (d)}
-                                    <option value={d}>{d} من كل شهر</option>
-                                {/each}
-                            </select>
+                        <div class="mt-2">
+                            <DayOfMonthPicker bind:value={dueDay} showLastDay={false} />
                         </div>
                         {#if errorFor('dueDay')}
                             <p class="mt-1 text-[11.5px] text-destructive">{errorFor('dueDay')}</p>
                         {/if}
                     {/if}
 
-                    <p class="mt-2 inline-flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/6 px-3 py-2 text-[11px] text-foreground/85">
+                    <p class="mt-2 inline-flex items-start gap-2 rounded-2xl border border-primary/20 bg-primary/6 px-3 py-2 text-[11px] text-foreground/85">
                         <Info class="mt-px size-3.5 shrink-0 text-primary" />
                         {dueHint}
                     </p>
@@ -513,36 +475,46 @@
                         </span>
                     </p>
                 {:else if warning}
-                    <p class="mt-3 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-[12px] text-warning-text">
+                    <p class="mt-3 flex items-start gap-2 rounded-2xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-[12px] text-warning-text">
                         <TriangleAlert class="mt-px size-4 shrink-0" />
                         <span>{warning}</span>
                     </p>
                 {/if}
-            </div>
-
-            <!-- التذييل الثابت: زر الحفظ لا يغيب عن الشاشة أبداً -->
-            <div
-                class="shrink-0 border-t border-border bg-card px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3"
-            >
-                <div class="flex gap-2">
-                    <button
-                        type="button"
-                        onclick={close}
-                        class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85"
-                    >
-                        إلغاء
-                    </button>
-                    <button
-                        type="button"
-                        disabled={processing}
-                        onclick={submit}
-                        class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-50"
-                    >
-                        <Check class="size-[18px]" />
-                        {processing ? 'جارٍ الحفظ…' : `حفظ ${KIND_LABEL[kind]}`}
-                    </button>
-                </div>
-            </div>
-        </div>
     </div>
-{/if}
+
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={close}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85"
+        >
+            إلغاء
+        </button>
+        <button
+            type="button"
+            disabled={processing}
+            onclick={submit}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-50"
+        >
+            <Check class="size-[18px]" />
+            {processing ? 'جارٍ الحفظ…' : `حفظ ${KIND_LABEL[kind]}`}
+        </button>
+    {/snippet}
+</SheetShell>
+
+<AmountSheet
+    bind:open={amountSheetOpen}
+    bind:value={amount}
+    title={isInstallment ? 'المبلغ الكامل للقسط' : 'المبلغ الشهري'}
+    quickAdd={[100, 500, 1000]}
+/>
+
+<AmountSheet
+    bind:open={monthlySheetOpen}
+    bind:value={monthlyAmount}
+    title="القسط الشهري"
+    hint={suggestedMonthly > 0 ? `المقترح ${formatAmount(suggestedMonthly)} ر.س` : ''}
+    averageAmount={suggestedMonthly}
+    quickAdd={[100, 500]}
+    onSave={() => (monthlyTouched = true)}
+/>

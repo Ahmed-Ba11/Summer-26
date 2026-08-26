@@ -14,6 +14,7 @@
     import EmptyState from '@/components/EmptyState.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import Button from '@/components/ui/button/Button.svelte';
+    import DayOfMonthPicker from '@/components/ui/DayOfMonthPicker.svelte';
     import { formatCurrency, toHalalas } from '@/lib/format';
     import type {
         OnboardingCategory,
@@ -60,7 +61,8 @@
     let commitments = $state<CommitmentDraft[]>([]);
     let customCommitmentCount = $state(0);
     let allocations = $state<Record<number, string>>({});
-    let salaryDayValue = $state('');
+    let salaryDayNumber = $state(0);
+    const salaryDayValue = $derived(salaryDayNumber ? String(salaryDayNumber) : '');
     let errors = $state<ValidationErrors>({});
     let submitting = $state(false);
 
@@ -69,7 +71,7 @@
     );
 
     $effect(() => {
-        salaryDayValue = salaryDay ? String(salaryDay) : '';
+        salaryDayNumber = salaryDay ?? 0;
     });
 
     const incomeHalalas = $derived(
@@ -471,18 +473,13 @@
                     {:else}
                         <EmptyState title="لا توجد التزامات مختارة" description="اختر التزاماتك من الرقائق أعلاه، أو تابع بدون التزامات." icon={CircleAlert} />
                     {/if}
-                    <label class="flex flex-col gap-1.5 text-sm">
-                        <span>يوم استحقاق راتبك</span>
-                        <select bind:value={salaryDayValue} class="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring">
-                            <option value="">اختر اليوم</option>
-                            <option value="25">25</option>
-                            <option value="27">27</option>
-                            <option value="31">31 / آخر يوم في الشهر</option>
-                        </select>
+                    <div class="flex flex-col gap-1.5">
+                        <span class="text-[11.5px] text-muted-foreground">يوم استحقاق راتبك</span>
+                        <DayOfMonthPicker bind:value={salaryDayNumber} showLastDay={false} />
                         {#if errorText('salary_day')}
-                            <span class="text-xs text-destructive">{errorText('salary_day')}</span>
+                            <span class="text-[11.5px] text-destructive">{errorText('salary_day')}</span>
                         {/if}
-                    </label>
+                    </div>
                     <div class="rounded-xl border border-primary/20 bg-accent px-4 py-3 text-sm text-primary">
                         هذه الخطوة تجعل رقم المتبقي لك في لوحة التحكم واقعياً.
                     </div>

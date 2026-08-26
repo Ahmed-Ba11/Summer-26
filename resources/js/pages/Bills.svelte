@@ -26,19 +26,20 @@
         CardHeader,
         CardTitle,
     } from '@/components/ui/card';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
+    import SheetField from '@/components/ui/SheetField.svelte';
+    import AmountSheet from '@/components/ui/AmountSheet.svelte';
+    import DateSheet from '@/components/ui/DateSheet.svelte';
+    import ConfirmSheet from '@/components/ui/ConfirmSheet.svelte';
+    import Wallet from 'lucide-svelte/icons/wallet';
+    import CalendarDays from 'lucide-svelte/icons/calendar-days';
+    import Check from 'lucide-svelte/icons/check';
     import {
-        Dialog,
-        DialogContent,
-        DialogDescription,
-        DialogFooter,
-        DialogHeader,
-        DialogTitle,
-    } from '@/components/ui/dialog';
-    import {
+        formatAmount,
         formatCurrency,
         formatDate,
+        formatFullDate,
         formatRelativeDays,
-        toRiyals,
     } from '@/lib/format';
     import type { ValidationErrors } from '@/types';
     import {
@@ -175,13 +176,17 @@
     let submitting = $state(false);
     let formErrors = $state<Record<string, string>>({});
 
+    /** المبلغ بالهللات — صفر يعني «بلا مبلغ محدّد» */
     let form = $state({
         name: '',
         icon: 'zap',
-        amount: '',
+        amount: 0,
         due_date: '',
         account_number: '',
     });
+
+    let amountSheetOpen = $state(false);
+    let dateSheetOpen = $state(false);
 
     function openAddModal(): void {
         submitting = false;
@@ -189,7 +194,7 @@
         form = {
             name: '',
             icon: 'zap',
-            amount: '',
+            amount: 0,
             due_date: new Date().toISOString().slice(0, 10),
             account_number: '',
         };
@@ -202,9 +207,8 @@
         form = {
             name: bill.name,
             icon: bill.icon ?? 'ellipsis',
-            amount:
-                bill.amount === null ? '' : toRiyals(bill.amount).toFixed(2),
-            due_date: bill.due_date,
+            amount: bill.amount ?? 0,
+            due_date: bill.due_date.slice(0, 10),
             account_number: bill.account_number ?? '',
         };
         formErrors = {};
@@ -219,14 +223,10 @@
 
     function submitForm(): void {
         formErrors = {};
-        const amount = form.amount === '' ? null : Number(form.amount);
+        const amount = form.amount > 0 ? form.amount / 100 : null;
 
         if (!form.name.trim()) {
             formErrors.name = 'اسم الفاتورة مطلوب';
-        }
-
-        if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
-            formErrors.amount = 'المبلغ غير صحيح';
         }
 
         if (!form.due_date) {
@@ -295,11 +295,6 @@
     function askDelete(id: number): void {
         deleteId = id;
         deleteOpen = true;
-    }
-
-    function cancelDelete(): void {
-        deleteOpen = false;
-        deleteId = null;
     }
 
     function deleteBill(): void {
@@ -564,198 +559,173 @@
     {/if}
 </div>
 
-<Dialog bind:open={detailsOpen}>
-    <DialogContent class="max-w-lg">
-        {#if selectedBill}
-            {@const StatusIcon = openStatusIcon(selectedBill)}
-            <DialogHeader>
-                <DialogTitle class="flex items-center gap-2">
-                    <CategoryIcon
-                        icon={selectedBill.icon ?? 'ellipsis'}
-                        color="var(--chart-7)"
-                        size="sm"
-                    />
-                    {selectedBill.name}
-                </DialogTitle>
-                <DialogDescription
-                    >تفاصيل الفاتورة وحالتها الحالية.</DialogDescription
+<!-- لوح تفاصيل الفاتورة -->
+<SheetShell
+    bind:open={detailsOpen}
+    title={selectedBill?.name ?? 'تفاصيل الفاتورة'}
+    subtitle="تفاصيل الفاتورة وحالتها"
+    onClose={closeDetails}
+>
+    {#if selectedBill}
+        {@const StatusIcon = openStatusIcon(selectedBill)}
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+                <CategoryIcon icon={selectedBill.icon ?? 'ellipsis'} color="var(--chart-7)" size="md" />
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-[14px] font-semibold">{selectedBill.name}</p>
+                    <p class="truncate text-[11.5px] text-muted-foreground">{dueText(selectedBill)}</p>
+                </div>
+                <span
+                    class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-semibold {statusClass(
+                        selectedBill,
+                    )}"
                 >
-            </DialogHeader>
-            <div
-                class="grid grid-cols-2 gap-4 rounded-lg bg-muted/50 p-4 text-sm"
-            >
-                <div>
-                    <p class="text-muted-foreground">المبلغ</p>
-                    <p class="mt-1 font-bold tabular-nums">
+                    <StatusIcon class="size-3.5" />
+                    {statusLabel(selectedBill)}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <div class="rounded-2xl border border-border bg-card p-3">
+                    <p class="text-[11.5px] text-muted-foreground">المبلغ</p>
+                    <p class="mt-0.5 text-[14px] font-semibold tabular-nums">
                         {formatCurrency(selectedBill.amount ?? 0)}
                     </p>
                 </div>
-                <div>
-                    <p class="text-muted-foreground">الحالة</p>
-                    <p class="mt-1 inline-flex items-center gap-1 font-medium">
-                        <StatusIcon class="size-3" />
-                        {statusLabel(selectedBill)}
-                    </p>
-                </div>
-                <div>
-                    <p class="text-muted-foreground">تاريخ الاستحقاق</p>
-                    <p class="mt-1 font-medium tabular-nums">
+                <div class="rounded-2xl border border-border bg-card p-3">
+                    <p class="text-[11.5px] text-muted-foreground">تاريخ الاستحقاق</p>
+                    <p class="mt-0.5 text-[14px] font-semibold tabular-nums">
                         {formatDate(selectedBill.due_date)}
                     </p>
                 </div>
-                <div>
-                    <p class="text-muted-foreground">الموعد</p>
-                    <p class="mt-1 font-medium tabular-nums">
-                        {dueText(selectedBill)}
-                    </p>
-                </div>
                 {#if selectedBill.account_number}
-                    <div class="col-span-2">
-                        <p
-                            class="flex items-center gap-1 text-muted-foreground"
-                        >
-                            <Hash class="size-3" /> رقم الحساب
+                    <div class="col-span-2 rounded-2xl border border-border bg-card p-3">
+                        <p class="flex items-center gap-1 text-[11.5px] text-muted-foreground">
+                            <Hash class="size-3.5" /> رقم الحساب
                         </p>
-                        <p class="mt-1 font-medium tabular-nums">
+                        <p class="mt-0.5 text-[14px] font-semibold tabular-nums">
                             {selectedBill.account_number}
                         </p>
                     </div>
                 {/if}
             </div>
-            <DialogFooter>
-                <Button
-                    variant="outline"
-                    class="text-destructive hover:text-destructive"
-                    onclick={() => askDelete(selectedBill!.id)}
-                >
-                    <Trash2 class="size-4" />
-                    حذف
-                </Button>
-                <Button
-                    onclick={() => togglePaid(selectedBill!)}
-                    class="gap-1.5"
-                >
-                    <StatusIcon class="size-4" />
-                    {selectedBill.is_paid ? 'إلغاء الدفع' : 'تم الدفع'}
-                </Button>
-            </DialogFooter>
-        {/if}
-    </DialogContent>
-</Dialog>
+        </div>
+    {/if}
 
-<Dialog bind:open={formOpen}>
-    <DialogContent class="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-            <DialogTitle
-                >{editingId === null
-                    ? 'إضافة فاتورة جديدة'
-                    : 'تعديل الفاتورة'}</DialogTitle
+    {#snippet footer()}
+        {#if selectedBill}
+            {@const StatusIcon = openStatusIcon(selectedBill)}
+            <button
+                type="button"
+                onclick={() => askDelete(selectedBill!.id)}
+                aria-label="حذف"
+                class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-destructive"
             >
-            <DialogDescription
-                >أدخل بيانات الفاتورة كما تظهر في حسابك.</DialogDescription
+                <Trash2 class="size-[18px]" />
+            </button>
+            <button
+                type="button"
+                onclick={() => togglePaid(selectedBill!)}
+                class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99]"
             >
-        </DialogHeader>
-        <form
-            class="flex flex-col gap-4"
-            onsubmit={(event) => {
-                event.preventDefault();
-                submitForm();
-            }}
-        >
-            {#if generalError(formErrors) || generalError(serverErrors)}
-                <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                    <AlertCircle class="size-4 shrink-0" />
-                    {generalError(formErrors) || generalError(serverErrors)}
+                <StatusIcon class="size-[18px]" />
+                {selectedBill.is_paid ? 'إلغاء الدفع' : 'تم الدفع'}
+            </button>
+        {/if}
+    {/snippet}
+</SheetShell>
+
+<!-- لوح إضافة/تعديل فاتورة -->
+<SheetShell
+    bind:open={formOpen}
+    title={editingId === null ? 'إضافة فاتورة' : 'تعديل الفاتورة'}
+    subtitle="أدخل بيانات الفاتورة كما تظهر في حسابك"
+    onClose={closeForm}
+>
+    <div class="flex flex-col gap-3">
+        {#if generalError(formErrors) || generalError(serverErrors)}
+            <p class="flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive" role="alert">
+                <AlertCircle class="mt-px size-4 shrink-0" />
+                {generalError(formErrors) || generalError(serverErrors)}
+            </p>
+        {/if}
+
+        <SheetField
+            label="المبلغ (اختياري)"
+            icon={Wallet}
+            value={form.amount > 0 ? `${formatAmount(form.amount)} ر.س` : ''}
+            placeholder="بلا مبلغ محدّد"
+            error={formErrors.amount || errorText(serverErrors, 'amount')}
+            onclick={() => (amountSheetOpen = true)}
+        />
+
+        <SheetField
+            label="تاريخ الاستحقاق"
+            icon={CalendarDays}
+            value={form.due_date ? formatFullDate(form.due_date) : ''}
+            placeholder="اختر التاريخ"
+            error={formErrors.due_date || errorText(serverErrors, 'due_date')}
+            onclick={() => (dateSheetOpen = true)}
+        />
+
+        <div class="flex flex-col gap-1.5">
+            <label for="bill-name" class="text-[11.5px] text-muted-foreground">اسم الفاتورة</label>
+            <input
+                id="bill-name"
+                type="text"
+                bind:value={form.name}
+                placeholder="مثال: فاتورة الكهرباء"
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if formErrors.name || errorText(serverErrors, 'name')}
+                <p class="text-[11.5px] text-destructive">{formErrors.name || errorText(serverErrors, 'name')}</p>
+            {/if}
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label for="bill-account-number" class="text-[11.5px] text-muted-foreground">رقم الحساب (اختياري)</label>
+            <input
+                id="bill-account-number"
+                type="text"
+                inputmode="numeric"
+                bind:value={form.account_number}
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if formErrors.account_number || errorText(serverErrors, 'account_number')}
+                <p class="text-[11.5px] text-destructive">
+                    {formErrors.account_number || errorText(serverErrors, 'account_number')}
                 </p>
             {/if}
-            <div class="flex flex-col gap-1.5">
-                <label for="bill-name" class="text-sm font-medium"
-                    >اسم الفاتورة</label
-                >
-                <input
-                    id="bill-name"
-                    type="text"
-                    bind:value={form.name}
-                    class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                {#if formErrors.name || errorText(serverErrors, 'name')}<p class="text-xs text-destructive">
-                        {formErrors.name || errorText(serverErrors, 'name')}
-                    </p>{/if}
-            </div>
-            <div class="flex flex-col gap-1.5">
-                <label for="bill-amount" class="text-sm font-medium"
-                    >المبلغ (ر.س)</label
-                >
-                <input
-                    id="bill-amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputmode="decimal"
-                    bind:value={form.amount}
-                    class="rounded-lg border border-border bg-background px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                {#if formErrors.amount || errorText(serverErrors, 'amount')}<p class="text-xs text-destructive">
-                        {formErrors.amount || errorText(serverErrors, 'amount')}
-                    </p>{/if}
-            </div>
-            <div class="flex flex-col gap-1.5">
-                <label for="bill-due-date" class="text-sm font-medium"
-                    >تاريخ الاستحقاق</label
-                >
-                <input
-                    id="bill-due-date"
-                    type="date"
-                    bind:value={form.due_date}
-                    class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                {#if formErrors.due_date || errorText(serverErrors, 'due_date')}<p class="text-xs text-destructive">
-                        {formErrors.due_date || errorText(serverErrors, 'due_date')}
-                    </p>{/if}
-            </div>
-            <div class="flex flex-col gap-1.5">
-                <label for="bill-account-number" class="text-sm font-medium"
-                    >رقم الحساب (اختياري)</label
-                >
-                <input
-                    id="bill-account-number"
-                    type="text"
-                    bind:value={form.account_number}
-                    class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                {#if formErrors.account_number || errorText(serverErrors, 'account_number')}<p
-                        class="text-xs text-destructive"
-                    >
-                        {formErrors.account_number || errorText(serverErrors, 'account_number')}
-                    </p>{/if}
-            </div>
-            <DialogFooter>
-                <Button
-                    type="button"
-                    variant="outline"
-                    onclick={closeForm}
-                    disabled={submitting}>إلغاء</Button
-                >
-                <Button type="submit" disabled={submitting}
-                    >{submitting ? 'جاري الحفظ...' : 'حفظ'}</Button
-                >
-            </DialogFooter>
-        </form>
-    </DialogContent>
-</Dialog>
+        </div>
+    </div>
 
-<Dialog bind:open={deleteOpen}>
-    <DialogContent class="max-w-sm">
-        <DialogHeader>
-            <DialogTitle>تأكيد الحذف</DialogTitle>
-            <DialogDescription
-                >هل أنت متأكد من حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا
-                الإجراء.</DialogDescription
-            >
-        </DialogHeader>
-        <DialogFooter>
-            <Button variant="outline" onclick={cancelDelete}>إلغاء</Button>
-            <Button variant="destructive" onclick={deleteBill}>حذف</Button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeForm}
+            disabled={submitting}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85 disabled:opacity-45"
+        >
+            إلغاء
+        </button>
+        <button
+            type="button"
+            onclick={submitForm}
+            disabled={submitting}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-45"
+        >
+            <Check class="size-[18px]" />
+            {submitting ? 'جارٍ الحفظ…' : 'حفظ'}
+        </button>
+    {/snippet}
+</SheetShell>
+
+<AmountSheet bind:open={amountSheetOpen} bind:value={form.amount} title="مبلغ الفاتورة" quickAdd={[50, 100, 500]} />
+
+<DateSheet bind:open={dateSheetOpen} bind:value={form.due_date} title="تاريخ الاستحقاق" />
+
+<ConfirmSheet
+    bind:open={deleteOpen}
+    message="ستُحذف هذه الفاتورة نهائياً ولا يمكن التراجع."
+    onConfirm={deleteBill}
+/>

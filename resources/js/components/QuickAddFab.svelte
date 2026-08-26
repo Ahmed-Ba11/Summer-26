@@ -85,7 +85,7 @@
         onclick={() => (open = !open)}
         aria-expanded={open}
         aria-label={open ? 'إغلاق الإضافة السريعة' : 'إضافة سريعة'}
-        class="grid size-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform duration-200 {open
+        class="grid size-[58px] place-items-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform duration-200 {open
             ? 'rotate-45'
             : ''}"
     >

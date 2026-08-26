@@ -15,7 +15,7 @@
     import Ellipsis from 'lucide-svelte/icons/ellipsis';
     import TriangleAlert from 'lucide-svelte/icons/triangle-alert';
     import Info from 'lucide-svelte/icons/info';
-    import X from 'lucide-svelte/icons/x';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import FundingSourcePicker, {
         type Funding,
@@ -234,7 +234,6 @@
 
     function onKeydown(e: KeyboardEvent) {
         if (!open) return;
-        if (e.key === 'Escape') return close();
         if (e.key === 'Enter' && canSave) return submit();
         if (/^[0-9]$/.test(e.key)) return press(e.key);
         if (e.key === '.') return press('.');
@@ -251,203 +250,212 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-{#if open}
-    <div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center">
-        <button
-            type="button"
-            class="absolute inset-0 cursor-default bg-black/45"
-            onclick={close}
-            aria-label="إغلاق"
-        ></button>
+<SheetShell
+    bind:open
+    title={mode === 'income' ? 'إضافة دخل' : 'إضافة مصروف'}
+    subtitle="اليوم · {today}"
+    onClose={reset}
+>
+    <div class="flex flex-col gap-3">
+        <!-- مصروف / دخل -->
+        <div class="flex rounded-2xl border border-border bg-secondary p-[3px]">
+            <button
+                type="button"
+                aria-pressed={mode === 'expense'}
+                class="min-h-10 flex-1 rounded-xl text-[12.5px] transition-colors {mode === 'expense'
+                    ? 'bg-card font-semibold shadow-xs'
+                    : 'text-muted-foreground'}"
+                onclick={() => { mode = 'expense'; confirmed = false; }}
+            >
+                مصروف
+            </button>
+            <button
+                type="button"
+                aria-pressed={mode === 'income'}
+                class="min-h-10 flex-1 rounded-xl text-[12.5px] transition-colors {mode === 'income'
+                    ? 'bg-card font-semibold text-success-text shadow-xs'
+                    : 'text-muted-foreground'}"
+                onclick={() => { mode = 'income'; confirmed = false; }}
+            >
+                دخل
+            </button>
+        </div>
 
-        <div
-            class="relative z-10 w-full max-w-[380px] overflow-hidden rounded-t-3xl border border-border bg-card shadow-2xl sm:rounded-3xl"
-            role="dialog"
-            aria-modal="true"
-            aria-label={mode === 'income' ? 'إضافة دخل' : 'إضافة مصروف'}
-        >
-            <!-- الرأس -->
-            <div class="flex items-center justify-between px-5 pt-4">
-                <div class="flex rounded-full border border-border bg-secondary p-[3px]">
-                    <button
-                        type="button"
-                        class="rounded-full px-4 py-1.5 text-[12.5px] transition-colors {mode === 'expense'
-                            ? 'bg-card font-semibold shadow-xs'
-                            : 'text-muted-foreground'}"
-                        onclick={() => { mode = 'expense'; confirmed = false; }}
-                    >
-                        مصروف
-                    </button>
-                    <button
-                        type="button"
-                        class="rounded-full px-4 py-1.5 text-[12.5px] transition-colors {mode === 'income'
-                            ? 'bg-card font-semibold text-success-text shadow-xs'
-                            : 'text-muted-foreground'}"
-                        onclick={() => { mode = 'income'; confirmed = false; }}
-                    >
-                        دخل
-                    </button>
-                </div>
-                <button type="button" class="rounded-lg p-1 text-muted-foreground hover:bg-secondary hover:text-foreground" onclick={close} aria-label="إغلاق">
-                    <X class="size-5" />
-                </button>
-            </div>
-
-            <!-- المبلغ -->
-            <div class="px-5 pt-4 pb-3 text-center">
-                <p class="text-[46px] leading-none font-semibold tracking-tighter">
-                    {#if raw}
-                        {formatAmount(amount)}
-                    {:else}
-                        <span class="text-input">0</span>
-                    {/if}
-                    <span class="ms-1 text-[19px] font-medium text-muted-foreground">ر.س</span>
-                </p>
-                <p class="mt-1.5 min-h-[17px] text-[11.5px] text-muted-foreground">اليوم · {today}</p>
-            </div>
-
-            <!-- رقائق سريعة ومتعلَّمة -->
-            <div class="flex flex-wrap justify-center gap-1.5 px-5 pb-3.5">
-                {#each [10, 50, 100] as v}
-                    <button type="button" class="rounded-full border border-input px-3 py-1 text-xs text-foreground/75 hover:bg-secondary" onclick={() => bump(v)}>
-                        + {v}
-                    </button>
-                {/each}
-                {#each learned.slice(0, 2) as l (l.label)}
-                    <button type="button" class="rounded-full border border-dashed border-input px-3 py-1 text-xs text-foreground/75 hover:border-primary hover:bg-secondary" onclick={() => applyLearned(l)}>
-                        {formatAmount(l.amount)} · {l.label}
-                    </button>
-                {/each}
-            </div>
-
-            <!-- الفئات -->
-            {#if mode === 'expense'}
-                <div class="flex gap-1.5 overflow-x-auto px-5 pb-3.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {#each categories as c (c.id)}
-                        <button
-                            type="button"
-                            aria-pressed={categoryId === c.id}
-                            onclick={() => { categoryId = c.id; confirmed = false; }}
-                            class="flex w-16 shrink-0 flex-col items-center gap-1.5 rounded-2xl border-[1.5px] px-2 pt-2.5 pb-1.5 transition-colors {categoryId === c.id
-                                ? 'border-current'
-                                : 'border-border hover:border-input'}"
-                            style={categoryId === c.id ? `color:${c.color};background:color-mix(in srgb,${c.color} 7%,transparent)` : ''}
-                        >
-                            <CategoryIcon icon={c.icon} color={c.color} size="sm" />
-                            <span class="max-w-full truncate text-[11px] {categoryId === c.id ? 'font-semibold text-foreground' : 'text-foreground/70'}">
-                                {c.name}
-                            </span>
-                        </button>
-                    {/each}
-                </div>
+        <!-- المبلغ -->
+        <p class="text-center text-[42px] leading-none font-semibold tracking-[-0.04em] tabular-nums">
+            {#if raw}
+                {formatAmount(amount)}
+            {:else}
+                <span class="text-input">0</span>
             {/if}
+            <span class="ms-1.5 text-[15px] font-medium text-muted-foreground">ر.س</span>
+        </p>
 
-            <!-- الوصف -->
-            <div class="px-5 pb-3">
-                <input
-                    bind:value={description}
-                    placeholder={isOther ? 'وش كان هذا المصروف؟ (مطلوب)' : 'وصف مختصر — اختياري'}
-                    aria-invalid={descriptionMissing}
-                    class="w-full rounded-xl border bg-secondary px-3.5 py-2.5 text-[13px] outline-none transition-[border-color,box-shadow] focus:bg-card focus:ring-3 focus:ring-ring/20 {descriptionMissing
-                        ? 'border-destructive'
-                        : 'border-border focus:border-ring'}"
-                />
-            </div>
-
-            <!-- لوحة الأرقام -->
-            <div class="grid grid-cols-3 gap-1.5 px-5 pb-3.5">
-                {#each KEYS as k}
-                    <button type="button" class="h-[52px] rounded-2xl border border-border bg-secondary text-[21px] font-medium tabular-nums transition-transform hover:bg-card active:scale-[.97]" onclick={() => press(k)}>
-                        {k}
-                    </button>
-                {/each}
-                <button type="button" class="h-[52px] rounded-2xl border border-border bg-secondary text-[15px] text-muted-foreground hover:bg-card active:scale-[.97]" onclick={() => press('.')} aria-label="فاصلة عشرية">.</button>
-                <button type="button" class="h-[52px] rounded-2xl border border-border bg-secondary text-[21px] font-medium tabular-nums hover:bg-card active:scale-[.97]" onclick={() => press('0')}>0</button>
-                <button type="button" class="grid h-[52px] place-items-center rounded-2xl border border-border bg-secondary text-muted-foreground hover:bg-card active:scale-[.97]" onclick={() => press('del')} aria-label="مسح">
-                    <Delete class="size-5" />
-                </button>
-            </div>
-
-            <!-- التحذيرات -->
-            {#if checks.length}
-                <div class="space-y-1.5 px-5 pb-3">
-                    {#each checks as c}
-                        {@const st = SEVERITY_STYLES[c.severity]}
-                        <div class="flex items-start gap-2.5 rounded-xl border px-3 py-2 text-[11.5px] {st.box}">
-                            {#if c.severity === 'info'}
-                                <Info class="mt-0.5 size-3.5 shrink-0 {st.icon}" />
-                            {:else}
-                                <TriangleAlert class="mt-0.5 size-3.5 shrink-0 {st.icon}" />
-                            {/if}
-                            <div class="min-w-0 flex-1">
-                                <p class="font-semibold">{c.title}</p>
-                                {#if c.detail}<p class="opacity-85">{c.detail}</p>{/if}
-                            </div>
-                            {#if c.suggestion}
-                                <button type="button" class="shrink-0 rounded-lg border border-current/30 px-2 py-1 text-[11px] font-medium hover:bg-current/10" onclick={() => (raw = (c.suggestion!.value / 100).toString())}>
-                                    {c.suggestion.label}
-                                </button>
-                            {/if}
-                        </div>
-                    {/each}
-                </div>
-            {/if}
-
-            {#if shortfall > 0}
-                <FundingSourcePicker
-                    {shortfall}
-                    goals={fundableGoals}
-                    bind:value={funding}
-                />
-            {/if}
-
-            <!-- معاينة الأثر -->
-            {#if preview}
-                <div class="mx-5 mb-3.5 rounded-xl border border-border bg-secondary px-3 py-2">
-                    <div class="flex items-center justify-between gap-2.5 py-[3px] text-[11.5px]">
-                        <span class="text-muted-foreground">المتبقي لك</span>
-                        <span class="whitespace-nowrap text-foreground/75">
-                            <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.before)}</b>
-                            <span class="mx-0.5 text-input">←</span>
-                            <b class="font-semibold tabular-nums {preview.after < 0 ? 'text-destructive' : 'text-foreground'}">
-                                {formatAmount(preview.after)}
-                            </b> ر.س
-                        </span>
-                    </div>
-                    {#if context.daysUntilSalary > 0}
-                        <div class="flex items-center justify-between gap-2.5 py-[3px] text-[11.5px]">
-                            <span class="text-muted-foreground">الحد اليومي الآمن</span>
-                            <span class="whitespace-nowrap text-foreground/75">
-                                <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.dailyBefore)}</b>
-                                <span class="mx-0.5 text-input">←</span>
-                                <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.dailyAfter)}</b> ر.س
-                            </span>
-                        </div>
-                    {/if}
-                </div>
-            {/if}
-
-            <!-- التذييل -->
-            <div class="flex gap-2 px-5 pb-5">
+        <!-- رقائق سريعة ومتعلَّمة -->
+        <div class="flex flex-wrap justify-center gap-1.5">
+            {#each [10, 50, 100] as v (v)}
                 <button
                     type="button"
-                    disabled={!canSave}
-                    onclick={submit}
-                    class="flex h-[50px] flex-1 items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold transition-colors {mustConfirm
-                        ? 'bg-destructive text-white'
-                        : 'bg-primary text-primary-foreground'} disabled:bg-input disabled:text-muted-foreground"
+                    class="inline-flex min-h-11 min-w-12 items-center justify-center rounded-xl border border-input px-3 text-[13px] font-medium text-foreground/85"
+                    onclick={() => bump(v)}
                 >
-                    {#if mustConfirm}
-                        <TriangleAlert class="size-5" /> أكمل رغم التحذير
-                    {:else}
-                        <Check class="size-5" />
-                        {amount > 0 ? `حفظ ${formatCurrency(amount)}` : 'حفظ'}
-                    {/if}
+                    +{v}
                 </button>
-                <button type="button" class="grid size-[50px] place-items-center rounded-2xl border border-input text-foreground/75 hover:bg-secondary" aria-label="خيارات إضافية" title="التاريخ · متكرر · مرفق">
-                    <Ellipsis class="size-5" />
+            {/each}
+            {#each learned.slice(0, 2) as l (l.label)}
+                <button
+                    type="button"
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl border border-dashed border-input px-3 text-[12.5px] text-foreground/85"
+                    onclick={() => applyLearned(l)}
+                >
+                    {formatAmount(l.amount)} · {l.label}
                 </button>
-            </div>
+            {/each}
         </div>
+
+        <!-- الفئات -->
+        {#if mode === 'expense'}
+            <div class="grid grid-cols-4 gap-1.5">
+                {#each categories as c (c.id)}
+                    <button
+                        type="button"
+                        aria-pressed={categoryId === c.id}
+                        onclick={() => { categoryId = c.id; confirmed = false; }}
+                        class="flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1.5 pt-2.5 pb-2 transition-colors {categoryId === c.id
+                            ? 'border-current'
+                            : 'border-border'}"
+                        style={categoryId === c.id ? `color:${c.color};background:color-mix(in srgb,${c.color} 7%,transparent)` : ''}
+                    >
+                        <CategoryIcon icon={c.icon} color={c.color} size="sm" />
+                        <span class="max-w-full truncate text-[11px] {categoryId === c.id ? 'font-semibold text-foreground' : 'text-foreground/70'}">
+                            {c.name}
+                        </span>
+                    </button>
+                {/each}
+            </div>
+        {/if}
+
+        <!-- الوصف -->
+        <input
+            bind:value={description}
+            placeholder={isOther ? 'وش كان هذا المصروف؟ (مطلوب)' : 'وصف مختصر — اختياري'}
+            aria-invalid={descriptionMissing}
+            class="min-h-11 w-full rounded-2xl border bg-background px-3 text-[14px] outline-none focus:ring-2 focus:ring-ring {descriptionMissing
+                ? 'border-destructive'
+                : 'border-input'}"
+        />
+
+        <!-- لوحة الأرقام -->
+        <div class="grid grid-cols-3 gap-2">
+            {#each KEYS as k (k)}
+                <button
+                    type="button"
+                    class="grid min-h-[50px] place-items-center rounded-2xl border border-border bg-secondary text-[21px] font-medium tabular-nums transition-transform active:scale-[.97]"
+                    onclick={() => press(k)}
+                >
+                    {k}
+                </button>
+            {/each}
+            <button
+                type="button"
+                class="grid min-h-[50px] place-items-center rounded-2xl border border-border bg-secondary text-[21px] text-muted-foreground transition-transform active:scale-[.97]"
+                onclick={() => press('.')}
+                aria-label="فاصلة عشرية">.</button
+            >
+            <button
+                type="button"
+                class="grid min-h-[50px] place-items-center rounded-2xl border border-border bg-secondary text-[21px] font-medium tabular-nums transition-transform active:scale-[.97]"
+                onclick={() => press('0')}>0</button
+            >
+            <button
+                type="button"
+                class="grid min-h-[50px] place-items-center rounded-2xl border border-border bg-secondary text-muted-foreground transition-transform active:scale-[.97]"
+                onclick={() => press('del')}
+                aria-label="حذف"
+            >
+                <Delete class="size-[21px]" />
+            </button>
+        </div>
+
+        <!-- التحذيرات -->
+        {#each checks as c (c.title)}
+            {@const st = SEVERITY_STYLES[c.severity]}
+            <div class="flex items-start gap-2.5 rounded-2xl border px-3 py-2 text-[11.5px] {st.box}">
+                {#if c.severity === 'info'}
+                    <Info class="mt-0.5 size-3.5 shrink-0 {st.icon}" />
+                {:else}
+                    <TriangleAlert class="mt-0.5 size-3.5 shrink-0 {st.icon}" />
+                {/if}
+                <div class="min-w-0 flex-1">
+                    <p class="font-semibold">{c.title}</p>
+                    {#if c.detail}<p class="opacity-85">{c.detail}</p>{/if}
+                </div>
+                {#if c.suggestion}
+                    <button
+                        type="button"
+                        class="inline-flex min-h-9 shrink-0 items-center rounded-lg border border-current/30 px-2 text-[11px] font-medium"
+                        onclick={() => (raw = (c.suggestion!.value / 100).toString())}
+                    >
+                        {c.suggestion.label}
+                    </button>
+                {/if}
+            </div>
+        {/each}
+
+        {#if shortfall > 0}
+            <FundingSourcePicker {shortfall} goals={fundableGoals} bind:value={funding} />
+        {/if}
+
+        <!-- معاينة الأثر -->
+        {#if preview}
+            <div class="rounded-2xl border border-border bg-secondary px-3 py-2">
+                <div class="flex items-center justify-between gap-2.5 py-[3px] text-[11.5px]">
+                    <span class="text-muted-foreground">المتبقي لك</span>
+                    <span class="whitespace-nowrap text-foreground/75">
+                        <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.before)}</b>
+                        <span class="mx-0.5 text-input">←</span>
+                        <b class="font-semibold tabular-nums {preview.after < 0 ? 'text-destructive' : 'text-foreground'}">
+                            {formatAmount(preview.after)}
+                        </b> ر.س
+                    </span>
+                </div>
+                {#if context.daysUntilSalary > 0}
+                    <div class="flex items-center justify-between gap-2.5 py-[3px] text-[11.5px]">
+                        <span class="text-muted-foreground">الحد اليومي الآمن</span>
+                        <span class="whitespace-nowrap text-foreground/75">
+                            <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.dailyBefore)}</b>
+                            <span class="mx-0.5 text-input">←</span>
+                            <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.dailyAfter)}</b> ر.س
+                        </span>
+                    </div>
+                {/if}
+            </div>
+        {/if}
     </div>
-{/if}
+
+    {#snippet footer()}
+        <button
+            type="button"
+            disabled={!canSave}
+            onclick={submit}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl text-[14.5px] font-semibold transition-transform active:scale-[.99] {mustConfirm
+                ? 'bg-destructive text-white'
+                : 'bg-primary text-primary-foreground'} disabled:bg-input disabled:text-muted-foreground"
+        >
+            {#if mustConfirm}
+                <TriangleAlert class="size-[18px]" /> أكمل رغم التحذير
+            {:else}
+                <Check class="size-[18px]" />
+                {amount > 0 ? `حفظ ${formatCurrency(amount)}` : 'حفظ'}
+            {/if}
+        </button>
+        <button
+            type="button"
+            class="grid size-12 shrink-0 place-items-center rounded-2xl border border-input text-foreground/75"
+            aria-label="خيارات إضافية"
+            title="التاريخ · متكرر · مرفق"
+        >
+            <Ellipsis class="size-[18px]" />
+        </button>
+    {/snippet}
+</SheetShell>

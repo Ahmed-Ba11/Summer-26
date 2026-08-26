@@ -1,0 +1,69 @@
+/**
+ * خط ثمانية — الخط الرسمي لتطبيق موفّر.
+ *
+ * ملاحظتان تقنيّتان مهمّتان:
+ *
+ * 1) العائلة لا تحتوي وزن 600 (Semibold)، والتصميم يستعمل `font-semibold`
+ *    في العناوين. لذلك يُصرَّح وزن Bold بمدى `600 700` — فيلتقط المتصفّح
+ *    الملف الحقيقي عند 600 بدل أن **يصطنع** تعتيماً (faux bold) يشوّه
+ *    الحروف العربية ويكسر تباعدها.
+ *
+ * 2) `font-display: swap` يعرض النص بخط النظام فوراً ثم يستبدله — أفضل من
+ *    شاشة فارغة على شبكة الجوال البطيئة.
+ *
+ * الملفات بصيغة woff2 فقط: مدعومة في كل متصفّح يهمّنا، وأصغر بنحو 30٪ من woff.
+ * ممنوع تعديل الملفات أو تقليمها (subsetting) — الترخيص يمنع أي تعديل.
+ */
+
+@font-face {
+    font-family: 'Thmanyah Sans';
+    src: url('/fonts/thmanyahsans-Light.woff2') format('woff2');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Thmanyah Sans';
+    src: url('/fonts/thmanyahsans-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Thmanyah Sans';
+    src: url('/fonts/thmanyahsans-Medium.woff2') format('woff2');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* المدى 600–700: يمنع اصطناع الوزن عند استعمال font-semibold */
+@font-face {
+    font-family: 'Thmanyah Sans';
+    src: url('/fonts/thmanyahsans-Bold.woff2') format('woff2');
+    font-weight: 600 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Thmanyah Sans';
+    src: url('/fonts/thmanyahsans-Black.woff2') format('woff2');
+    font-weight: 800 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+/**
+ * خط العرض — للاسم «موفّر» في شاشة الترحيب وعناوين تقرير PDF فقط.
+ * لا يُستعمل في واجهة التطبيق: خط عريض (Serif) في نصوص صغيرة يقلّل الوضوح.
+ */
+@font-face {
+    font-family: 'Thmanyah Display';
+    src: url('/fonts/thmanyahserifdisplay-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}

@@ -12,7 +12,6 @@
     import Trash2 from 'lucide-svelte/icons/trash-2';
     import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
     import Vault from 'lucide-svelte/icons/vault';
-    import X from 'lucide-svelte/icons/x';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import Button from '@/components/ui/button/Button.svelte';
@@ -24,10 +23,19 @@
     } from '@/components/ui/card';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
+    import SheetField from '@/components/ui/SheetField.svelte';
+    import AmountSheet from '@/components/ui/AmountSheet.svelte';
+    import DateSheet from '@/components/ui/DateSheet.svelte';
+    import ConfirmSheet from '@/components/ui/ConfirmSheet.svelte';
+    import Target from 'lucide-svelte/icons/target';
+    import CalendarDays from 'lucide-svelte/icons/calendar-days';
+    import Check from 'lucide-svelte/icons/check';
     import {
         formatAmount,
         formatCurrency,
         formatDate,
+        formatFullDate,
         formatPercent,
     } from '@/lib/format';
     import type { ValidationErrors } from '@/types';
@@ -158,8 +166,11 @@
     let showFormModal = $state(false);
     let formName = $state('');
     let formIcon = $state('banknote');
-    let formTargetAmount = $state('');
+    /** المبلغ المستهدف بالهللات */
+    let formTargetAmount = $state(0);
     let formTargetDate = $state('');
+    let targetAmountSheetOpen = $state(false);
+    let targetDateSheetOpen = $state(false);
     let formErrors = $state<Record<string, string>>({});
     let submitting = $state(false);
 
@@ -167,7 +178,7 @@
         submitting = false;
         formName = '';
         formIcon = 'banknote';
-        formTargetAmount = '';
+        formTargetAmount = 0;
         formTargetDate = '';
         formErrors = {};
         showFormModal = true;
@@ -178,23 +189,9 @@
         formErrors = {};
     }
 
-    function handleKeydown(event: KeyboardEvent): void {
-        if (event.key !== 'Escape') {
-            return;
-        }
-
-        if (showFormModal) {
-            closeFormModal();
-        } else if (showAddAmountModal) {
-            closeAddAmountModal();
-        } else if (deleteId !== null) {
-            cancelDelete();
-        }
-    }
-
     function submitForm() {
         formErrors = {};
-        const targetSar = parseFloat(formTargetAmount);
+        const targetSar = formTargetAmount / 100;
 
         if (!formName.trim()) {
             formErrors.name = 'اسم الهدف مطلوب';
@@ -234,14 +231,17 @@
     let showAddAmountModal = $state(false);
     let selectedGoalId = $state<number | null>(null);
     let selectedGoalName = $state('');
-    let addAmountValue = $state('');
+    /** المبلغ المضاف بالهللات */
+    let addAmountValue = $state(0);
+    let selectedGoalRemaining = $state(0);
     let addAmountErrors = $state<Record<string, string>>({});
 
     function openAddAmountModal(goal: GoalItem) {
         submitting = false;
         selectedGoalId = goal.id;
         selectedGoalName = goal.name;
-        addAmountValue = '';
+        selectedGoalRemaining = Math.max(0, goal.target_amount - goal.current_amount);
+        addAmountValue = 0;
         addAmountErrors = {};
         showAddAmountModal = true;
     }
@@ -253,9 +253,9 @@
         addAmountErrors = {};
     }
 
-    function submitAddAmount() {
+    function submitAddAmount(halalas: number) {
         addAmountErrors = {};
-        const amountSar = parseFloat(addAmountValue);
+        const amountSar = halalas / 100;
 
         if (!selectedGoalId) {
             return;
@@ -290,13 +290,11 @@
 
     // Delete
     let deleteId = $state<number | null>(null);
+    let deleteOpen = $state(false);
 
     function confirmDelete(id: number) {
         deleteId = id;
-    }
-
-    function cancelDelete() {
-        deleteId = null;
+        deleteOpen = true;
     }
 
     function executeDelete() {
@@ -308,6 +306,7 @@
             preserveScroll: true,
             onSuccess: () => {
                 deleteId = null;
+                deleteOpen = false;
             },
         });
     }
@@ -680,198 +679,117 @@
     {/if}
 </div>
 
-<!-- Add Goal Modal -->
-{#if showFormModal}
-    <div class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-[10vh]">
-        <button type="button" class="fixed inset-0 bg-black/50" aria-label="إغلاق" onclick={closeFormModal}></button>
-        <div
-            class="relative z-10 mx-4 w-full max-w-md rounded-xl border bg-card p-0 shadow-lg"
-        >
-            <div class="flex items-center justify-between border-b px-6 py-4">
-                <h2 class="text-lg font-semibold">إضافة هدف ادخاري جديد</h2>
-                <button
-                    class="text-muted-foreground hover:text-foreground cursor-pointer"
-                    onclick={closeFormModal}
-                >
-                    <X class="size-5" />
-                </button>
-            </div>
-            <div class="space-y-4 px-6 py-4">
-                {#if generalError(formErrors) || generalError(serverErrors)}
-                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                        <CircleAlert class="size-4 shrink-0" />
-                        {generalError(formErrors) || generalError(serverErrors)}
-                    </p>
-                {/if}
-                <div>
-                    <label
-                        for="goal-name"
-                        class="mb-1.5 block text-sm font-medium">الاسم</label
-                    >
-                    <input
-                        id="goal-name"
-                        type="text"
-                        placeholder="مثال: سيارة جديدة"
-                        bind:value={formName}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.name || errorText(serverErrors, 'name')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.name || errorText(serverErrors, 'name')}
-                        </p>
-                    {/if}
-                </div>
-                <div>
-                    <label
-                        for="goal-icon"
-                        class="mb-1.5 block text-sm font-medium">الأيقونة</label
-                    >
-                    <div class="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
-                        {#each ICON_PICKER as key}
-                            <button
-                                type="button"
-                                class="flex size-9 items-center justify-center rounded-lg border transition-all {formIcon ===
-                                key
-                                    ? 'border-primary ring-2 ring-primary/20'
-                                    : 'border-border hover:border-primary/50'}"
-                                aria-label={ICON_LABELS[key]}
-                                aria-pressed={formIcon === key}
-                                onclick={() => (formIcon = key)}
-                            >
-                                <CategoryIcon icon={key} size="sm" />
-                            </button>
-                        {/each}
-                    </div>
-                </div>
-                <div>
-                    <label
-                        for="goal-amount"
-                        class="mb-1.5 block text-sm font-medium"
-                        >المبلغ المستهدف (ر.س)</label
-                    >
-                    <input
-                        id="goal-amount"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0.00"
-                        bind:value={formTargetAmount}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.target_amount || errorText(serverErrors, 'target_amount')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.target_amount || errorText(serverErrors, 'target_amount')}
-                        </p>
-                    {/if}
-                </div>
-                <div>
-                    <label
-                        for="goal-date"
-                        class="mb-1.5 block text-sm font-medium"
-                        >التاريخ المستهدف (اختياري)</label
-                    >
-                    <input
-                        id="goal-date"
-                        type="date"
-                        bind:value={formTargetDate}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.target_date || errorText(serverErrors, 'target_date')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {formErrors.target_date || errorText(serverErrors, 'target_date')}
-                        </p>
-                    {/if}
-                </div>
-            </div>
-            <div class="flex justify-end gap-2 border-t px-6 py-4">
-                <Button variant="outline" onclick={closeFormModal}>إلغاء</Button
-                >
-                <Button onclick={submitForm} disabled={submitting}>
-                    {submitting ? 'جاري الإضافة...' : 'إضافة'}
-                </Button>
-            </div>
-        </div>
-    </div>
-{/if}
-
-<!-- Add Amount Modal -->
-{#if showAddAmountModal}
-    <div class="fixed inset-0 z-50 flex items-center justify-center">
-        <button type="button" class="fixed inset-0 bg-black/50" aria-label="إغلاق" onclick={closeAddAmountModal}></button>
-        <div
-            class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-0 shadow-lg"
-        >
-            <div class="flex items-center justify-between border-b px-6 py-4">
-                <h2 class="text-lg font-semibold">
-                    إضافة مبلغ - {selectedGoalName}
-                </h2>
-                <button
-                    class="text-muted-foreground hover:text-foreground cursor-pointer"
-                    onclick={closeAddAmountModal}
-                >
-                    <X class="size-5" />
-                </button>
-            </div>
-            <div class="space-y-4 px-6 py-4">
-                {#if generalError(addAmountErrors) || generalError(serverErrors)}
-                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                        <CircleAlert class="size-4 shrink-0" />
-                        {generalError(addAmountErrors) || generalError(serverErrors)}
-                    </p>
-                {/if}
-                <div>
-                    <label
-                        for="add-amount"
-                        class="mb-1.5 block text-sm font-medium"
-                        >المبلغ المضاف (ر.س)</label
-                    >
-                    <input
-                        id="add-amount"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0.00"
-                        bind:value={addAmountValue}
-                        class="w-full rounded-lg border border-border bg-background px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if addAmountErrors.amount || errorText(serverErrors, 'amount')}
-                        <p class="mt-1 text-xs text-destructive">
-                            {addAmountErrors.amount || errorText(serverErrors, 'amount')}
-                        </p>
-                    {/if}
-                </div>
-            </div>
-            <div class="flex justify-end gap-2 border-t px-6 py-4">
-                <Button variant="outline" onclick={closeAddAmountModal}
-                    >إلغاء</Button
-                >
-                <Button onclick={submitAddAmount} disabled={submitting}>
-                    {submitting ? 'جاري...' : 'إضافة'}
-                </Button>
-            </div>
-        </div>
-    </div>
-{/if}
-
-<!-- Delete confirmation -->
-{#if deleteId !== null}
-    <div class="fixed inset-0 z-50 flex items-center justify-center">
-        <button type="button" class="fixed inset-0 bg-black/50" aria-label="إغلاق" onclick={cancelDelete}></button>
-        <div
-            class="relative z-10 mx-4 w-full max-w-sm rounded-xl border bg-card p-6 shadow-lg"
-        >
-            <h2 class="text-lg font-semibold">تأكيد الحذف</h2>
-            <p class="mt-2 text-sm text-muted-foreground">
-                هل أنت متأكد من حذف هذا الهدف؟ لا يمكن التراجع عن هذا الإجراء.
+<!-- لوح إضافة هدف ادخاري -->
+<SheetShell
+    bind:open={showFormModal}
+    title="إضافة هدف ادخاري"
+    subtitle="اسم وأيقونة ومبلغ مستهدف"
+    onClose={closeFormModal}
+>
+    <div class="flex flex-col gap-3">
+        {#if generalError(formErrors) || generalError(serverErrors)}
+            <p class="flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive" role="alert">
+                <CircleAlert class="mt-px size-4 shrink-0" />
+                {generalError(formErrors) || generalError(serverErrors)}
             </p>
-            <div class="mt-4 flex justify-end gap-2">
-                <Button variant="outline" onclick={cancelDelete}>إلغاء</Button>
-                <Button variant="destructive" onclick={executeDelete}
-                    >حذف</Button
-                >
+        {/if}
+
+        <SheetField
+            label="المبلغ المستهدف"
+            icon={Target}
+            value={formTargetAmount > 0 ? `${formatAmount(formTargetAmount)} ر.س` : ''}
+            placeholder="اضغط لإدخال المبلغ"
+            error={formErrors.target_amount || errorText(serverErrors, 'target_amount')}
+            onclick={() => (targetAmountSheetOpen = true)}
+        />
+
+        <SheetField
+            label="التاريخ المستهدف (اختياري)"
+            icon={CalendarDays}
+            value={formTargetDate ? formatFullDate(formTargetDate) : ''}
+            placeholder="بدون تاريخ"
+            error={formErrors.target_date || errorText(serverErrors, 'target_date')}
+            onclick={() => (targetDateSheetOpen = true)}
+        />
+
+        <div class="flex flex-col gap-1.5">
+            <label for="goal-name" class="text-[11.5px] text-muted-foreground">الاسم</label>
+            <input
+                id="goal-name"
+                type="text"
+                placeholder="مثال: سيارة جديدة"
+                bind:value={formName}
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if formErrors.name || errorText(serverErrors, 'name')}
+                <p class="text-[11.5px] text-destructive">{formErrors.name || errorText(serverErrors, 'name')}</p>
+            {/if}
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <span class="text-[11.5px] text-muted-foreground">الأيقونة</span>
+            <div class="flex flex-wrap gap-2">
+                {#each ICON_PICKER as key (key)}
+                    <button
+                        type="button"
+                        class="grid size-11 place-items-center rounded-xl border transition-colors {formIcon === key
+                            ? 'border-primary bg-primary/8'
+                            : 'border-border'}"
+                        aria-label={ICON_LABELS[key]}
+                        aria-pressed={formIcon === key}
+                        onclick={() => (formIcon = key)}
+                    >
+                        <CategoryIcon icon={key} size="sm" />
+                    </button>
+                {/each}
             </div>
         </div>
     </div>
-{/if}
 
-<svelte:window onkeydown={handleKeydown} />
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeFormModal}
+            disabled={submitting}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85 disabled:opacity-45"
+        >
+            إلغاء
+        </button>
+        <button
+            type="button"
+            onclick={submitForm}
+            disabled={submitting}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-45"
+        >
+            <Check class="size-[18px]" />
+            {submitting ? 'جارٍ الإضافة…' : 'إضافة'}
+        </button>
+    {/snippet}
+</SheetShell>
+
+<AmountSheet
+    bind:open={targetAmountSheetOpen}
+    bind:value={formTargetAmount}
+    title="المبلغ المستهدف"
+    quickAdd={[500, 1000, 5000]}
+/>
+
+<DateSheet bind:open={targetDateSheetOpen} bind:value={formTargetDate} title="التاريخ المستهدف" />
+
+<!-- لوح إيداع في هدف -->
+<AmountSheet
+    bind:open={showAddAmountModal}
+    bind:value={addAmountValue}
+    title={`إيداع في ${selectedGoalName}`}
+    subtitle={selectedGoalRemaining > 0 ? `المتبقي ${formatCurrency(selectedGoalRemaining)}` : 'الهدف مكتمل'}
+    hint={addAmountErrors.amount || errorText(serverErrors, 'amount') || generalError(addAmountErrors)}
+    quickAdd={[100, 500, 1000]}
+    saveLabel="إيداع"
+    onSave={submitAddAmount}
+/>
+
+<ConfirmSheet
+    bind:open={deleteOpen}
+    message="سيُحذف هذا الهدف الادخاري نهائياً ولا يمكن التراجع."
+    onConfirm={executeDelete}
+/>

@@ -16,6 +16,9 @@
     import Search from 'lucide-svelte/icons/search';
     import Trash2 from 'lucide-svelte/icons/trash-2';
     import X from 'lucide-svelte/icons/x';
+    import Wallet from 'lucide-svelte/icons/wallet';
+    import CalendarDays from 'lucide-svelte/icons/calendar-days';
+    import Check from 'lucide-svelte/icons/check';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
@@ -26,10 +29,12 @@
         CardHeader,
         CardTitle,
     } from '@/components/ui/card';
-    import DialogDescription from '@/components/ui/dialog/DialogDescription.svelte';
-    import DialogFooter from '@/components/ui/dialog/DialogFooter.svelte';
-    import DialogTitle from '@/components/ui/dialog/DialogTitle.svelte';
-    import { formatCurrency, formatDate, toRiyals } from '@/lib/format';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
+    import SheetField from '@/components/ui/SheetField.svelte';
+    import AmountSheet from '@/components/ui/AmountSheet.svelte';
+    import DateSheet from '@/components/ui/DateSheet.svelte';
+    import ConfirmSheet from '@/components/ui/ConfirmSheet.svelte';
+    import { formatAmount, formatCurrency, formatDate, formatFullDate } from '@/lib/format';
     import type { ValidationErrors } from '@/types';
     import {
         destroy as destroyExpense,
@@ -142,13 +147,17 @@
     let submitting = $state(false);
     let formErrors = $state<Record<string, string>>({});
 
+    /** المبلغ بالهللات — التحويل للريالات عند الإرسال فقط. */
     let form = $state({
         description: '',
         category_id: null as number | null,
-        amount: '',
+        amount: 0,
         expense_date: '',
         is_recurring: false,
     });
+
+    let amountSheetOpen = $state(false);
+    let dateSheetOpen = $state(false);
 
     const findCategoryIdByName = (name: string | null): number | null =>
         categories.find((c) => c.name === name)?.id ?? null;
@@ -220,7 +229,7 @@
         form = {
             description: '',
             category_id: categories.length > 0 ? categories[0].id : null,
-            amount: '',
+            amount: 0,
             expense_date: new Date().toISOString().slice(0, 10),
             is_recurring: false,
         };
@@ -233,8 +242,8 @@
         form = {
             description: expense.description ?? '',
             category_id: findCategoryIdByName(expense.category),
-            amount: toRiyals(expense.amount).toFixed(2),
-            expense_date: expense.date,
+            amount: expense.amount,
+            expense_date: expense.date.slice(0, 10),
             is_recurring: expense.is_recurring ?? false,
         };
         modalOpen = true;
@@ -257,7 +266,7 @@
             return;
         }
 
-        if (!form.amount || Number(form.amount) <= 0) {
+        if (!form.amount || form.amount <= 0) {
             formErrors.amount = 'المبلغ مطلوب ويجب أن يكون أكبر من صفر';
             submitting = false;
 
@@ -274,7 +283,7 @@
         const payload = {
             description: form.description.trim(),
             category_id: form.category_id,
-            amount: parseFloat(form.amount),
+            amount: form.amount / 100,
             expense_date: form.expense_date,
             is_recurring: form.is_recurring,
         };
@@ -684,208 +693,132 @@
     {/if}
 </div>
 
-<!-- Add/Edit Modal -->
-{#if modalOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center">
-        <button
-            type="button"
-            class="fixed inset-0 bg-black/50 cursor-default"
-            aria-label="إغلاق"
-            onclick={closeModal}
-        ></button>
-        <div
-            class="relative z-10 w-full max-w-lg rounded-lg border bg-background p-6 shadow-lg max-h-[90vh] overflow-y-auto"
-            role="dialog"
-            aria-modal="true"
-        >
-            <div class="flex flex-col gap-1.5">
-                <DialogTitle
-                    >{editingExpense
-                        ? 'تعديل مصروف'
-                        : 'إضافة مصروف'}</DialogTitle
-                >
-                <DialogDescription>
-                    {editingExpense
-                        ? 'عدّل بيانات المصروف أدناه'
-                        : 'أدخل بيانات المصروف الجديد'}
-                </DialogDescription>
-            </div>
+<!-- لوح إضافة/تعديل مصروف — المرجع البصري لكل ألواح التطبيق -->
+<SheetShell
+    bind:open={modalOpen}
+    title={editingExpense ? 'تعديل مصروف' : 'إضافة مصروف'}
+    subtitle={editingExpense ? 'عدّل بيانات المصروف' : 'أدخل بيانات المصروف الجديد'}
+    onClose={closeModal}
+>
+    <div class="flex flex-col gap-3">
+        {#if generalError(formErrors) || generalError(serverErrors)}
+            <p class="flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive" role="alert">
+                <AlertTriangle class="mt-px size-4 shrink-0" />
+                {generalError(formErrors) || generalError(serverErrors)}
+            </p>
+        {/if}
+        {#if formErrors.funding_source || errorText(serverErrors, 'funding_source')}
+            <p class="rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive" role="alert">
+                {formErrors.funding_source || errorText(serverErrors, 'funding_source')}
+                <a href="/dashboard" class="ms-1 font-semibold underline underline-offset-2">استخدم الإضافة السريعة</a>
+            </p>
+        {/if}
 
-            <form
-                class="mt-4 flex flex-col gap-4"
-                onsubmit={(e) => {
-                    e.preventDefault();
-                    handleSubmit();
-                }}
+        <SheetField
+            label="المبلغ"
+            icon={Wallet}
+            value={form.amount > 0 ? `${formatAmount(form.amount)} ر.س` : ''}
+            placeholder="اضغط لإدخال المبلغ"
+            error={formErrors.amount || errorText(serverErrors, 'amount')}
+            onclick={() => (amountSheetOpen = true)}
+        />
+
+        <SheetField
+            label="التاريخ"
+            icon={CalendarDays}
+            value={form.expense_date ? formatFullDate(form.expense_date) : ''}
+            placeholder="اختر التاريخ"
+            error={formErrors.expense_date || errorText(serverErrors, 'expense_date')}
+            onclick={() => (dateSheetOpen = true)}
+        />
+
+        <div class="flex flex-col gap-1.5">
+            <label for="expense-category" class="text-[11.5px] text-muted-foreground">الفئة</label>
+            <select
+                id="expense-category"
+                bind:value={form.category_id}
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
             >
-                {#if generalError(formErrors) || generalError(serverErrors)}
-                    <p class="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                        <AlertTriangle class="size-4 shrink-0" />
-                        {generalError(formErrors) || generalError(serverErrors)}
-                    </p>
-                {/if}
-                {#if formErrors.funding_source || errorText(serverErrors, 'funding_source')}
-                    <p class="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-                        {formErrors.funding_source || errorText(serverErrors, 'funding_source')}
-                        <a href="/dashboard" class="ms-1 font-semibold underline underline-offset-2">استخدم الإضافة السريعة</a>
-                    </p>
-                {/if}
-                <div class="flex flex-col gap-1.5">
-                    <label for="expense-description" class="text-sm font-medium"
-                        >الوصف</label
-                    >
-                    <input
-                        id="expense-description"
-                        type="text"
-                        bind:value={form.description}
-                        placeholder="مثال: مطعم، فاتورة كهرباء..."
-                        class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.description || errorText(serverErrors, 'description')}
-                        <p class="text-xs text-destructive">
-                            {formErrors.description || errorText(serverErrors, 'description')}
-                        </p>
-                    {/if}
-                </div>
-
-                <div class="flex flex-col gap-1.5">
-                    <label for="expense-category" class="text-sm font-medium"
-                        >الفئة</label
-                    >
-                    <select
-                        id="expense-category"
-                        bind:value={form.category_id}
-                        class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                        <option value={null}>اختر الفئة</option>
-                        {#each categories as cat}
-                            <option value={cat.id}>{cat.name}</option>
-                        {/each}
-                    </select>
-                    {#if formErrors.category_id || errorText(serverErrors, 'category_id')}
-                        <p class="text-xs text-destructive">
-                            {formErrors.category_id || errorText(serverErrors, 'category_id')}
-                        </p>
-                    {/if}
-                </div>
-
-                <div class="flex flex-col gap-1.5">
-                    <label for="expense-amount" class="text-sm font-medium"
-                        >المبلغ (ر.س)</label
-                    >
-                    <input
-                        id="expense-amount"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        bind:value={form.amount}
-                        placeholder="0.00"
-                        class="rounded-lg border border-border bg-background px-3 py-2 text-end text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.amount || errorText(serverErrors, 'amount')}
-                        <p class="text-xs text-destructive">
-                            {formErrors.amount || errorText(serverErrors, 'amount')}
-                        </p>
-                    {/if}
-                </div>
-
-                <div class="flex flex-col gap-1.5">
-                    <label for="expense-date" class="text-sm font-medium"
-                        >التاريخ</label
-                    >
-                    <input
-                        id="expense-date"
-                        type="date"
-                        bind:value={form.expense_date}
-                        class="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {#if formErrors.expense_date || errorText(serverErrors, 'expense_date')}
-                        <p class="text-xs text-destructive">
-                            {formErrors.expense_date || errorText(serverErrors, 'expense_date')}
-                        </p>
-                    {/if}
-                </div>
-
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input
-                        type="checkbox"
-                        bind:checked={form.is_recurring}
-                        class="size-4 rounded border-border accent-primary"
-                    />
-                    <span class="text-sm">مصروف متكرر</span>
-                </label>
-
-                <DialogFooter>
-                    <Button
-                        variant="outline"
-                        type="button"
-                        onclick={closeModal}
-                        disabled={submitting}
-                    >
-                        إلغاء
-                    </Button>
-                    <Button type="submit" disabled={submitting}>
-                        {submitting
-                            ? 'جاري الحفظ...'
-                            : editingExpense
-                              ? 'حفظ التعديلات'
-                              : 'إضافة'}
-                    </Button>
-                </DialogFooter>
-            </form>
+                <option value={null}>اختر الفئة</option>
+                {#each categories as cat (cat.id)}
+                    <option value={cat.id}>{cat.name}</option>
+                {/each}
+            </select>
+            {#if formErrors.category_id || errorText(serverErrors, 'category_id')}
+                <p class="text-[11.5px] text-destructive">
+                    {formErrors.category_id || errorText(serverErrors, 'category_id')}
+                </p>
+            {/if}
         </div>
-    </div>
-{/if}
 
-<!-- Delete Confirmation Modal -->
-{#if confirmDeleteOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="flex flex-col gap-1.5">
+            <label for="expense-description" class="text-[11.5px] text-muted-foreground">الوصف</label>
+            <input
+                id="expense-description"
+                type="text"
+                bind:value={form.description}
+                placeholder="مثال: مطعم، فاتورة كهرباء…"
+                class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {#if formErrors.description || errorText(serverErrors, 'description')}
+                <p class="text-[11.5px] text-destructive">
+                    {formErrors.description || errorText(serverErrors, 'description')}
+                </p>
+            {/if}
+        </div>
+
         <button
             type="button"
-            class="fixed inset-0 bg-black/50 cursor-default"
-            aria-label="إغلاق"
-            onclick={() => {
-                confirmDeleteOpen = false;
-                editingExpense = null;
-            }}
-        ></button>
-        <div
-            class="relative z-10 w-full max-w-md rounded-lg border bg-background p-6 shadow-lg"
-            role="dialog"
-            aria-modal="true"
+            onclick={() => (form.is_recurring = !form.is_recurring)}
+            aria-pressed={form.is_recurring}
+            class="inline-flex min-h-11 items-center gap-2.5 rounded-2xl border px-3 text-start transition-transform active:scale-[.99] {form.is_recurring
+                ? 'border-primary bg-primary/8'
+                : 'border-input'}"
         >
-            <div class="flex flex-col items-center gap-3 text-center">
-                <div
-                    class="flex size-12 items-center justify-center rounded-full bg-destructive/10"
-                >
-                    <AlertTriangle class="size-6 text-destructive" />
-                </div>
-                <DialogTitle>تأكيد الحذف</DialogTitle>
-                <DialogDescription>
-                    هل أنت متأكد من حذف مصروف "{editingExpense?.description}"؟
-                    لا يمكن التراجع عن هذا الإجراء.
-                </DialogDescription>
-            </div>
-
-            <DialogFooter class="mt-6">
-                <Button
-                    variant="outline"
-                    onclick={() => {
-                        confirmDeleteOpen = false;
-                        editingExpense = null;
-                    }}
-                    disabled={submitting}
-                >
-                    إلغاء
-                </Button>
-                <Button
-                    variant="destructive"
-                    onclick={handleDelete}
-                    disabled={submitting}
-                >
-                    {submitting ? 'جاري الحذف...' : 'حذف'}
-                </Button>
-            </DialogFooter>
-        </div>
+            <span
+                class="grid size-5 shrink-0 place-items-center rounded-md border {form.is_recurring
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-input'}"
+            >
+                {#if form.is_recurring}<Check class="size-3.5" />{/if}
+            </span>
+            <span class="text-[13px] {form.is_recurring ? 'font-semibold text-primary' : ''}">مصروف متكرر</span>
+        </button>
     </div>
-{/if}
+
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeModal}
+            disabled={submitting}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85 disabled:opacity-45"
+        >
+            إلغاء
+        </button>
+        <button
+            type="button"
+            onclick={handleSubmit}
+            disabled={submitting}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-45"
+        >
+            <Check class="size-[18px]" />
+            {submitting ? 'جارٍ الحفظ…' : editingExpense ? 'حفظ التعديلات' : 'إضافة'}
+        </button>
+    {/snippet}
+</SheetShell>
+
+<AmountSheet
+    bind:open={amountSheetOpen}
+    bind:value={form.amount}
+    title="مبلغ المصروف"
+    quickAdd={[10, 50, 100]}
+/>
+
+<DateSheet bind:open={dateSheetOpen} bind:value={form.expense_date} title="تاريخ المصروف" />
+
+<ConfirmSheet
+    bind:open={confirmDeleteOpen}
+    message={`سيُحذف مصروف «${editingExpense?.description || editingExpense?.category || ''}» نهائياً ولا يمكن التراجع.`}
+    loading={submitting}
+    onConfirm={handleDelete}
+/>

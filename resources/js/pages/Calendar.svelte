@@ -15,13 +15,7 @@
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import FinanceCalendar from '@/components/FinanceCalendar.svelte';
-    import {
-        Dialog,
-        DialogContent,
-        DialogDescription,
-        DialogFooter,
-        DialogTitle,
-    } from '@/components/ui/dialog';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
     import { calendar } from '@/routes';
     import { pay as payBill } from '@/routes/bills';
     import { pay as payInstallment } from '@/routes/installments';
@@ -226,67 +220,69 @@
     {/if}
 </div>
 
-<Dialog bind:open={sheetOpen}>
-    <DialogContent class="calendar-sheet max-w-lg rounded-t-3xl p-5 md:rounded-3xl">
-        <DialogTitle>{selectedDateLabel}</DialogTitle>
-        <DialogDescription>أحداث هذا اليوم ومواعيد استحقاقها.</DialogDescription>
-
-        {#if selectedEvents.length}
-            <ul class="mt-5 flex flex-col gap-3">
-                {#each selectedEvents as event (event.id ?? event.kind + event.date)}
-                    <li class="rounded-xl border border-border bg-secondary p-3">
-                        <div class="flex items-center gap-3">
-                            <span class="grid size-9 shrink-0 place-items-center rounded-[10px]" style="background-color: color-mix(in srgb, {EVENT_KIND[event.kind].color} 12%, transparent); color: {EVENT_KIND[event.kind].color}">
-                                {#if event.isPaid}
-                                    <CheckCircle2 class="size-[17px]" />
-                                {:else}
-                                    <CircleAlert class="size-[17px]" />
-                                {/if}
-                            </span>
-                            <div class="min-w-0 flex-1">
-                                <p class="truncate text-sm font-medium">{event.label}</p>
-                                <p class="text-xs text-muted-foreground">{EVENT_KIND[event.kind].label} · {event.isPaid ? 'تم الدفع' : 'غير مدفوع'}</p>
-                            </div>
-                            <span class="shrink-0 text-sm font-semibold tabular-nums">{formatCurrency(event.amount)}</span>
+<SheetShell bind:open={sheetOpen} title={selectedDateLabel} subtitle="أحداث هذا اليوم ومواعيد استحقاقها" onClose={closeSheet}>
+    {#if selectedEvents.length}
+        <ul class="flex flex-col gap-2.5">
+            {#each selectedEvents as event (event.id ?? event.kind + event.date)}
+                <li class="rounded-2xl border border-border bg-card p-3">
+                    <div class="flex items-center gap-3">
+                        <span
+                            class="grid size-10 shrink-0 place-items-center rounded-xl"
+                            style="background-color: color-mix(in srgb, {EVENT_KIND[event.kind].color} 12%, transparent); color: {EVENT_KIND[event.kind].color}"
+                        >
+                            {#if event.isPaid}
+                                <CheckCircle2 class="size-[19px]" />
+                            {:else}
+                                <CircleAlert class="size-[19px]" />
+                            {/if}
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-[14px] font-semibold">{event.label}</p>
+                            <p class="truncate text-[11.5px] text-muted-foreground">
+                                {EVENT_KIND[event.kind].label} · {event.isPaid ? 'تم الدفع' : 'غير مدفوع'}
+                            </p>
                         </div>
-                        <div class="mt-3 flex gap-2">
+                        <span class="shrink-0 text-[14px] font-semibold tabular-nums">{formatCurrency(event.amount)}</span>
+                    </div>
+                    {#if event.canPay || event.editUrl}
+                        <div class="mt-2.5 flex gap-2">
                             {#if event.canPay}
-                                <button type="button" onclick={() => markPaid(event)} class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground">
+                                <button
+                                    type="button"
+                                    onclick={() => markPaid(event)}
+                                    class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground transition-transform active:scale-[.98]"
+                                >
                                     <CheckCircle2 class="size-4" /> تم الدفع
                                 </button>
                             {/if}
                             {#if event.editUrl}
-                                <Link href={event.editUrl} onclick={closeSheet} class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-input bg-card px-3 text-xs font-medium no-underline hover:bg-background">
+                                <Link
+                                    href={event.editUrl}
+                                    onclick={closeSheet}
+                                    class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-input px-3 text-[12.5px] font-medium no-underline"
+                                >
                                     <Pencil class="size-4" /> تعديل
                                 </Link>
                             {/if}
                         </div>
-                    </li>
-                {/each}
-            </ul>
-        {:else}
-            <div class="mt-5 rounded-xl border border-border bg-secondary">
-                <div class="p-4 text-center">
-                    <CalendarDays class="mx-auto size-6 text-muted-foreground" />
-                    <p class="mt-2 text-sm font-medium">لا توجد أحداث في هذا اليوم</p>
-                </div>
-            </div>
-        {/if}
+                    {/if}
+                </li>
+            {/each}
+        </ul>
+    {:else}
+        <div class="rounded-2xl border border-border bg-card p-6 text-center">
+            <CalendarDays class="mx-auto size-6 text-muted-foreground" />
+            <p class="mt-2 text-[13px] font-medium">لا توجد أحداث في هذا اليوم</p>
+        </div>
+    {/if}
 
-        <DialogFooter class="mt-5">
-            <button type="button" onclick={closeSheet} class="min-h-11 rounded-lg border border-input bg-card px-4 text-sm font-medium hover:bg-secondary">إغلاق</button>
-        </DialogFooter>
-    </DialogContent>
-</Dialog>
-
-<style>
-    :global(div:has(> .calendar-sheet)) {
-        align-items: flex-end;
-    }
-
-    @media (min-width: 768px) {
-        :global(div:has(> .calendar-sheet)) {
-            align-items: center;
-        }
-    }
-</style>
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeSheet}
+            class="inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85"
+        >
+            إغلاق
+        </button>
+    {/snippet}
+</SheetShell>

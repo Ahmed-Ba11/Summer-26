@@ -15,6 +15,7 @@
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import CategoryDonut from '@/components/CategoryDonut.svelte';
+    import DateSheet from '@/components/ui/DateSheet.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
     import MonthlyBars from '@/components/MonthlyBars.svelte';
@@ -70,8 +71,15 @@
             })),
     );
 
-    function selectMonth(event: Event): void {
-        const value = (event.currentTarget as HTMLInputElement).value;
+    let monthSheetOpen = $state(false);
+    let monthIso = $state('');
+
+    $effect(() => {
+        monthIso = month ? `${month}-01` : '';
+    });
+
+    function selectMonth(iso: string): void {
+        const value = iso.slice(0, 7);
 
         if (!value || value === month) {
             return;
@@ -94,11 +102,15 @@
             <p class="text-sm text-muted-foreground">اقرأ اتجاهات دخلك وإنفاقك من بياناتك المسجلة.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <label class="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-                <CalendarRange class="size-4 text-muted-foreground" />
+            <button
+                type="button"
+                onclick={() => (monthSheetOpen = true)}
+                class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm tabular-nums transition-transform active:scale-[.99]"
+            >
+                <CalendarRange class="size-[18px] text-muted-foreground" />
                 <span class="sr-only">شهر التقرير</span>
-                <input type="month" value={month} onchange={selectMonth} class="bg-transparent text-sm outline-none" />
-            </label>
+                {month}
+            </button>
             <a href={exportHref} download class="inline-flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-secondary">
                 <Download class="size-4" /> تصدير CSV
             </a>
@@ -189,3 +201,5 @@
         </div>
     {/if}
 </div>
+
+<DateSheet bind:open={monthSheetOpen} bind:value={monthIso} title="شهر التقرير" saveLabel="عرض" onSave={selectMonth} />
