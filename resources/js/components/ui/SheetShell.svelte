@@ -1,3 +1,19 @@
+<script module lang="ts">
+    /**
+     * عدّاد الألواح المفتوحة — مشترك بين كل نسخ المكوّن.
+     *
+     * اللوح المتداخل (مبلغ يُفتح من داخل لوح إضافة) يأخذ طبقة أعلى من أبيه،
+     * فلا يُدفن تحته. والعدّاد نفسه يحدّد أيّ لوح يستجيب لـEscape: الأعلى فقط.
+     */
+    let openSheets = 0;
+
+    /**
+     * الطبقة الأساس **فوق** شريط التنقّل السفلي (`z-[55]` في `AppNav`).
+     * بدونها يرسم الشريط فوق تذييل اللوح فيختفي زر الحفظ خلفه.
+     */
+    const BASE_LAYER = 60;
+</script>
+
 <script lang="ts">
     /**
      * الهيكل الموحّد لكل لوح في التطبيق.
@@ -50,6 +66,38 @@
 
     let panel = $state<HTMLElement | null>(null);
 
+    /** ترتيب هذا اللوح في مكدّس الألواح المفتوحة — 1 للأول، 2 للمتداخل فيه… */
+    let layer = $state(0);
+
+    $effect(() => {
+        if (!open) return;
+
+        layer = ++openSheets;
+
+        return () => {
+            openSheets = Math.max(0, openSheets - 1);
+            layer = 0;
+        };
+    });
+
+    /**
+     * ينقل اللوح إلى `document.body`.
+     *
+     * `position: fixed` ينسب نفسه لأقرب سلف فيه `transform` أو `filter` أو
+     * `contain` لا للنافذة — وهذا يجعل اللوح المفتوح من داخل صفحة أو لوح آخر
+     * يُقصّ داخل حاوية التمرير الخاصة بها. النقل إلى جذر المستند يقطع هذا
+     * الاحتمال من أصله بدل مطاردته صفحةً صفحة.
+     */
+    function portal(node: HTMLElement) {
+        document.body.appendChild(node);
+
+        return {
+            destroy() {
+                node.remove();
+            },
+        };
+    }
+
     function close() {
         if (showBack) onBack?.();
         else {
@@ -60,6 +108,8 @@
 
     function onKeydown(e: KeyboardEvent) {
         if (!open) return;
+        // اللوح الأعلى وحده يستجيب — وإلا أغلق Escape الأب والابن معاً.
+        if (layer !== openSheets) return;
         if (e.key === 'Escape') {
             e.preventDefault();
             open = false;
@@ -91,7 +141,11 @@
 <svelte:window on:keydown={onKeydown} />
 
 {#if open}
-    <div class="fixed inset-0 z-50 flex items-end justify-center md:items-center">
+    <div
+        use:portal
+        style="z-index: {BASE_LAYER + layer}"
+        class="fixed inset-0 flex items-end justify-center md:items-center"
+    >
         <button
             type="button"
             class="absolute inset-0 bg-black/45"
@@ -107,7 +161,7 @@
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            class="relative flex max-h-[92vh] w-full flex-col rounded-t-3xl bg-card shadow-lg md:max-h-[86vh] md:max-w-md md:rounded-3xl"
+            class="relative flex max-h-[92vh] max-h-[92dvh] w-full flex-col rounded-t-3xl bg-card shadow-lg md:max-h-[86vh] md:max-h-[86dvh] md:max-w-md md:rounded-3xl"
         >
             <!-- مقبض السحب — جوال فقط -->
             <div class="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border md:hidden"></div>
