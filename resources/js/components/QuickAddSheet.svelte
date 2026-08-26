@@ -1,20 +1,26 @@
 <script lang="ts">
     /**
-     * لوح الإضافة السريعة — من 9 خطوات إلى 3.
+     * لوح الإضافة السريعة — خطوتان لا شاشة واحدة مكدّسة.
      *
-     * المبلغ هو البطل. الفئة بضغطة. الوصف اختياري — إلا لفئة «أخرى»
-     * فيصير إلزامياً، لأن «أخرى بلا وصف» سجل بلا معنى بعد أسبوع.
+     * الخطوة 1 · الإدخال: المبلغ بطل الشاشة، الفئة بضغطة، الوصف اختياري —
+     * إلا لفئة «أخرى» فيصير إلزامياً، لأن «أخرى بلا وصف» سجل بلا معنى.
      *
-     * معاينة الأثر فوق زر الحفظ تتحدّث مع كل رقم وكل فئة — فيعرف
-     * المستخدم النتيجة **قبل** الحفظ، وهذي اللحظة الوحيدة اللي يقدر
-     * يغيّر فيها قراره.
+     * الخطوة 2 · التمويل: تظهر **فقط** لما يتجاوز المصروف المتبقي للصرف.
+     * فصلها عن الإدخال ضروري — السؤال «من وين جاء المبلغ؟» يستحق شاشة
+     * كاملة، وحشره تحت لوحة الأرقام كان يطلع به عن حدود الشاشة.
+     *
+     * التحذيرات: **سطر واحد** الأشدّ خطورة فوق لوحة الأرقام ليبقى قريباً
+     * من الإبهام، والبقيّة خلف «التفاصيل». تكديس أربع بطاقات تحذير يجعل
+     * المستخدم يتجاهلها كلها.
      */
     import { router } from '@inertiajs/svelte';
+    import ArrowLeft from 'lucide-svelte/icons/arrow-left';
     import Check from 'lucide-svelte/icons/check';
     import Delete from 'lucide-svelte/icons/delete';
     import Ellipsis from 'lucide-svelte/icons/ellipsis';
     import TriangleAlert from 'lucide-svelte/icons/triangle-alert';
     import Info from 'lucide-svelte/icons/info';
+    import Wand from 'lucide-svelte/icons/wand-sparkles';
     import SheetShell from '@/components/ui/SheetShell.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import FundingSourcePicker, {
@@ -31,6 +37,7 @@
         availableToSpend,
         type Check as RuleCheck,
         type FinancialContext,
+        type Severity,
     } from '@/lib/money-rules';
 
     interface Cat {
@@ -74,6 +81,9 @@
     let description = $state('');
     let confirmed = $state(false);
     let submitting = $state(false);
+    /** 1 = الإدخال · 2 = «من وين جاء المبلغ؟» */
+    let step = $state<1 | 2>(1);
+    let showDetails = $state(false);
     let funding = $state<Funding>({
         source: null,
         savingsGoalId: null,
@@ -124,10 +134,28 @@
             });
         }
 
-        // عند وجود عجز، تحذير «المتبقي بيصير سالب» يغطّيه FundingSourcePicker —
+        // عند وجود عجز، تحذير «المتبقي بيصير سالب» تغطّيه الخطوة 2 —
         // لا نكرّره فيتشوّش الرسالة (STAGE3-funding بند 4و).
         return shortfall > 0 ? list.filter((c) => c.severity !== 'danger') : list;
     });
+
+    /**
+     * اقتراح التصحيح يُعرض رقاقةً تحت الرقم — نفس مكانه في `AmountSheet` —
+     * لا بطاقة تحذير مستقلة، فهو دعوة لتصحيح لا إنذار.
+     */
+    const suggestion = $derived(checks.find((c) => c.suggestion) ?? null);
+
+    const SEVERITY_ORDER: Severity[] = ['block', 'danger', 'warn', 'info'];
+
+    /** التحذيرات مرتّبة بالأشدّ أولاً — الأول وحده يظهر، والباقي خلف «التفاصيل». */
+    const warnings = $derived(
+        [...checks.filter((c) => c !== suggestion)].sort(
+            (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity),
+        ),
+    );
+
+    /** ما يُعرض في الخطوة 2 أسفل الخيارات — خبر لا منافس على الانتباه. */
+    const fundingNotes = $derived(warnings.map((c) => ({ title: c.title, detail: c.detail })));
 
     const blocked = $derived(isBlocked(checks));
     const fundingReady = $derived(
@@ -137,7 +165,14 @@
             || funding.source === 'overspend',
     );
     const mustConfirm = $derived(needsConfirm(checks) && !confirmed);
-    const canSave = $derived(amount > 0 && !blocked && fundingReady && !submitting);
+    /** يكفي لعبور الخطوة 1 — لا يشترط اختيار مصدر تمويل بعد. */
+    const canProceed = $derived(amount > 0 && !blocked && !submitting);
+    const canSave = $derived(canProceed && fundingReady);
+
+    // المبلغ نزل تحت المتبقي بعد الرجوع؟ ما عاد فيه خطوة ثانية.
+    $effect(() => {
+        if (shortfall === 0 && step === 2) step = 1;
+    });
 
     // ── معاينة الأثر ──────────────────────────────────────────────────
     const preview = $derived.by(() => {
@@ -185,6 +220,8 @@
         raw = '';
         description = '';
         confirmed = false;
+        step = 1;
+        showDetails = false;
         categoryId = lastCategoryId;
         funding = {
             source: null,
@@ -233,8 +270,12 @@
     }
 
     function onKeydown(e: KeyboardEvent) {
-        if (!open) return;
-        if (e.key === 'Enter' && canSave) return submit();
+        if (!open || step !== 1) return;
+        if (e.key === 'Enter') {
+            if (shortfall > 0 && canProceed) return (step = 2);
+            if (canSave) return submit();
+            return;
+        }
         if (/^[0-9]$/.test(e.key)) return press(e.key);
         if (e.key === '.') return press('.');
         if (e.key === 'Backspace' && (e.target as HTMLElement)?.tagName !== 'INPUT') return press('del');
@@ -252,10 +293,24 @@
 
 <SheetShell
     bind:open
-    title={mode === 'income' ? 'إضافة دخل' : 'إضافة مصروف'}
-    subtitle="اليوم · {today}"
+    title={step === 2 ? 'من وين جاء المبلغ؟' : mode === 'income' ? 'إضافة دخل' : 'إضافة مصروف'}
+    subtitle={step === 2 ? (selected?.name ?? '') : `اليوم · ${today}`}
+    showBack={step === 2}
+    steps={shortfall > 0 ? 2 : 0}
+    currentStep={step}
+    stepLabel={shortfall > 0 ? `الخطوة ${step} من 2` : ''}
+    onBack={() => (step = 1)}
     onClose={reset}
 >
+    {#if step === 2}
+        <FundingSourcePicker
+            {amount}
+            {shortfall}
+            goals={fundableGoals}
+            notes={fundingNotes}
+            bind:value={funding}
+        />
+    {:else}
     <div class="flex flex-col gap-3">
         <!-- مصروف / دخل -->
         <div class="flex rounded-2xl border border-border bg-secondary p-[3px]">
@@ -282,14 +337,31 @@
         </div>
 
         <!-- المبلغ -->
-        <p class="text-center text-[42px] leading-none font-semibold tracking-[-0.04em] tabular-nums">
-            {#if raw}
-                {formatAmount(amount)}
-            {:else}
-                <span class="text-input">0</span>
+        <div class="text-center">
+            <p class="text-[42px] leading-none font-semibold tracking-[-0.04em] tabular-nums">
+                {#if raw}
+                    {formatAmount(amount)}
+                {:else}
+                    <span class="text-input">0</span>
+                {/if}
+                <span class="ms-1.5 text-[15px] font-medium text-muted-foreground">ر.س</span>
+            </p>
+
+            <!-- اقتراح التصحيح — رقاقة تحت الرقم لا بطاقة تحذير -->
+            {#if suggestion?.suggestion}
+                <button
+                    type="button"
+                    onclick={() => {
+                        const v = suggestion?.suggestion?.value;
+                        if (v !== undefined) raw = (v / 100).toString();
+                    }}
+                    class="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-primary/25 bg-primary/8 px-3 text-[11.5px] font-semibold text-primary transition-transform active:scale-[.98]"
+                >
+                    <Wand class="size-[17px]" stroke-width="1.9" />
+                    {suggestion.suggestion.label}
+                </button>
             {/if}
-            <span class="ms-1.5 text-[15px] font-medium text-muted-foreground">ر.س</span>
-        </p>
+        </div>
 
         <!-- رقائق سريعة ومتعلَّمة -->
         <div class="flex flex-wrap justify-center gap-1.5">
@@ -345,6 +417,56 @@
                 : 'border-input'}"
         />
 
+        <!-- معاينة الأثر — سطر واحد مضغوط، النتيجة قبل الحفظ -->
+        {#if preview}
+            <div class="flex items-center justify-between gap-2.5 rounded-2xl border border-border bg-secondary px-3 py-2 text-[11.5px]">
+                <span class="text-muted-foreground">المتبقي لك</span>
+                <span class="whitespace-nowrap text-foreground/75">
+                    <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.before)}</b>
+                    <span class="mx-0.5 text-input">←</span>
+                    <b class="font-semibold tabular-nums {preview.after < 0 ? 'text-destructive' : 'text-foreground'}">
+                        {formatAmount(preview.after)}
+                    </b> ر.س
+                </span>
+            </div>
+        {/if}
+
+        <!-- التحذيرات — الأشدّ وحده فوق لوحة الأرقام، والباقي خلف «التفاصيل» -->
+        {#if warnings.length}
+            {@const top = warnings[0]}
+            {@const st = SEVERITY_STYLES[top.severity]}
+            <div class="rounded-2xl border px-3 py-2 text-[11.5px] {st.box}">
+                <div class="flex items-start gap-2.5">
+                    {#if top.severity === 'info'}
+                        <Info class="mt-0.5 size-[17px] shrink-0 {st.icon}" stroke-width="1.9" />
+                    {:else}
+                        <TriangleAlert class="mt-0.5 size-[17px] shrink-0 {st.icon}" stroke-width="1.9" />
+                    {/if}
+                    <p class="min-w-0 flex-1 font-semibold">{top.title}</p>
+                    {#if warnings.length > 1 || top.detail}
+                        <button
+                            type="button"
+                            onclick={() => (showDetails = !showDetails)}
+                            aria-expanded={showDetails}
+                            class="-my-2 inline-flex min-h-11 shrink-0 items-center px-1.5 text-[11.5px] font-medium underline underline-offset-2"
+                        >
+                            {showDetails ? 'إخفاء' : 'التفاصيل'}
+                        </button>
+                    {/if}
+                </div>
+
+                {#if showDetails}
+                    {#if top.detail}<p class="mt-1 opacity-85">{top.detail}</p>{/if}
+                    {#each warnings.slice(1) as c (c.title)}
+                        <div class="mt-2 border-t border-current/15 pt-2">
+                            <p class="font-semibold">{c.title}</p>
+                            {#if c.detail}<p class="opacity-85">{c.detail}</p>{/if}
+                        </div>
+                    {/each}
+                {/if}
+            </div>
+        {/if}
+
         <!-- لوحة الأرقام -->
         <div class="grid grid-cols-3 gap-2">
             {#each KEYS as k (k)}
@@ -377,85 +499,69 @@
             </button>
         </div>
 
-        <!-- التحذيرات -->
-        {#each checks as c (c.title)}
-            {@const st = SEVERITY_STYLES[c.severity]}
-            <div class="flex items-start gap-2.5 rounded-2xl border px-3 py-2 text-[11.5px] {st.box}">
-                {#if c.severity === 'info'}
-                    <Info class="mt-0.5 size-3.5 shrink-0 {st.icon}" />
-                {:else}
-                    <TriangleAlert class="mt-0.5 size-3.5 shrink-0 {st.icon}" />
-                {/if}
-                <div class="min-w-0 flex-1">
-                    <p class="font-semibold">{c.title}</p>
-                    {#if c.detail}<p class="opacity-85">{c.detail}</p>{/if}
-                </div>
-                {#if c.suggestion}
-                    <button
-                        type="button"
-                        class="inline-flex min-h-9 shrink-0 items-center rounded-lg border border-current/30 px-2 text-[11px] font-medium"
-                        onclick={() => (raw = (c.suggestion!.value / 100).toString())}
-                    >
-                        {c.suggestion.label}
-                    </button>
-                {/if}
-            </div>
-        {/each}
-
-        {#if shortfall > 0}
-            <FundingSourcePicker {shortfall} goals={fundableGoals} bind:value={funding} />
-        {/if}
-
-        <!-- معاينة الأثر -->
-        {#if preview}
-            <div class="rounded-2xl border border-border bg-secondary px-3 py-2">
-                <div class="flex items-center justify-between gap-2.5 py-[3px] text-[11.5px]">
-                    <span class="text-muted-foreground">المتبقي لك</span>
-                    <span class="whitespace-nowrap text-foreground/75">
-                        <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.before)}</b>
-                        <span class="mx-0.5 text-input">←</span>
-                        <b class="font-semibold tabular-nums {preview.after < 0 ? 'text-destructive' : 'text-foreground'}">
-                            {formatAmount(preview.after)}
-                        </b> ر.س
-                    </span>
-                </div>
-                {#if context.daysUntilSalary > 0}
-                    <div class="flex items-center justify-between gap-2.5 py-[3px] text-[11.5px]">
-                        <span class="text-muted-foreground">الحد اليومي الآمن</span>
-                        <span class="whitespace-nowrap text-foreground/75">
-                            <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.dailyBefore)}</b>
-                            <span class="mx-0.5 text-input">←</span>
-                            <b class="font-semibold text-foreground tabular-nums">{formatAmount(preview.dailyAfter)}</b> ر.س
-                        </span>
-                    </div>
-                {/if}
-            </div>
-        {/if}
     </div>
+    {/if}
 
     {#snippet footer()}
-        <button
-            type="button"
-            disabled={!canSave}
-            onclick={submit}
-            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl text-[14.5px] font-semibold transition-transform active:scale-[.99] {mustConfirm
-                ? 'bg-destructive text-white'
-                : 'bg-primary text-primary-foreground'} disabled:bg-input disabled:text-muted-foreground"
-        >
-            {#if mustConfirm}
-                <TriangleAlert class="size-[18px]" /> أكمل رغم التحذير
-            {:else}
-                <Check class="size-[18px]" />
-                {amount > 0 ? `حفظ ${formatCurrency(amount)}` : 'حفظ'}
-            {/if}
-        </button>
-        <button
-            type="button"
-            class="grid size-12 shrink-0 place-items-center rounded-2xl border border-input text-foreground/75"
-            aria-label="خيارات إضافية"
-            title="التاريخ · متكرر · مرفق"
-        >
-            <Ellipsis class="size-[18px]" />
-        </button>
+        {#if step === 2}
+            <button
+                type="button"
+                onclick={() => (step = 1)}
+                class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85 transition-transform active:scale-[.98]"
+            >
+                رجوع
+            </button>
+            <button
+                type="button"
+                disabled={!canSave}
+                onclick={submit}
+                class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:bg-input disabled:text-muted-foreground"
+            >
+                <Check class="size-[18px]" stroke-width="1.9" />
+                حفظ {formatCurrency(amount)}
+            </button>
+        {:else if shortfall > 0}
+            <button
+                type="button"
+                disabled={!canProceed}
+                onclick={() => (step = 2)}
+                class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:bg-input disabled:text-muted-foreground"
+            >
+                التالي
+                <ArrowLeft class="size-[18px]" stroke-width="1.9" />
+            </button>
+            <button
+                type="button"
+                class="grid size-12 shrink-0 place-items-center rounded-2xl border border-input text-foreground/75"
+                aria-label="خيارات إضافية"
+                title="التاريخ · متكرر · مرفق"
+            >
+                <Ellipsis class="size-[18px]" stroke-width="1.9" />
+            </button>
+        {:else}
+            <button
+                type="button"
+                disabled={!canSave}
+                onclick={submit}
+                class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl text-[14.5px] font-semibold transition-transform active:scale-[.99] {mustConfirm
+                    ? 'bg-destructive text-white'
+                    : 'bg-primary text-primary-foreground'} disabled:bg-input disabled:text-muted-foreground"
+            >
+                {#if mustConfirm}
+                    <TriangleAlert class="size-[18px]" stroke-width="1.9" /> أكمل رغم التحذير
+                {:else}
+                    <Check class="size-[18px]" stroke-width="1.9" />
+                    {amount > 0 ? `حفظ ${formatCurrency(amount)}` : 'حفظ'}
+                {/if}
+            </button>
+            <button
+                type="button"
+                class="grid size-12 shrink-0 place-items-center rounded-2xl border border-input text-foreground/75"
+                aria-label="خيارات إضافية"
+                title="التاريخ · متكرر · مرفق"
+            >
+                <Ellipsis class="size-[18px]" stroke-width="1.9" />
+            </button>
+        {/if}
     {/snippet}
 </SheetShell>
