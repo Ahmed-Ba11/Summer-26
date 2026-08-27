@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\RecurringTransactionController;
 use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SetupController;
 use App\Http\Requests\ExpenseIndexRequest;
 use App\Http\Requests\IncomeIndexRequest;
 use App\Models\Bill;
@@ -30,6 +31,19 @@ use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 Route::inertia('/', 'Welcome')->name('home');
+
+// شاشة الترحيب — نفس الصفحة للضيف وللمستخدم الجديد، والزر وحده يختلف.
+Route::inertia('/welcome', 'Welcome')->middleware('auth')->name('welcome');
+
+// الإعداد في أربع خطوات
+Route::middleware(['auth'])->group(function () {
+    Route::get('/setup', [SetupController::class, 'show'])->name('setup');
+    Route::post('/setup/salary', [SetupController::class, 'salary'])->name('setup.salary');
+    Route::post('/setup/commitments', [SetupController::class, 'commitments'])->name('setup.commitments');
+    Route::post('/setup/budget', [SetupController::class, 'budget'])->name('setup.budget');
+    Route::post('/setup/finish', [SetupController::class, 'finish'])->name('setup.finish');
+    Route::post('/setup/step', [SetupController::class, 'step'])->name('setup.step');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard

@@ -2,6 +2,9 @@ import type { Appearance, ResolvedAppearance } from '@/types';
 
 export type { Appearance, ResolvedAppearance };
 
+export type FontScale = 'sm' | 'md' | 'lg';
+export type UiLocale = 'ar' | 'en';
+
 export type ThemeState = {
     appearance: {
         value: Appearance;
@@ -10,9 +13,16 @@ export type ThemeState = {
     updateAppearance: (value: Appearance) => void;
 };
 
-const appearance = $state<{ value: Appearance }>({ value: 'light' });
+const appearance = $state<{ value: Appearance }>({ value: 'system' });
 
 let themeChangeMediaQuery: MediaQueryList | null = null;
+
+/** 15 · 16 · 17 بكسل — الفرق محسوس بلا كسر أي تخطيط. */
+const FONT_SIZES: Record<FontScale, string> = {
+    sm: '15px',
+    md: '16px',
+    lg: '17px',
+};
 
 const prefersDark = (): boolean => {
     if (typeof window === 'undefined') {
@@ -62,7 +72,11 @@ const getStoredAppearance = (): Appearance => {
 };
 
 const handleSystemThemeChange = (): void => {
-    applyTheme(appearance.value);
+    // `system` يتبع تفضيل الجهاز فعلاً — التبديل في إعدادات النظام يظهر فوراً
+    // بلا إعادة تحميل، وإلا صار الخيار اسماً بلا معنى.
+    if (appearance.value === 'system') {
+        applyTheme('system');
+    }
 };
 
 const detachThemeChangeListener = (): void => {
@@ -77,17 +91,37 @@ const detachThemeChangeListener = (): void => {
     themeChangeMediaQuery = null;
 };
 
+/** تفضيل الحساب — إن وُجد — يسبق ما هو محفوظ على الجهاز. */
+const serverAppearance = (): Appearance | null => {
+    if (typeof document === 'undefined') {
+        return null;
+    }
+
+    const raw = document.querySelector('script[data-page]')?.textContent;
+
+    if (!raw) {
+        return null;
+    }
+
+    try {
+        const theme = JSON.parse(raw)?.props?.auth?.user?.theme;
+
+        return theme === 'light' || theme === 'dark' || theme === 'system'
+            ? theme
+            : null;
+    } catch {
+        return null;
+    }
+};
+
 export function initializeTheme(): () => void {
     if (typeof window === 'undefined') {
         return () => {};
     }
 
-    if (!localStorage.getItem('appearance')) {
-        localStorage.setItem('appearance', 'light');
-        setCookie('appearance', 'light');
-    }
-
-    appearance.value = getStoredAppearance();
+    appearance.value = serverAppearance() ?? getStoredAppearance();
+    localStorage.setItem('appearance', appearance.value);
+    setCookie('appearance', appearance.value);
     applyTheme(appearance.value);
 
     detachThemeChangeListener();
@@ -106,6 +140,37 @@ export function updateAppearance(value: Appearance): void {
 
     setCookie('appearance', value);
     applyTheme(value);
+}
+
+/** الدورة: فاتح ← داكن ← تلقائي — لزر الاختصار في رأس كل صفحة. */
+export function cycleAppearance(): Appearance {
+    const order: Appearance[] = ['light', 'dark', 'system'];
+    const next = order[(order.indexOf(appearance.value) + 1) % order.length];
+    updateAppearance(next);
+
+    return next;
+}
+
+/** حجم الخط يضبط `html { font-size }` فتتبعه كل وحدات rem في الواجهة. */
+export function applyFontScale(scale: FontScale): void {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
+    document.documentElement.style.fontSize =
+        FONT_SIZES[scale] ?? FONT_SIZES.md;
+    setCookie('font_scale', scale);
+}
+
+/** تغيير اللغة يقلب `dir` كاملاً — التنسيقات المنطقية تجعل ذلك يعمل بلا CSS إضافي. */
+export function applyLocale(locale: UiLocale): void {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
+    document.documentElement.lang = locale;
+    document.documentElement.dir = locale === 'en' ? 'ltr' : 'rtl';
+    setCookie('ui_locale', locale);
 }
 
 export function themeState(): ThemeState {

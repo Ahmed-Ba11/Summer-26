@@ -16,7 +16,7 @@ class BackendCompletionTest extends TestCase
 
     public function test_onboarding_endpoints_persist_real_data_and_complete_on_step_three(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->onboarding()->create();
         $category = $user->categories()->firstOrFail();
 
         $this->actingAs($user)
@@ -90,7 +90,7 @@ class BackendCompletionTest extends TestCase
 
     public function test_onboarding_validation_and_category_ownership_are_enforced(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->onboarding()->create();
         $otherUser = User::factory()->create();
 
         $this->actingAs($user)

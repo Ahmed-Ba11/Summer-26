@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsureOnboarded;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,7 +15,7 @@ class BackendDataCorrectnessTest extends TestCase
 
     public function test_onboarding_requires_income_sources_and_month_only_installment_start_dates(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->onboarding()->create();
 
         $this->actingAs($user)
             ->post(route('onboarding.income'), [
@@ -71,7 +72,7 @@ class BackendDataCorrectnessTest extends TestCase
 
         $this->assertDatabaseCount('budgets', 0);
 
-        $legacyUser = User::factory()->create();
+        $legacyUser = User::factory()->onboarding()->create();
         $legacyCategory = $legacyUser->categories()->firstOrFail();
         $legacyUser->incomes()->create([
             'amount' => 10000,
@@ -85,7 +86,7 @@ class BackendDataCorrectnessTest extends TestCase
         ]);
 
         $this->actingAs($legacyUser)
-            ->withoutMiddleware(HandleInertiaRequests::class)
+            ->withoutMiddleware([HandleInertiaRequests::class, EnsureOnboarded::class])
             ->withHeaders($this->inertiaHeaders())
             ->get(route('dashboard'))
             ->assertJsonPath('props.onboardingComplete', false);

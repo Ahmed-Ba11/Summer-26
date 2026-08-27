@@ -1,5 +1,6 @@
 <script lang="ts">
     import Breadcrumbs from '@/components/Breadcrumbs.svelte';
+    import ThemeToggle from '@/components/ThemeToggle.svelte';
     import { SidebarTrigger } from '@/components/ui/sidebar';
     import type { BreadcrumbItem } from '@/types';
 
@@ -19,4 +20,9 @@
             <Breadcrumbs {breadcrumbs} />
         {/if}
     </div>
+
+    <div class="flex-1"></div>
+
+    <!-- اختصار المظهر — في متناول اليد في كل صفحة لا مدفوناً في الإعدادات -->
+    <ThemeToggle />
 </header>

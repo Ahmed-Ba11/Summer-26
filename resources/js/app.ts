@@ -11,7 +11,9 @@ createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
         switch (true) {
+            // الترحيب والإعداد شاشتان كاملتان قبل دخول التطبيق — بلا شريط تنقّل
             case name === 'Welcome':
+            case name === 'Setup':
                 return null;
             case name === 'Commitments':
                 return null; // الصفحة لفّت نفسها بمركّب AppLayout داخلي

@@ -2,6 +2,9 @@
 
 @import 'tw-animate-css';
 
+/* @font-face للعائلتين — العرض (Display) يلزم اسم «موفّر» في شاشة الترحيب */
+@import './fonts.css';
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
@@ -92,6 +95,9 @@
 
 :root {
     --radius: 0.75rem;
+
+    /* خط العرض — اسم «موفّر» في الترحيب وعناوين التقرير فقط */
+    --font-display: 'Thmanyah Display', 'IBM Plex Sans Arabic', serif;
 
     /* الأسطح والحبر */
     --background: #f5f4f0;

@@ -33,7 +33,21 @@ class UserFactory extends Factory
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
+            // الافتراضي «أنهى الإعداد» — وإلا صار كل اختبار لصفحة داخلية
+            // يصطدم بتحويل EnsureOnboarded بدل ما يختبر الصفحة نفسها.
+            'salary_day' => 27,
+            'onboarding_step' => 4,
+            'onboarding_completed_at' => now(),
         ];
+    }
+
+    /** مستخدم جديد لم يبدأ الإعداد — لاختبار الترحيب والإعداد. */
+    public function onboarding(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'onboarding_step' => 0,
+            'onboarding_completed_at' => null,
+        ]);
     }
 
     /**

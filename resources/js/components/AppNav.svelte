@@ -22,19 +22,19 @@
      * كل هدف لمس لا يقل عن 44×44px.
      */
     import { Link, page } from '@inertiajs/svelte';
+    import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
     import ChartNoAxesColumn from 'lucide-svelte/icons/chart-no-axes-column';
     import Ellipsis from 'lucide-svelte/icons/ellipsis';
     import LayoutGrid from 'lucide-svelte/icons/layout-grid';
-    import PanelRightClose from 'lucide-svelte/icons/panel-right-close';
     import PanelRightOpen from 'lucide-svelte/icons/panel-right-open';
     import Plus from 'lucide-svelte/icons/plus';
     import ReceiptText from 'lucide-svelte/icons/receipt-text';
     import Settings from 'lucide-svelte/icons/settings';
     import Target from 'lucide-svelte/icons/target';
-    import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
     import Vault from 'lucide-svelte/icons/vault';
     import AiAssistantIcon from '@/components/icons/AiAssistantIcon.svelte';
     import { formatAmount, formatPercent } from '@/lib/format';
+    import { longPress } from '@/lib/long-press';
 
     interface NavStats {
         remaining: number;
@@ -51,10 +51,13 @@
         stats,
         expanded = $bindable(false),
         onQuickAdd,
+        onQuickAddHold,
     }: {
         stats: NavStats;
         expanded?: boolean;
         onQuickAdd?: () => void;
+        /** ضغطة مطوّلة 500ms — تقفز لتسجيل مصروف مباشرة */
+        onQuickAddHold?: () => void;
     } = $props();
 
     const url = $derived(page.url ?? '');
@@ -77,7 +80,7 @@
         { group: 'أدوات', items: [
             { title: 'التقارير', href: '/reports', icon: ChartNoAxesColumn },
             { title: 'المساعد الذكي', href: '/assistant', icon: AiAssistantIcon },
-            { title: 'الإعدادات', href: '/settings/profile', icon: Settings },
+            { title: 'الإعدادات', href: '/settings', icon: Settings },
         ]},
     ];
 
@@ -109,7 +112,9 @@
     );
 
     function onKeydown(e: KeyboardEvent) {
-        if (e.key === 'Escape' && moreOpen) moreOpen = false;
+        if (e.key === 'Escape' && moreOpen) {
+moreOpen = false;
+}
     }
 </script>
 
@@ -230,7 +235,7 @@
     </Link>
 
     <div class="w-full {expanded ? 'border-t border-sidebar-border pt-2.5' : 'flex justify-center'}">
-        <Link href="/settings/profile" class="flex items-center gap-2.5 rounded-xl no-underline {expanded ? 'w-full px-2 py-1.5 hover:bg-secondary' : ''}">
+        <Link href="/settings" class="flex items-center gap-2.5 rounded-xl no-underline {expanded ? 'w-full px-2 py-1.5 hover:bg-secondary' : ''}">
             <span class="grid size-9 shrink-0 place-items-center rounded-full border border-sidebar-border bg-secondary text-[12.5px] font-semibold text-foreground/75">
                 {user?.name?.[0] ?? 'م'}
             </span>
@@ -294,8 +299,10 @@
 
     <!-- زر الإضافة — أقرب نقطة للإبهام -->
     <div class="grid w-[68px] shrink-0 place-items-center">
-        <button type="button" onclick={() => onQuickAdd?.()} aria-label="إضافة سريعة"
-            class="-mt-6 grid size-[58px] place-items-center rounded-full border-4 border-card bg-primary text-primary-foreground shadow-[0_5px_16px_rgba(44,74,110,.32)] transition-transform active:scale-95">
+        <button type="button" onclick={() => onQuickAdd?.()}
+            use:longPress={{ onHold: () => onQuickAddHold?.() }}
+            aria-label="إضافة سريعة — اضغط مطوّلاً لتسجيل مصروف"
+            class="-mt-6 grid size-[58px] place-items-center rounded-full border-4 border-card bg-primary text-primary-foreground shadow-[0_5px_16px_rgba(44,74,110,.32)] transition-transform select-none active:scale-95">
             <Plus class="size-7" stroke-width="2.4" />
         </button>
     </div>

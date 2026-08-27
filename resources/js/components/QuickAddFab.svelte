@@ -1,99 +1,67 @@
 <script lang="ts">
     /**
-     * زر الإضافة السريعة العائم.
+     * زر الإضافة السريعة — ومضيف ألواح الوصول السريع كلّها.
      *
      * المشكلة التي يحلّها: لإضافة مصروف، المستخدم كان لازم ينتقل لصفحة
-     * المصاريف ثم يفتح مودال — احتكاك في أكثر إجراء يتكرّر يومياً.
+     * المصاريف ثم يفتح مودالاً — احتكاك في أكثر إجراء يتكرّر يومياً.
      *
-     * يُستدعى مرّة واحدة من AppSidebarLayout فيظهر في كل الصفحات.
-     * موضعه في يسار الشاشة (inset-inline-end في RTL) حتى لا يغطي بداية
-     * صفوف الجداول.
+     * يُستدعى مرّة واحدة من `AppSidebarLayout` فيظهر في كل الصفحات، ويملك
+     * لوحَي الوصول السريع: `QuickAddMenu` (الأربعة إجراءات) و`QuickAddSheet`
+     * (المصروف والدخل بقواعد التمويل). شريط التنقّل السفلي على الجوال يفتح
+     * نفس اللوحين عبر `menuOpen` و`sheetOpen` — بنسخة واحدة لا نسختين.
+     *
+     * الزر العائم نفسه للديسكتوب فقط: على الجوال «+» في الشريط السفلي أقرب
+     * للإبهام، وزران للإضافة في شاشة واحدة تشتيت.
      */
-    import { page, router } from '@inertiajs/svelte';
+    import { page } from '@inertiajs/svelte';
     import Plus from 'lucide-svelte/icons/plus';
-    import ShoppingCart from 'lucide-svelte/icons/shopping-cart';
-    import TrendingUp from 'lucide-svelte/icons/trending-up';
-    import ReceiptText from 'lucide-svelte/icons/receipt-text';
-    import Vault from 'lucide-svelte/icons/vault';
+    import QuickAddMenu from '@/components/QuickAddMenu.svelte';
     import QuickAddSheet from '@/components/QuickAddSheet.svelte';
+    import { longPress } from '@/lib/long-press';
 
-    let { sheetOpen = $bindable(false) }: { sheetOpen?: boolean } = $props();
-    let open = $state(false);
-    let sheetMode = $state<'expense' | 'income'>('expense');
+    let {
+        menuOpen = $bindable(false),
+        sheetOpen = $bindable(false),
+        sheetMode = $bindable<'expense' | 'income'>('expense'),
+    }: {
+        menuOpen?: boolean;
+        sheetOpen?: boolean;
+        sheetMode?: 'expense' | 'income';
+    } = $props();
+
     const quickAdd = $derived(page.props.quickAdd ?? null);
 
-    const actions = [
-        { label: 'مصروف', icon: ShoppingCart, color: 'var(--chart-1)', kind: 'expense' as const },
-        { label: 'دخل', icon: TrendingUp, color: 'var(--chart-6)', kind: 'income' as const },
-        { label: 'فاتورة', icon: ReceiptText, color: 'var(--chart-7)', href: '/bills?new=1' },
-        { label: 'ادخار', icon: Vault, color: 'var(--chart-3)', href: '/savings?new=1' },
-    ];
-
-    function go(action: (typeof actions)[number]) {
-        open = false;
-
-        if ('kind' in action && action.kind) {
-            sheetMode = action.kind;
-            sheetOpen = true;
-
-            return;
-        }
-
-        router.visit(action.href);
-    }
-
-    function onKeydown(e: KeyboardEvent) {
-        if (e.key === 'Escape' && open) {
-            open = false;
-        }
+    /** الضغطة المطوّلة تقفز للمصروف مباشرة — أكثر الإجراءات تكراراً. */
+    function openExpense() {
+        menuOpen = false;
+        sheetMode = 'expense';
+        sheetOpen = true;
     }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-{#if open}
-    <button
-        type="button"
-        class="fixed inset-0 z-40 cursor-default bg-transparent"
-        onclick={() => (open = false)}
-        aria-label="إغلاق قائمة الإضافة"
-    ></button>
-{/if}
-
-<div class="fixed bottom-6 z-50 hidden flex-col items-start gap-2.5 md:flex" style="inset-inline-end: 1.5rem">
-    {#if open}
-        <div class="flex flex-col gap-1.5">
-            {#each actions as a, i (a.label)}
-                {@const Icon = a.icon}
-                <button
-                    type="button"
-                    onclick={() => go(a)}
-                    class="flex items-center gap-2.5 rounded-full border border-border bg-card py-2 ps-2.5 pe-4 text-[13px] shadow-lg transition-transform hover:scale-[1.03]"
-                    style="animation: fab-in 180ms ease-out both; animation-delay: {i * 30}ms"
-                >
-                    <span class="grid size-[22px] place-items-center rounded-full" style="background-color: {a.color}">
-                        <Icon class="size-[13px] text-white" />
-                    </span>
-                    {a.label}
-                </button>
-            {/each}
-        </div>
-    {/if}
-
-    <button
-        type="button"
-        onclick={() => (open = !open)}
-        aria-expanded={open}
-        aria-label={open ? 'إغلاق الإضافة السريعة' : 'إضافة سريعة'}
-        class="grid size-[58px] place-items-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform duration-200 {open
-            ? 'rotate-45'
-            : ''}"
-    >
-        <Plus class="size-6" />
-    </button>
-</div>
+<button
+    type="button"
+    onclick={() => (menuOpen = true)}
+    use:longPress={{ onHold: openExpense }}
+    aria-label="إضافة سريعة — اضغط مطوّلاً لتسجيل مصروف"
+    class="fixed bottom-6 z-50 hidden size-[58px] place-items-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform duration-200 select-none active:scale-95 md:grid"
+    style="inset-inline-end: 1.5rem"
+>
+    <Plus class="size-6" stroke-width="2.4" />
+</button>
 
 {#if quickAdd}
+    <QuickAddMenu
+        bind:open={menuOpen}
+        savingsGoals={quickAdd.savingsGoals}
+        dueCommitments={quickAdd.dueCommitments}
+        dueTodayCount={quickAdd.dueTodayCount}
+        onPick={(mode) => {
+            sheetMode = mode;
+            sheetOpen = true;
+        }}
+    />
+
     <QuickAddSheet
         bind:open={sheetOpen}
         bind:mode={sheetMode}
@@ -105,16 +73,3 @@
         fundableGoals={quickAdd.fundableGoals}
     />
 {/if}
-
-<style>
-    @keyframes fab-in {
-        from {
-            opacity: 0;
-            transform: translateY(8px) scale(0.96);
-        }
-        to {
-            opacity: 1;
-            transform: none;
-        }
-    }
-</style>

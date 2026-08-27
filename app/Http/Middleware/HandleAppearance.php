@@ -12,11 +12,20 @@ class HandleAppearance
     /**
      * Handle an incoming request.
      *
+     * المظهر واللغة وحجم الخط تُشارَك مع القالب لتُرسم من الخادم مباشرة.
+     * تفضيل المستخدم المسجَّل يسبق الكوكي — الكوكي لجهاز، والتفضيل لحساب.
+     *
      * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
-        View::share('appearance', $request->cookie('appearance') ?? 'system');
+        $user = $request->user();
+
+        $appearance = $user?->theme ?: ($request->cookie('appearance') ?? 'system');
+
+        View::share('appearance', $appearance);
+        View::share('uiLocale', $user?->locale ?: ($request->cookie('ui_locale') ?? 'ar'));
+        View::share('fontScale', $user?->font_scale ?: ($request->cookie('font_scale') ?? 'md'));
 
         return $next($request);
     }

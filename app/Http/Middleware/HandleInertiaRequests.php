@@ -164,6 +164,21 @@ class HandleInertiaRequests extends Middleware
                     ->values()
                     ->all();
 
+                // إيداع الادخار ودفع الالتزام يتمّان داخل لوح الوصول السريع
+                // بلا انتقال صفحة — فقائمتاهما تُرسَل مع بقيّة سياقه.
+                $commitmentService = CommitmentService::for($user);
+                $commitments = $commitmentService->hydrate(
+                    $user->commitments()->active()->orderBy('name')->get(),
+                    $period,
+                );
+                $unpaid = array_values(array_filter(
+                    $commitments,
+                    fn (array $c): bool => ! $c['is_paid_this_month'],
+                ));
+                usort($unpaid, fn (array $a, array $b): int => strcmp($a['due_date'], $b['due_date']));
+
+                $today = now()->toDateString();
+
                 return [
                     'context' => [
                         'monthlyIncome' => $context['monthlyIncome'],
@@ -173,6 +188,24 @@ class HandleInertiaRequests extends Middleware
                         'daysUntilSalary' => $period['daysLeft'],
                         'salaryLabel' => $period['label'],
                     ],
+                    'savingsGoals' => $user->savingsGoals()
+                        ->where('is_closed', false)
+                        ->orderBy('name')
+                        ->get()
+                        ->map(fn ($goal): array => [
+                            'id' => $goal->id,
+                            'name' => $goal->name,
+                            'icon' => $goal->icon ?: 'vault',
+                            'current' => (int) $goal->current_amount,
+                            'target' => (int) $goal->target_amount,
+                        ])
+                        ->values()
+                        ->all(),
+                    'dueCommitments' => array_slice($unpaid, 0, 8),
+                    'dueTodayCount' => count(array_filter(
+                        $unpaid,
+                        fn (array $c): bool => $c['due_date'] <= $today,
+                    )),
                     'categories' => $categories,
                     'lastCategoryId' => $user->expenses()->latest('expense_date')->value('category_id'),
                     'learned' => $learned,

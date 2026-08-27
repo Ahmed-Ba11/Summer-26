@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl" @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+{{-- الاتجاه وحجم الخط يُرسمان من الخادم: الضبط بـJS بعد التحميل يُنتج وميض
+     تخطيط (قلب الصفحة أمام عين المستخدم) في كل زيارة أولى. --}}
+<html
+    lang="{{ $uiLocale ?? 'ar' }}"
+    dir="{{ ($uiLocale ?? 'ar') === 'en' ? 'ltr' : 'rtl' }}"
+    style="font-size: {{ ['sm' => '15px', 'md' => '16px', 'lg' => '17px'][$fontScale ?? 'md'] ?? '16px' }}"
+    @class(['dark' => ($appearance ?? 'system') == 'dark'])>
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
