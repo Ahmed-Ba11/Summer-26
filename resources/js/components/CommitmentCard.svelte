@@ -23,7 +23,12 @@
     import Zap from 'lucide-svelte/icons/zap';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import { formatAmount, formatRelativeDays } from '@/lib/format';
-    import { type Commitment, finishLabel, stateOf } from '@/lib/commitments';
+    import {
+        type Commitment,
+        finishLabel,
+        isDueSoon,
+        stateOf,
+    } from '@/lib/commitments';
 
     let {
         commitment,
@@ -41,39 +46,52 @@
     const state = $derived(stateOf(c));
 
     const monthsLeft = $derived(Math.max(0, c.months_count - c.months_paid));
-    const progress = $derived(c.months_count > 0 ? (c.months_paid / c.months_count) * 100 : 0);
-    const remainingAmount = $derived(Math.max(0, c.total_amount - (c.amount ?? 0) * c.months_paid));
+    const progress = $derived(
+        c.months_count > 0 ? (c.months_paid / c.months_count) * 100 : 0,
+    );
+    const remainingAmount = $derived(
+        Math.max(0, c.total_amount - (c.amount ?? 0) * c.months_paid),
+    );
 
     /** فاتورة متغيّرة لم يُسجَّل مبلغها بعد. */
     const unknownAmount = $derived(c.is_variable && c.amount === null);
 
     /** مقارنة الفاتورة المتغيّرة بمتوسّطها — سياق يحوّل الرقم إلى إشارة. */
     const vsAverage = $derived.by(() => {
-        if (!c.is_variable || c.amount === null || c.average_amount <= 0) return null;
+        if (!c.is_variable || c.amount === null || c.average_amount <= 0)
+            return null;
         const diff = ((c.amount - c.average_amount) / c.average_amount) * 100;
         if (Math.abs(diff) < 5) return null;
         return { pct: Math.round(Math.abs(diff)), higher: diff > 0 };
     });
 
+    /** «قريب» تمييز بصري داخل «قادم» لا حالة رابعة. */
+    const dueSoon = $derived(isDueSoon(c));
+
     const borderClass = $derived(
-        state === 'paid'
-            ? 'border-border'
-            : state === 'overdue'
-              ? 'border-destructive/40'
-              : state === 'due_soon'
-                ? 'border-warning/45'
-                : 'border-border',
+        state === 'overdue'
+            ? 'border-destructive/40'
+            : dueSoon
+              ? 'border-warning/45'
+              : 'border-border',
     );
 </script>
 
-<article class="rounded-2xl border bg-card p-3 shadow-xs {borderClass} {state === 'paid' ? 'opacity-70' : ''}">
+<article
+    class="rounded-2xl border bg-card p-3 shadow-xs {borderClass} {state ===
+    'paid'
+        ? 'opacity-70'
+        : ''}"
+>
     <!-- الرأس -->
     <div class="flex items-start gap-2.5">
         <CategoryIcon icon={c.icon} color={c.color} size="lg" />
 
         <div class="min-w-0 flex-1">
             <div class="flex min-w-0 items-center gap-1.5">
-                <h3 class="min-w-0 truncate text-[13.5px] font-semibold">{c.name}</h3>
+                <h3 class="min-w-0 truncate text-[13.5px] font-semibold">
+                    {c.name}
+                </h3>
 
                 {#if c.kind === 'installment' || c.payment_method === 'auto'}
                     <span
@@ -89,7 +107,9 @@
                         {/if}
                     </span>
                 {:else if c.is_variable}
-                    <span class="shrink-0 rounded-full bg-secondary px-1.5 py-px text-[10px] font-semibold text-muted-foreground">
+                    <span
+                        class="shrink-0 rounded-full bg-secondary px-1.5 py-px text-[10px] font-semibold text-muted-foreground"
+                    >
                         متغيّرة
                     </span>
                 {/if}
@@ -99,12 +119,14 @@
                 <p
                     class="min-w-0 truncate text-[11px] {state === 'overdue'
                         ? 'font-medium text-destructive'
-                        : state === 'due_soon'
+                        : dueSoon
                           ? 'font-medium text-warning-text'
                           : 'text-muted-foreground'}"
                 >
                     {#if state === 'paid'}
-                        {c.payment_method === 'auto' && c.paid_at ? 'انخصم تلقائياً' : 'دُفع'}
+                        {c.payment_method === 'auto' && c.paid_at
+                            ? 'انخصم تلقائياً'
+                            : 'دُفع'}
                         {#if c.paid_at}· {formatRelativeDays(c.paid_at)}{/if}
                     {:else}
                         {formatRelativeDays(c.due_date)}
@@ -116,15 +138,21 @@
 
                 <!-- شارة الحالة -->
                 {#if state === 'paid'}
-                    <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-1.5 py-px text-[10px] font-semibold text-success-text">
+                    <span
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-1.5 py-px text-[10px] font-semibold text-success-text"
+                    >
                         <Check class="size-2.5" /> مدفوع
                     </span>
                 {:else if state === 'overdue'}
-                    <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-px text-[10px] font-semibold text-destructive">
+                    <span
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-px text-[10px] font-semibold text-destructive"
+                    >
                         <TriangleAlert class="size-2.5" /> متأخّر
                     </span>
                 {:else if c.reserve_in_budget}
-                    <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-chart-7/12 px-1.5 py-px text-[10px] font-semibold text-chart-7">
+                    <span
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-chart-7/12 px-1.5 py-px text-[10px] font-semibold text-chart-7"
+                    >
                         <Lock class="size-2.5" /> محجوز
                     </span>
                 {/if}
@@ -135,22 +163,31 @@
     <!-- المبلغ -->
     <div class="mt-2.5 flex items-baseline justify-between gap-2">
         {#if unknownAmount}
-            <p class="text-[19px] font-semibold whitespace-nowrap text-muted-foreground">
+            <p
+                class="text-[19px] font-semibold whitespace-nowrap text-muted-foreground"
+            >
                 ؟ <span class="text-[11px] font-medium">لم يُسجَّل</span>
             </p>
             <p class="shrink-0 text-[11px] text-muted-foreground">
-                متوسّط 3 أشهر <b class="font-semibold text-foreground tabular-nums">{formatAmount(c.average_amount)}</b>
+                متوسّط 3 أشهر <b
+                    class="font-semibold text-foreground tabular-nums"
+                    >{formatAmount(c.average_amount)}</b
+                >
             </p>
         {:else}
             <p class="text-[20px] font-semibold tracking-tight tabular-nums">
-                {formatAmount(c.amount ?? 0)}<span class="ms-1 text-[11px] font-medium text-muted-foreground">
+                {formatAmount(c.amount ?? 0)}<span
+                    class="ms-1 text-[11px] font-medium text-muted-foreground"
+                >
                     ر.س{c.kind === 'installment' ? ' / شهر' : ''}
                 </span>
             </p>
 
             {#if c.kind === 'installment' && monthsLeft > 0}
                 <p class="shrink-0 text-[11px] text-muted-foreground">
-                    باقي <b class="font-semibold text-foreground tabular-nums">{formatAmount(remainingAmount)}</b>
+                    باقي <b class="font-semibold text-foreground tabular-nums"
+                        >{formatAmount(remainingAmount)}</b
+                    >
                 </p>
             {:else if state === 'paid' && onUndo}
                 <button
@@ -167,7 +204,9 @@
     <!-- تقدّم القسط -->
     {#if c.kind === 'installment' && c.months_count > 0}
         <div class="mt-2">
-            <div class="h-[6px] overflow-hidden rounded-full border border-border bg-secondary">
+            <div
+                class="h-[6px] overflow-hidden rounded-full border border-border bg-secondary"
+            >
                 <div
                     class="h-full rounded-full transition-[width] duration-300"
                     style="width:{progress}%;background-color:{c.color}"
@@ -175,11 +214,19 @@
             </div>
             <p class="mt-1.5 truncate text-[11px] text-muted-foreground">
                 {#if monthsLeft === 0}
-                    <span class="font-semibold text-success-text">خلص — آخر قسط اندفع</span>
+                    <span class="font-semibold text-success-text"
+                        >خلص — آخر قسط اندفع</span
+                    >
                 {:else}
-                    يخلص في <b class="font-semibold text-foreground">{finishLabel(monthsLeft)}</b>
+                    يخلص في <b class="font-semibold text-foreground"
+                        >{finishLabel(monthsLeft)}</b
+                    >
                     · باقي {monthsLeft}
-                    {monthsLeft === 1 ? 'شهر' : monthsLeft === 2 ? 'شهرين' : 'أشهر'}
+                    {monthsLeft === 1
+                        ? 'شهر'
+                        : monthsLeft === 2
+                          ? 'شهرين'
+                          : 'أشهر'}
                 {/if}
             </p>
         </div>

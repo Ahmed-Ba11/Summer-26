@@ -62,7 +62,7 @@
         const list = filter
             ? commitments.filter((c) => c.kind === filter)
             : commitments;
-        const rank = { overdue: 0, due_soon: 1, reserved: 2, paid: 3 } as const;
+        const rank = { overdue: 0, upcoming: 1, paid: 2 } as const;
         return [...list].sort((a, b) => {
             const ra = rank[stateOf(a)];
             const rb = rank[stateOf(b)];

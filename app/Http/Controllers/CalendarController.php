@@ -42,24 +42,25 @@ class CalendarController extends Controller
 
         foreach ($this->periodsOverlapping($user, $start, $end) as $period) {
             foreach ($commitments as $commitment) {
-                $dueDate = $service->dueDateFor($commitment, $period);
+                $occurrence = $service->occurrence($commitment, $period);
 
-                if ($dueDate->lessThan($start) || $dueDate->greaterThan($end)) {
+                if ($occurrence['due_date'] < $start->format('Y-m-d')
+                    || $occurrence['due_date'] > $end->format('Y-m-d')) {
                     continue;
                 }
 
-                $isPaid = $commitment->payments()
-                    ->where('period_key', $period['key'])
-                    ->exists();
-
                 $events->push([
                     'id' => $commitment->id,
-                    'date' => $dueDate->format('Y-m-d'),
+                    'date' => $occurrence['due_date'],
                     'kind' => $commitment->kind === 'installment' ? 'installment' : 'bill',
                     'label' => $commitment->name,
-                    'amount' => $service->expectedAmount($commitment),
-                    'isPaid' => $isPaid,
-                    'canPay' => ! $isPaid,
+                    'amount' => $occurrence['amount'],
+                    // حالة هذا الظهور وحده — لا حالة الالتزام عموماً
+                    'periodKey' => $occurrence['period_key'],
+                    'status' => $occurrence['status'],
+                    'isPaid' => $occurrence['is_paid'],
+                    'paidAt' => $occurrence['paid_at'],
+                    'canPay' => ! $occurrence['is_paid'],
                     'editUrl' => '/commitments',
                 ]);
             }

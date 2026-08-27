@@ -259,7 +259,11 @@ class DashboardController extends Controller
         $events = [];
 
         foreach ($user->commitments()->active()->get() as $commitment) {
-            if ($commitment->payments()->where('period_key', $period['key'])->exists()) {
+            $occurrence = $service->occurrence($commitment, $period);
+
+            // «القادم» يستثني المسدَّد — والحالة من `commitment_payments`
+            // لا من التاريخ، فالمدفوع مبكراً لا يبقى معروضاً كمستحقّ.
+            if ($occurrence['status'] === CommitmentService::STATUS_PAID) {
                 continue;
             }
 
@@ -267,10 +271,11 @@ class DashboardController extends Controller
 
             if ($due->betweenIncluded($period['salaryDate'], $horizon)) {
                 $events[] = [
-                    'date' => $due->format('Y-m-d'),
+                    'date' => $occurrence['due_date'],
                     'kind' => $commitment->kind,
                     'label' => $commitment->name,
-                    'amount' => $service->expectedAmount($commitment),
+                    'amount' => $occurrence['amount'],
+                    'status' => $occurrence['status'],
                 ];
             }
         }

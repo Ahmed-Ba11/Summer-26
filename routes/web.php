@@ -13,11 +13,13 @@ use App\Http\Requests\IncomeIndexRequest;
 use App\Models\Bill;
 use App\Models\Budget;
 use App\Models\Category;
+use App\Models\Commitment;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Installment;
 use App\Models\SavingsGoal;
 use App\Services\BudgetGuard;
+use App\Services\CommitmentService;
 use App\Services\ExpenseFundingService;
 use App\Services\RecurringTransactionService;
 use App\Services\SalaryMonthService;
@@ -168,6 +170,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'is_recurring' => 'sometimes|boolean',
             'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
             'next_due_date' => 'nullable|date',
+            // المصروف المرتبط بالتزام يسدّده — يكتب صفّاً في commitment_payments
+            'commitment_id' => [
+                'nullable',
+                Rule::exists(Commitment::class, 'id')->where('user_id', auth()->id()),
+            ],
             'funding_source' => 'nullable|in:savings,unlogged_income,overspend',
             'savings_goal_id' => 'nullable|integer',
             'income_amount' => 'nullable|integer|min:0',
@@ -190,7 +197,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             $expense->update([
                 'is_recurring' => $validated['is_recurring'] ?? false,
+                'commitment_id' => $validated['commitment_id'] ?? null,
             ]);
+
+            if ($expense->commitment_id) {
+                CommitmentService::for($user)->recordPaymentFromExpense(
+                    $user->commitments()->findOrFail($expense->commitment_id),
+                    $expense,
+                );
+            }
 
             if ($expense->is_recurring) {
                 $recurring->createFromExpense(
@@ -254,6 +269,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             abort(403);
         }
         DB::transaction(function () use ($expense, $recurring): void {
+            // حذف المصروف يسحب سداد الالتزام معه — وإلا بقي «مسدَّداً»
+            // بلا مال خرج، وهو أسوأ من عدم تسجيله أصلاً.
+            if ($expense->commitment_id) {
+                $commitment = auth()->user()->commitments()->find($expense->commitment_id);
+
+                if ($commitment) {
+                    CommitmentService::for(auth()->user())
+                        ->revokePaymentFromExpense($commitment, $expense);
+                }
+            }
+
             $recurring->detachExpense($expense);
             $expense->delete();
         });

@@ -17,11 +17,12 @@
     import FinanceCalendar from '@/components/FinanceCalendar.svelte';
     import SheetShell from '@/components/ui/SheetShell.svelte';
     import { calendar } from '@/routes';
-    import { pay as payBill } from '@/routes/bills';
-    import { pay as payInstallment } from '@/routes/installments';
-    import { formatCurrency, formatFullDate } from '@/lib/format';
+    import { formatCurrency, formatDate, formatFullDate } from '@/lib/format';
 
     type EventKind = 'salary' | 'bill' | 'installment' | 'savings';
+
+    /** حالة الظهور — يحسبها الخادم من `commitment_payments`. */
+    type EventStatus = 'paid' | 'overdue' | 'upcoming';
 
     interface CalendarEvent {
         id: number | null;
@@ -29,10 +30,20 @@
         kind: EventKind;
         label: string;
         amount: number;
+        /** فترة الراتب التي يخصّها هذا الظهور — 2026-08 */
+        periodKey?: string;
+        status?: EventStatus;
         isPaid: boolean;
+        paidAt?: string | null;
         canPay: boolean;
         editUrl: string | null;
     }
+
+    const STATUS_LABEL: Record<EventStatus, string> = {
+        paid: 'مسدَّد',
+        overdue: 'متأخّر',
+        upcoming: 'قادم',
+    };
 
     interface CalendarDay {
         date: string;
@@ -54,7 +65,15 @@
         events?: CalendarEvent[];
     } = $props();
 
-    const WEEKDAYS = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+    const WEEKDAYS = [
+        'أحد',
+        'اثنين',
+        'ثلاثاء',
+        'أربعاء',
+        'خميس',
+        'جمعة',
+        'سبت',
+    ];
     const EVENT_KIND = {
         salary: { label: 'راتب', color: 'var(--success)' },
         bill: { label: 'فاتورة', color: 'var(--chart-7)' },
@@ -68,7 +87,9 @@
         }
 
         const [year, monthNumber] = month.split('-').map(Number);
-        const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+        const daysInMonth = new Date(
+            Date.UTC(year, monthNumber, 0),
+        ).getUTCDate();
         const eventsByDate = new Map<string, CalendarEvent[]>();
 
         for (const event of events) {
@@ -102,9 +123,13 @@
     let selectedDate = $state<string | null>(null);
     let sheetOpen = $state(false);
     const selectedEvents = $derived(
-        selectedDate ? days.find((day) => day.date === selectedDate)?.events ?? [] : [],
+        selectedDate
+            ? (days.find((day) => day.date === selectedDate)?.events ?? [])
+            : [],
     );
-    const selectedDateLabel = $derived(selectedDate ? formatFullDate(selectedDate) : '');
+    const selectedDateLabel = $derived(
+        selectedDate ? formatFullDate(selectedDate) : '',
+    );
 
     function selectDay(date: string): void {
         selectedDate = date;
@@ -116,17 +141,21 @@
         sheetOpen = false;
     }
 
+    /**
+     * السداد يمرّ من مسار الالتزامات — كان ينادي `/bills/{id}/pay` و
+     * `/installments/{id}/pay` القديمين بمعرّف التزام، فيصيب سجلاً آخر
+     * أو لا يصيب شيئاً. المعرّف الآن معرّف التزام، والمسار مسار الالتزامات.
+     */
     function markPaid(event: CalendarEvent): void {
         if (event.id === null || !event.canPay) {
             return;
         }
 
-        const action = event.kind === 'bill' ? payBill(event.id) : payInstallment(event.id);
-
-        router.put(action, {}, {
-            preserveScroll: true,
-            onSuccess: closeSheet,
-        });
+        router.post(
+            `/commitments/${event.id}/pay`,
+            { amount: event.amount },
+            { preserveScroll: true, onSuccess: closeSheet },
+        );
     }
 </script>
 
@@ -136,10 +165,16 @@
 <div class="flex flex-1 flex-col gap-3 p-3 md:gap-6 md:p-6">
     <div class="flex items-center justify-between gap-3">
         <div class="hidden md:block">
-            <h1 class="text-[22px] font-semibold tracking-tight">التقويم المالي</h1>
-            <p class="text-[13px] text-muted-foreground">تابع استحقاقاتك وأحداثك المالية خلال الشهر.</p>
+            <h1 class="text-[22px] font-semibold tracking-tight">
+                التقويم المالي
+            </h1>
+            <p class="text-[13px] text-muted-foreground">
+                تابع استحقاقاتك وأحداثك المالية خلال الشهر.
+            </p>
         </div>
-        <div class="flex items-center gap-1.5 rounded-xl border border-border bg-card p-1">
+        <div
+            class="flex items-center gap-1.5 rounded-xl border border-border bg-card p-1"
+        >
             <Link
                 href={calendar.url({ query: { month: previousMonth } })}
                 aria-label="الشهر السابق"
@@ -147,7 +182,9 @@
             >
                 <ChevronRight class="size-4" />
             </Link>
-            <span class="min-w-24 text-center text-sm font-semibold">{monthLabel}</span>
+            <span class="min-w-24 text-center text-sm font-semibold"
+                >{monthLabel}</span
+            >
             <Link
                 href={calendar.url({ query: { month: nextMonth } })}
                 aria-label="الشهر التالي"
@@ -158,8 +195,12 @@
         </div>
     </div>
 
-    <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-        <div class="grid grid-cols-7 border-b border-border bg-secondary text-center text-[11px] text-muted-foreground md:text-xs">
+    <section
+        class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs"
+    >
+        <div
+            class="grid grid-cols-7 border-b border-border bg-secondary text-center text-[11px] text-muted-foreground md:text-xs"
+        >
             {#each WEEKDAYS as weekday}
                 <span class="px-1 py-3">{weekday}</span>
             {/each}
@@ -167,7 +208,8 @@
 
         <div class="grid grid-cols-7 gap-1 p-2 md:gap-2 md:p-4">
             {#each Array(leadingEmptyDays) as _}
-                <span class="min-h-20 rounded-xl bg-background/50 md:min-h-28"></span>
+                <span class="min-h-20 rounded-xl bg-background/50 md:min-h-28"
+                ></span>
             {/each}
 
             {#each days as day (day.date)}
@@ -176,22 +218,37 @@
                     onclick={() => selectDay(day.date)}
                     class="flex min-h-20 min-w-0 flex-col items-start rounded-xl border border-border bg-background p-1.5 text-start transition-colors hover:border-primary hover:bg-accent md:min-h-28 md:p-2.5"
                 >
-                    <span class="text-xs font-semibold tabular-nums md:text-sm">{day.day}</span>
+                    <span class="text-xs font-semibold tabular-nums md:text-sm"
+                        >{day.day}</span
+                    >
                     <span class="mt-1 flex flex-wrap gap-1 md:hidden">
                         {#each day.events.slice(0, 4) as event (event.id ?? event.kind + event.date)}
-                            <i class="size-1.5 rounded-full" style="background-color: {EVENT_KIND[event.kind].color}"></i>
+                            <i
+                                class="size-1.5 rounded-full"
+                                style="background-color: {EVENT_KIND[event.kind]
+                                    .color}"
+                            ></i>
                         {/each}
                     </span>
                     <span class="mt-2 hidden w-full flex-col gap-1 md:flex">
                         {#each day.events.slice(0, 3) as event (event.id ?? event.kind + event.date)}
-                            <span class="flex min-w-0 items-center gap-1 text-[11px] text-foreground/80">
-                                <i class="size-1.5 shrink-0 rounded-full" style="background-color: {EVENT_KIND[event.kind].color}"></i>
+                            <span
+                                class="flex min-w-0 items-center gap-1 text-[11px] text-foreground/80"
+                            >
+                                <i
+                                    class="size-1.5 shrink-0 rounded-full"
+                                    style="background-color: {EVENT_KIND[
+                                        event.kind
+                                    ].color}"
+                                ></i>
                                 <span class="truncate">{event.label}</span>
                             </span>
                         {/each}
                     </span>
                     {#if day.events.length > 3}
-                        <span class="mt-auto text-[11px] text-muted-foreground">+{day.events.length - 3}</span>
+                        <span class="mt-auto text-[11px] text-muted-foreground"
+                            >+{day.events.length - 3}</span
+                        >
                     {/if}
                 </button>
             {/each}
@@ -201,7 +258,10 @@
     <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs text-foreground/80">
         {#each Object.values(EVENT_KIND) as value}
             <span class="inline-flex items-center gap-1.5">
-                <i class="size-2 rounded-full" style="background-color: {value.color}"></i>
+                <i
+                    class="size-2 rounded-full"
+                    style="background-color: {value.color}"
+                ></i>
                 {value.label}
             </span>
         {/each}
@@ -209,18 +269,29 @@
 
     <!-- الأيام القادمة — إعادة استخدامFinanceCalendar -->
     {#if events.length}
-        <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-            <header class="flex items-center justify-between border-b border-border px-4 py-3 md:px-5 md:py-4">
-                <h2 class="text-[13px] font-semibold md:text-[14.5px]">الأيام القادمة</h2>
+        <section
+            class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs"
+        >
+            <header
+                class="flex items-center justify-between border-b border-border px-4 py-3 md:px-5 md:py-4"
+            >
+                <h2 class="text-[13px] font-semibold md:text-[14.5px]">
+                    الأيام القادمة
+                </h2>
             </header>
             <div class="px-4 py-4 md:px-5">
-                <FinanceCalendar events={events} />
+                <FinanceCalendar {events} />
             </div>
         </section>
     {/if}
 </div>
 
-<SheetShell bind:open={sheetOpen} title={selectedDateLabel} subtitle="أحداث هذا اليوم ومواعيد استحقاقها" onClose={closeSheet}>
+<SheetShell
+    bind:open={sheetOpen}
+    title={selectedDateLabel}
+    subtitle="أحداث هذا اليوم ومواعيد استحقاقها"
+    onClose={closeSheet}
+>
     {#if selectedEvents.length}
         <ul class="flex flex-col gap-2.5">
             {#each selectedEvents as event (event.id ?? event.kind + event.date)}
@@ -228,7 +299,11 @@
                     <div class="flex items-center gap-3">
                         <span
                             class="grid size-10 shrink-0 place-items-center rounded-xl"
-                            style="background-color: color-mix(in srgb, {EVENT_KIND[event.kind].color} 12%, transparent); color: {EVENT_KIND[event.kind].color}"
+                            style="background-color: color-mix(in srgb, {EVENT_KIND[
+                                event.kind
+                            ].color} 12%, transparent); color: {EVENT_KIND[
+                                event.kind
+                            ].color}"
                         >
                             {#if event.isPaid}
                                 <CheckCircle2 class="size-[19px]" />
@@ -237,12 +312,29 @@
                             {/if}
                         </span>
                         <div class="min-w-0 flex-1">
-                            <p class="truncate text-[14px] font-semibold">{event.label}</p>
-                            <p class="truncate text-[11.5px] text-muted-foreground">
-                                {EVENT_KIND[event.kind].label} · {event.isPaid ? 'تم الدفع' : 'غير مدفوع'}
+                            <p class="truncate text-[14px] font-semibold">
+                                {event.label}
+                            </p>
+                            <!-- الحالات الثلاث كما حسبها الخادم لهذا الظهور -->
+                            <p
+                                class="truncate text-[11.5px] {event.status ===
+                                'overdue'
+                                    ? 'font-medium text-destructive'
+                                    : 'text-muted-foreground'}"
+                            >
+                                {EVENT_KIND[event.kind].label}
+                                {#if event.status}
+                                    · {STATUS_LABEL[event.status]}
+                                    {#if event.status === 'paid' && event.paidAt}
+                                        · {formatDate(event.paidAt)}
+                                    {/if}
+                                {/if}
                             </p>
                         </div>
-                        <span class="shrink-0 text-[14px] font-semibold tabular-nums">{formatCurrency(event.amount)}</span>
+                        <span
+                            class="shrink-0 text-[14px] font-semibold tabular-nums"
+                            >{formatCurrency(event.amount)}</span
+                        >
                     </div>
                     {#if event.canPay || event.editUrl}
                         <div class="mt-2.5 flex gap-2">
@@ -272,7 +364,9 @@
     {:else}
         <div class="rounded-2xl border border-border bg-card p-6 text-center">
             <CalendarDays class="mx-auto size-6 text-muted-foreground" />
-            <p class="mt-2 text-[13px] font-medium">لا توجد أحداث في هذا اليوم</p>
+            <p class="mt-2 text-[13px] font-medium">
+                لا توجد أحداث في هذا اليوم
+            </p>
         </div>
     {/if}
 

@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Commitment;
+use App\Models\CommitmentPayment;
+use App\Models\Expense;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -27,11 +29,155 @@ final class CommitmentService
         'bill' => 'var(--chart-7)', 'rent' => 'var(--chart-5)', 'installment' => 'var(--chart-2)', 'subscription' => 'var(--chart-3)',
     ];
 
+    /**
+     * الحالات الثلاث لظهور واحد لالتزام في فترة راتب واحدة.
+     *
+     * «الظهور» لا «الالتزام»: اشتراك النت يوم 25 ظهورٌ في كل فترة، ولكل
+     * ظهور حالته الخاصة — مسدَّد في أغسطس وقادم في سبتمبر. الحالة تُقرأ من
+     * `commitment_payments` بمفتاح الفترة، لا من تاريخ الاستحقاق وحده:
+     * التاريخ يقول متى يُستحق، والجدول وحده يقول هل دُفع.
+     */
+    public const STATUS_PAID = 'paid';
+
+    public const STATUS_OVERDUE = 'overdue';
+
+    public const STATUS_UPCOMING = 'upcoming';
+
+    /**
+     * دفعات كل التزام مفهرسة بمفتاح الفترة — استعلام واحد لكل التزام
+     * بدل استعلام لكل ظهور، فالتقويم يعرض التزاماً عبر فترتين في الشاشة.
+     *
+     * @var array<int, array<string, CommitmentPayment>>
+     */
+    private array $payments = [];
+
     public function __construct(private readonly User $user) {}
 
     public static function for(User $user): self
     {
         return new self($user);
+    }
+
+    /** دفعة هذا الالتزام في هذه الفترة — أو `null` إن لم يُسدَّد. */
+    public function paymentFor(Commitment $commitment, string $periodKey): ?CommitmentPayment
+    {
+        $this->payments[$commitment->id] ??= $commitment->payments()
+            ->get()
+            ->keyBy('period_key')
+            ->all();
+
+        return $this->payments[$commitment->id][$periodKey] ?? null;
+    }
+
+    /** حالة ظهور واحد: مسدَّد · متأخّر · قادم. */
+    public function statusFor(Commitment $commitment, array $period): string
+    {
+        if ($this->paymentFor($commitment, $period['key']) !== null) {
+            return self::STATUS_PAID;
+        }
+
+        return $this->dueDateFor($commitment, $period)->lessThan(CarbonImmutable::today())
+            ? self::STATUS_OVERDUE
+            : self::STATUS_UPCOMING;
+    }
+
+    /**
+     * الظهور كاملاً — الشكل الذي تعرضه كل الواجهات.
+     *
+     * @return array{period_key:string, due_date:string, status:string, is_paid:bool, paid_at:?string, amount:int}
+     */
+    public function occurrence(Commitment $commitment, array $period): array
+    {
+        $payment = $this->paymentFor($commitment, $period['key']);
+
+        return [
+            'period_key' => $period['key'],
+            'due_date' => $this->dueDateFor($commitment, $period)->format('Y-m-d'),
+            'status' => $this->statusFor($commitment, $period),
+            'is_paid' => $payment !== null,
+            'paid_at' => $payment?->paid_at?->format('Y-m-d'),
+            // المسدَّد يُعرض بما دُفع فعلاً لا بالمتوقَّع — الفاتورة المتغيّرة
+            // تختلف عن متوسّطها، وعرض المتوسّط بعد الدفع يخالف كشف الحساب.
+            'amount' => $payment !== null
+                ? (int) $payment->amount
+                : $this->expectedAmount($commitment),
+        ];
+    }
+
+    /**
+     * تسجيل سداد التزام من مصروف — فترة السداد من تاريخ المصروف.
+     *
+     * المصروف المرتبط بالتزام سدادٌ له، فلا بدّ أن يكتب صفّاً في
+     * `commitment_payments`؛ وإلا بقي الالتزام «متأخّراً» في التقويم
+     * واللوحة وقد خرج المال فعلاً.
+     *
+     * الفترة من `expense_date` لا من اليوم: من يسجّل فاتورة الشهر الماضي
+     * متأخّراً يجب أن تُقيَّد في فترتها هي.
+     */
+    public function recordPaymentFromExpense(Commitment $commitment, Expense $expense): ?CommitmentPayment
+    {
+        $periodKey = SalaryMonthService::for($this->user)
+            ->keyFor(CarbonImmutable::parse($expense->expense_date));
+
+        // القيد الفريد (commitment_id, period_key) يمنع سدادين لفترة واحدة —
+        // نحترمه هنا صراحةً بدل أن نصطدم به.
+        if ($this->paymentFor($commitment, $periodKey) !== null) {
+            return null;
+        }
+
+        $payment = $commitment->payments()->create([
+            'amount' => (int) $expense->amount,
+            'paid_at' => $expense->expense_date->toDateString(),
+            'period_key' => $periodKey,
+            'source' => 'manual',
+        ]);
+
+        if ($commitment->kind === 'installment' && $commitment->months_count > 0) {
+            $paid = min($commitment->months_count, $commitment->months_paid + 1);
+            $commitment->update([
+                'months_paid' => $paid,
+                'is_active' => $paid < $commitment->months_count,
+            ]);
+        }
+
+        $this->forgetPayments($commitment);
+
+        return $payment;
+    }
+
+    /** حذف المصروف يسحب سداده — وإلا بقي الالتزام مسدَّداً بلا مال خرج. */
+    public function revokePaymentFromExpense(Commitment $commitment, Expense $expense): void
+    {
+        $periodKey = SalaryMonthService::for($this->user)
+            ->keyFor(CarbonImmutable::parse($expense->expense_date));
+
+        $payment = $commitment->payments()->where('period_key', $periodKey)->first();
+
+        if ($payment === null) {
+            return;
+        }
+
+        if ($commitment->kind === 'installment' && $commitment->months_paid > 0) {
+            $commitment->update([
+                'months_paid' => max(0, $commitment->months_paid - 1),
+                'is_active' => true,
+            ]);
+        }
+
+        $payment->delete();
+        $this->forgetPayments($commitment);
+    }
+
+    /** يُبطل ذاكرة الدفعات بعد كتابة أو حذف دفعة في نفس الطلب. */
+    public function forgetPayments(?Commitment $commitment = null): void
+    {
+        if ($commitment === null) {
+            $this->payments = [];
+
+            return;
+        }
+
+        unset($this->payments[$commitment->id]);
     }
 
     /**
@@ -59,7 +205,7 @@ final class CommitmentService
 
         return $commitments
             ->map(function (Commitment $c) use ($period): array {
-                $payment = $c->payments()->where('period_key', $period['key'])->first();
+                $occurrence = $this->occurrence($c, $period);
 
                 return [
                     'id' => $c->id,
@@ -79,10 +225,14 @@ final class CommitmentService
                     // يفتح بقيم افتراضية فيدوس يوم الاستحقاق والتنبيه عند الحفظ.
                     'due_day' => $c->due_day !== null ? (int) $c->due_day : null,
                     'notify_when' => $c->notify_when,
-                    'due_date' => $this->dueDateFor($c, $period)->format('Y-m-d'),
+                    'due_date' => $occurrence['due_date'],
                     'reserve_in_budget' => $c->reserve_in_budget,
-                    'is_paid_this_month' => $payment !== null,
-                    'paid_at' => $payment?->paid_at?->format('Y-m-d'),
+                    // الحالة تُحسب في الخادم من `commitment_payments` — الواجهة
+                    // تعرضها ولا تعيد اشتقاقها من التاريخ.
+                    'period_key' => $occurrence['period_key'],
+                    'status' => $occurrence['status'],
+                    'is_paid_this_month' => $occurrence['is_paid'],
+                    'paid_at' => $occurrence['paid_at'],
                 ];
             })
             ->values()
@@ -122,7 +272,7 @@ final class CommitmentService
         $total = 0;
 
         foreach ($this->user->commitments()->get() as $c) {
-            $payment = $c->payments()->where('period_key', $period['key'])->first();
+            $payment = $this->paymentFor($c, $period['key']);
 
             if ($payment) {
                 $total += (int) $payment->amount;
@@ -151,9 +301,7 @@ final class CommitmentService
         $total = 0;
 
         foreach ($this->user->commitments()->active()->get() as $c) {
-            $paid = $c->payments()->where('period_key', $period['key'])->exists();
-
-            if ($paid) {
+            if ($this->paymentFor($c, $period['key']) !== null) {
                 continue;
             }
 
@@ -185,7 +333,7 @@ final class CommitmentService
         $count = 0;
 
         foreach ($this->user->commitments()->active()->get() as $c) {
-            if ($c->payments()->where('period_key', $period['key'])->exists()) {
+            if ($this->statusFor($c, $period) === self::STATUS_PAID) {
                 continue;
             }
 

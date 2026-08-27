@@ -42,9 +42,13 @@ export interface Commitment {
     /** يوم الشهر — `null` حين يتبع الاستحقاق يوم الراتب */
     due_day: number | null;
     notify_when: NotifyWhen;
-    /** التاريخ المحسوب لاستحقاق هذا الشهر — ISO */
+    /** التاريخ المحسوب لاستحقاق هذا الظهور — ISO */
     due_date: string;
     reserve_in_budget: boolean;
+    /** فترة الراتب التي يخصّها هذا الظهور — 2026-08 */
+    period_key: string;
+    /** حالة هذا الظهور، محسوبة في الخادم من `commitment_payments` */
+    status: CommitmentState;
     is_paid_this_month: boolean;
     paid_at: string | null;
 }
@@ -93,14 +97,25 @@ export function daysUntil(due: string): number {
     return Math.round((d.getTime() - today.getTime()) / 86_400_000);
 }
 
-export type CommitmentState = 'paid' | 'overdue' | 'due_soon' | 'reserved';
+/**
+ * الحالات الثلاث لظهور واحد — يحسبها الخادم من `commitment_payments`.
+ *
+ * كانت تُشتقّ هنا من `due_date` وحده، فكل ظهور لالتزام متكرّر يأخذ نفس
+ * الحالة مهما اختلفت فترته. الاشتقاق انتقل إلى `CommitmentService`
+ * ليقرأ من جدول الدفعات، والواجهة تعرض ما وصلها.
+ */
+export type CommitmentState = 'paid' | 'overdue' | 'upcoming';
 
 export function stateOf(c: Commitment): CommitmentState {
-    if (c.is_paid_this_month) return 'paid';
-    const d = daysUntil(c.due_date);
-    if (d < 0) return 'overdue';
-    if (d <= 3) return 'due_soon';
-    return 'reserved';
+    return c.status;
+}
+
+/**
+ * «يستحق خلال ثلاثة أيام» — تمييز بصري داخل «قادم»، لا حالة رابعة.
+ * الحالة تبقى `upcoming`؛ هذا لون الحدّ فقط.
+ */
+export function isDueSoon(c: Commitment): boolean {
+    return c.status === 'upcoming' && daysUntil(c.due_date) <= 3;
 }
 
 /**

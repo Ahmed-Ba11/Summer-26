@@ -13,6 +13,7 @@ class Expense extends Model
     protected $fillable = [
         'user_id',
         'category_id',
+        'commitment_id',
         'amount',
         'description',
         'expense_date',
@@ -39,6 +40,12 @@ class Expense extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /** الالتزام الذي سدّده هذا المصروف — `null` للمصروف العادي. */
+    public function commitment(): BelongsTo
+    {
+        return $this->belongsTo(Commitment::class);
     }
 
     public function recurringTransaction(): BelongsTo
