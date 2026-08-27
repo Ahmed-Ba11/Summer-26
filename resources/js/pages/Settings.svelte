@@ -438,6 +438,12 @@
                             </button>
                         {/each}
                     </div>
+                    {#if theme === 'system'}
+                        <p class="mt-1.5 text-[11.5px] text-muted-foreground">
+                            «تلقائي» يتبع مظهر جهازك — يصير داكناً معه ويرجع
+                            فاتحاً معه.
+                        </p>
+                    {/if}
                 </div>
 
                 <div>
