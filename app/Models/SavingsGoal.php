@@ -30,6 +30,26 @@ class SavingsGoal extends Model
         ];
     }
 
+    /**
+     * «مكتمل» واقعة لا رأي: الرصيد بلغ الهدف.
+     *
+     * كانت تُكتب مباشرة من عدّة مواضع، فصار زر «أغلق الهدف» يعلّم هدفاً
+     * بـ 2,000 من 30,000 مكتملاً. المقارنة هنا وحدها، وكل من يكتب الراية
+     * يسألها — فلا يقدر موضع جديد أن يخترع تعريفاً ثانياً للاكتمال.
+     *
+     * الطرفان بالهللات — نفس وحدة العمودين في قاعدة البيانات.
+     */
+    public function hasReachedTarget(?int $balance = null): bool
+    {
+        $target = (int) $this->target_amount;
+
+        if ($target <= 0) {
+            return false;
+        }
+
+        return ($balance ?? (int) $this->current_amount) >= $target;
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

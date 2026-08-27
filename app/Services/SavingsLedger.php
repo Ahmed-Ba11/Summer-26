@@ -61,7 +61,7 @@ final class SavingsLedger
 
             $goal->update([
                 'current_amount' => $balance,
-                'is_completed' => $balance >= (int) $goal->target_amount,
+                'is_completed' => $goal->hasReachedTarget($balance),
             ]);
 
             return $this->user->savingsDeposits()->create([

@@ -72,16 +72,30 @@
 
     let {
         goals = [],
-        stats = { total_saved: 0, monthly_income: 0, monthly_deposits: 0, savings_rate: 0 },
+        stats = {
+            total_saved: 0,
+            monthly_income: 0,
+            monthly_deposits: 0,
+            savings_rate: 0,
+        },
         salaryMonth = null,
     }: {
         goals?: GoalItem[];
         stats?: SavingsStats;
-        salaryMonth?: { key: string; label: string; range: string; daysLeft: number } | null;
+        salaryMonth?: {
+            key: string;
+            label: string;
+            range: string;
+            daysLeft: number;
+        } | null;
     } = $props();
 
     /** «المُودَع» يُحسب على شهر الراتب، فيُذكر الراتب باسمه لا «هذا الشهر». */
-    const periodLine = $derived(salaryMonth ? `أهدافك الادخارية · ${salaryMonth.label}` : 'أهدافك الادخارية');
+    const periodLine = $derived(
+        salaryMonth
+            ? `أهدافك الادخارية · ${salaryMonth.label}`
+            : 'أهدافك الادخارية',
+    );
 
     const serverErrors = $derived(
         (page.props.errors ?? {}) as ValidationErrors,
@@ -151,7 +165,9 @@
             ? Math.min(100, Math.round((totalSavings / totalTarget) * 100))
             : 0,
     );
-    const completedGoals = $derived(goals.filter((goal) => goal.is_completed).length);
+    const completedGoals = $derived(
+        goals.filter((goal) => goal.is_completed).length,
+    );
 
     function getProgressColorClass(pct: number): string {
         if (pct >= 100) return 'bg-success';
@@ -245,7 +261,10 @@
         submitting = false;
         selectedGoalId = goal.id;
         selectedGoalName = goal.name;
-        selectedGoalRemaining = Math.max(0, goal.target_amount - goal.current_amount);
+        selectedGoalRemaining = Math.max(
+            0,
+            goal.target_amount - goal.current_amount,
+        );
         addAmountValue = 0;
         addAmountErrors = {};
         showAddAmountModal = true;
@@ -317,12 +336,31 @@
     }
 
     // Complete
-    function completeGoal(id: number) {
+    /**
+     * الإقفال قبل بلوغ الهدف يستحق تأكيداً: الزر بجانب «إضافة مبلغ» مباشرة،
+     * وهو إجراء لا يُتراجَع عنه من البطاقة.
+     */
+    let closeConfirmGoal = $state<GoalItem | null>(null);
+    let closeConfirmOpen = $state(false);
+
+    function completeGoal(goal: GoalItem) {
+        if (goal.current_amount < goal.target_amount) {
+            closeConfirmGoal = goal;
+            closeConfirmOpen = true;
+
+            return;
+        }
+
+        submitCompleteGoal(goal.id);
+    }
+
+    function submitCompleteGoal(id: number) {
         router.put(
             completeSavings(id),
             {},
             {
                 preserveScroll: true,
+                onSuccess: () => (closeConfirmOpen = false),
             },
         );
     }
@@ -357,8 +395,15 @@
         <div class="flex flex-col gap-2" aria-live="polite">
             {#each flashWarnings as warning}
                 {#if warningText(warning)}
-                    {@const isSuccess = typeof warning !== 'string' && warning.severity === 'success'}
-                    <p class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm {isSuccess ? 'bg-success/10 text-success-text' : 'bg-warning/15 text-warning-text'}" role="status">
+                    {@const isSuccess =
+                        typeof warning !== 'string' &&
+                        warning.severity === 'success'}
+                    <p
+                        class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm {isSuccess
+                            ? 'bg-success/10 text-success-text'
+                            : 'bg-warning/15 text-warning-text'}"
+                        role="status"
+                    >
                         {#if isSuccess}
                             <CheckCircle2 class="size-4 shrink-0" />
                         {:else}
@@ -398,8 +443,12 @@
                             </p>
                             <TrendingUp class="size-4 text-chart-1" />
                         </div>
-                        <p class="mt-2 text-xl font-bold tabular-nums">{formatPercent(savingsRate)}</p>
-                        <p class="mt-1 text-xs text-muted-foreground">من إيداعات الشهر الحالي</p>
+                        <p class="mt-2 text-xl font-bold tabular-nums">
+                            {formatPercent(savingsRate)}
+                        </p>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            من إيداعات الشهر الحالي
+                        </p>
                     </CardContent>
                 </Card>
             {/if}
@@ -443,7 +492,8 @@
                                     class="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-foreground"
                                 >
                                     <TrendingUp class="size-3" />
-                                    {formatPercent(savingsRate)} من إيداعات الشهر الحالي
+                                    {formatPercent(savingsRate)} من إيداعات الشهر
+                                    الحالي
                                 </span>
                             </div>
                         {/if}
@@ -539,6 +589,13 @@
                                     <CheckCircle2 class="size-2.5" />
                                     مكتمل
                                 </span>
+                            {:else if goal.is_closed}
+                                <!-- أُقفل قبل بلوغه — «مكتمل» هنا كذب على المستخدم -->
+                                <span
+                                    class="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0"
+                                >
+                                    مغلق
+                                </span>
                             {:else}
                                 <span
                                     class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 shrink-0"
@@ -576,7 +633,11 @@
                                     <span
                                         class="text-muted-foreground tabular-nums"
                                     >
-                                        {#if remaining > 0}
+                                        {#if remaining > 0 && goal.is_closed}
+                                            أُقفل عند {formatAmount(
+                                                goal.current_amount,
+                                            )} ر.س
+                                        {:else if remaining > 0}
                                             متبقي: {formatAmount(remaining)} ر.س
                                         {:else}
                                             مكتمل
@@ -621,9 +682,12 @@
                                         size="sm"
                                         variant="outline"
                                         class="gap-1 text-xs"
-                                        onclick={() => completeGoal(goal.id)}
+                                        aria-label="إقفال هدف {goal.name}"
+                                        title="إقفال الهدف"
+                                        onclick={() => completeGoal(goal)}
                                     >
                                         <CheckCircle2 class="size-3.5" />
+                                        إقفال
                                     </Button>
                                 {/if}
                                 <Button
@@ -693,7 +757,10 @@
 >
     <div class="flex flex-col gap-3">
         {#if generalError(formErrors) || generalError(serverErrors)}
-            <p class="flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive" role="alert">
+            <p
+                class="flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive"
+                role="alert"
+            >
                 <CircleAlert class="mt-px size-4 shrink-0" />
                 {generalError(formErrors) || generalError(serverErrors)}
             </p>
@@ -702,9 +769,12 @@
         <SheetField
             label="المبلغ المستهدف"
             icon={Target}
-            value={formTargetAmount > 0 ? `${formatAmount(formTargetAmount)} ر.س` : ''}
+            value={formTargetAmount > 0
+                ? `${formatAmount(formTargetAmount)} ر.س`
+                : ''}
             placeholder="اضغط لإدخال المبلغ"
-            error={formErrors.target_amount || errorText(serverErrors, 'target_amount')}
+            error={formErrors.target_amount ||
+                errorText(serverErrors, 'target_amount')}
             onclick={() => (targetAmountSheetOpen = true)}
         />
 
@@ -713,12 +783,15 @@
             icon={CalendarDays}
             value={formTargetDate ? formatFullDate(formTargetDate) : ''}
             placeholder="بدون تاريخ"
-            error={formErrors.target_date || errorText(serverErrors, 'target_date')}
+            error={formErrors.target_date ||
+                errorText(serverErrors, 'target_date')}
             onclick={() => (targetDateSheetOpen = true)}
         />
 
         <div class="flex flex-col gap-1.5">
-            <label for="goal-name" class="text-[11.5px] text-muted-foreground">الاسم</label>
+            <label for="goal-name" class="text-[11.5px] text-muted-foreground"
+                >الاسم</label
+            >
             <input
                 id="goal-name"
                 type="text"
@@ -727,7 +800,9 @@
                 class="min-h-11 rounded-2xl border border-input bg-background px-3 text-[14px] focus:outline-none focus:ring-2 focus:ring-ring"
             />
             {#if formErrors.name || errorText(serverErrors, 'name')}
-                <p class="text-[11.5px] text-destructive">{formErrors.name || errorText(serverErrors, 'name')}</p>
+                <p class="text-[11.5px] text-destructive">
+                    {formErrors.name || errorText(serverErrors, 'name')}
+                </p>
             {/if}
         </div>
 
@@ -737,7 +812,8 @@
                 {#each ICON_PICKER as key (key)}
                     <button
                         type="button"
-                        class="grid size-11 place-items-center rounded-xl border transition-colors {formIcon === key
+                        class="grid size-11 place-items-center rounded-xl border transition-colors {formIcon ===
+                        key
                             ? 'border-primary bg-primary/8'
                             : 'border-border'}"
                         aria-label={ICON_LABELS[key]}
@@ -779,15 +855,23 @@
     quickAdd={[500, 1000, 5000]}
 />
 
-<DateSheet bind:open={targetDateSheetOpen} bind:value={formTargetDate} title="التاريخ المستهدف" />
+<DateSheet
+    bind:open={targetDateSheetOpen}
+    bind:value={formTargetDate}
+    title="التاريخ المستهدف"
+/>
 
 <!-- لوح إيداع في هدف -->
 <AmountSheet
     bind:open={showAddAmountModal}
     bind:value={addAmountValue}
     title={`إيداع في ${selectedGoalName}`}
-    subtitle={selectedGoalRemaining > 0 ? `المتبقي ${formatCurrency(selectedGoalRemaining)}` : 'الهدف مكتمل'}
-    hint={addAmountErrors.amount || errorText(serverErrors, 'amount') || generalError(addAmountErrors)}
+    subtitle={selectedGoalRemaining > 0
+        ? `المتبقي ${formatCurrency(selectedGoalRemaining)}`
+        : 'الهدف مكتمل'}
+    hint={addAmountErrors.amount ||
+        errorText(serverErrors, 'amount') ||
+        generalError(addAmountErrors)}
     quickAdd={[100, 500, 1000]}
     saveLabel="إيداع"
     onSave={submitAddAmount}
@@ -797,4 +881,17 @@
     bind:open={deleteOpen}
     message="سيُحذف هذا الهدف الادخاري نهائياً ولا يمكن التراجع."
     onConfirm={executeDelete}
+/>
+
+<!-- الإقفال قبل بلوغ الهدف — نقول الرقم صراحة بدل «هل أنت متأكّد؟» -->
+<ConfirmSheet
+    bind:open={closeConfirmOpen}
+    title="إقفال الهدف قبل بلوغه"
+    destructive={false}
+    confirmLabel="أقفله"
+    message={closeConfirmGoal
+        ? `ادّخرت ${formatAmount(closeConfirmGoal.current_amount)} ر.س من ${formatAmount(closeConfirmGoal.target_amount)} ر.س. الإقفال يوقف الإضافة إليه، ولن يُحسب هدفاً مكتملاً.`
+        : ''}
+    onConfirm={() =>
+        closeConfirmGoal && submitCompleteGoal(closeConfirmGoal.id)}
 />

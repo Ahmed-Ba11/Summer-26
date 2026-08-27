@@ -635,17 +635,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return redirect()->back();
     })->name('savings.destroy');
 
+    /**
+     * إقفال الهدف — «خلاص ما عدت أحتاجه»، لا «بلغتُ المبلغ».
+     *
+     * كان هذا المسار يكتب `is_completed = true` بلا أي مقارنة، فهدف بـ
+     * 2,000 من 30,000 يظهر «مكتمل» في بطاقته وفي عدّاد «X من Y مكتمل».
+     * الإقفال قرار المستخدم، أمّا الاكتمال فواقعة يقرّرها الرصيد وحده.
+     */
     Route::put('/savings/{goal}/complete', function (SavingsGoal $goal) {
         if ($goal->user_id !== auth()->id()) {
             abort(403);
         }
 
+        $reached = $goal->hasReachedTarget();
+
         $goal->update([
-            'is_completed' => true,
+            'is_completed' => $reached,
             'is_closed' => true,
         ]);
 
-        return redirect()->back();
+        return redirect()->back()->with('toast', [
+            'type' => 'success',
+            'message' => $reached
+                ? "بلّغت هدف «{$goal->name}» — مبروك"
+                : "أُقفل هدف «{$goal->name}» قبل بلوغه",
+        ]);
     })->name('savings.complete');
 
     // Installments
