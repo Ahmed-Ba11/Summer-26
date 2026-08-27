@@ -75,6 +75,10 @@ final class CommitmentService
                     'months_paid' => (int) $c->months_paid,
                     'payment_method' => $c->payment_method,
                     'due_type' => $c->due_type,
+                    // `due_day` و`notify_when` يلزمان نموذج التعديل: بدونهما
+                    // يفتح بقيم افتراضية فيدوس يوم الاستحقاق والتنبيه عند الحفظ.
+                    'due_day' => $c->due_day !== null ? (int) $c->due_day : null,
+                    'notify_when' => $c->notify_when,
                     'due_date' => $this->dueDateFor($c, $period)->format('Y-m-d'),
                     'reserve_in_budget' => $c->reserve_in_budget,
                     'is_paid_this_month' => $payment !== null,

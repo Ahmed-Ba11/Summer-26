@@ -72,7 +72,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/commitments', [CommitmentController::class, 'store'])->name('commitments.store');
     Route::post('/commitments/{commitment}/pay', [CommitmentController::class, 'pay'])->name('commitments.pay');
     Route::delete('/commitments/{commitment}/pay', [CommitmentController::class, 'undoPay'])->name('commitments.undo');
-    Route::get('/commitments/{commitment}/edit', [CommitmentController::class, 'edit'])->name('commitments.edit');
     Route::put('/commitments/{commitment}', [CommitmentController::class, 'update'])->name('commitments.update');
     Route::delete('/commitments/{commitment}', [CommitmentController::class, 'destroy'])->name('commitments.destroy');
 

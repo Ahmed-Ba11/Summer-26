@@ -17,7 +17,11 @@
     import CommitmentTypeCard from '@/components/CommitmentTypeCard.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
     import FreedomCard from '@/components/FreedomCard.svelte';
-    import { formatAmount, formatCurrency, formatRelativeDays } from '@/lib/format';
+    import {
+        formatAmount,
+        formatCurrency,
+        formatRelativeDays,
+    } from '@/lib/format';
     import {
         type Commitment,
         type CommitmentKind,
@@ -48,17 +52,23 @@
     let filter = $state<CommitmentKind | null>(null);
     let sheetOpen = $state(false);
     let processing = $state(false);
+    /** الالتزام المفتوح للتعديل — `null` يعني إضافة جديدة. */
+    let editing = $state<Commitment | null>(null);
 
     const totals = $derived(totalsOf(commitments));
 
     /** ترتيب مقصود: المتأخّر أولاً، ثم الأقرب استحقاقاً، والمدفوع أخيراً. */
     const visible = $derived.by(() => {
-        const list = filter ? commitments.filter((c) => c.kind === filter) : commitments;
+        const list = filter
+            ? commitments.filter((c) => c.kind === filter)
+            : commitments;
         const rank = { overdue: 0, due_soon: 1, reserved: 2, paid: 3 } as const;
         return [...list].sort((a, b) => {
             const ra = rank[stateOf(a)];
             const rb = rank[stateOf(b)];
-            return ra !== rb ? ra - rb : daysUntil(a.due_date) - daysUntil(b.due_date);
+            return ra !== rb
+                ? ra - rb
+                : daysUntil(a.due_date) - daysUntil(b.due_date);
         });
     });
 
@@ -71,7 +81,9 @@
         if (list.length) {
             if (!unpaid.length) note = 'كلها مدفوعة';
             else {
-                const soonest = unpaid.reduce((a, b) => (daysUntil(a.due_date) <= daysUntil(b.due_date) ? a : b));
+                const soonest = unpaid.reduce((a, b) =>
+                    daysUntil(a.due_date) <= daysUntil(b.due_date) ? a : b,
+                );
                 note =
                     t.paidCount > 0
                         ? `دُفع ${t.paidCount} · باقي ${unpaid.length}`
@@ -81,7 +93,9 @@
         return { count: list.length, total: t.total, paid: t.paid, note };
     }
 
-    const freedom = $derived(freedomDay(commitments.filter((c) => c.kind === 'installment')));
+    const freedom = $derived(
+        freedomDay(commitments.filter((c) => c.kind === 'installment')),
+    );
 
     function pay(c: Commitment) {
         router.post(
@@ -90,10 +104,13 @@
             {
                 preserveScroll: true,
                 onSuccess: () =>
-                    toast.success(`تم دفع ${c.name} — ${formatCurrency(expectedAmount(c))}`, {
-                        action: { label: 'تراجع', onClick: () => undo(c) },
-                        duration: 5000,
-                    }),
+                    toast.success(
+                        `تم دفع ${c.name} — ${formatCurrency(expectedAmount(c))}`,
+                        {
+                            action: { label: 'تراجع', onClick: () => undo(c) },
+                            duration: 5000,
+                        },
+                    ),
             },
         );
     }
@@ -105,21 +122,52 @@
         });
     }
 
+    /**
+     * التعديل يفتح نفس اللوح مُعبّأً بالالتزام.
+     *
+     * كان يستدعي `GET /commitments/{id}/edit`، والـcontroller هناك يعيد
+     * التحويل إلى القائمة فوراً — فلا لوح يُفتح ولا شيء يُحفظ، ومسار
+     * `PUT /commitments/{id}` الموجود أصلاً لم يكن يُستدعى من الواجهة.
+     */
     function edit(c: Commitment) {
-        router.get(`/commitments/${c.id}/edit`);
+        editing = c;
+        sheetOpen = true;
+    }
+
+    function openAdd() {
+        editing = null;
+        sheetOpen = true;
     }
 
     function save(payload: Record<string, unknown>) {
         processing = true;
-        router.post('/commitments', payload, {
+        const label = KIND_LABEL[payload.kind as CommitmentKind];
+        const target = editing;
+
+        const options = {
             preserveScroll: true,
             onSuccess: () => {
                 sheetOpen = false;
-                const label = KIND_LABEL[payload.kind as CommitmentKind];
-                toast.success(`تمت إضافة ${label} «${payload.name}»`);
+                editing = null;
+                toast.success(
+                    target
+                        ? `حُفظ تعديل «${payload.name}»`
+                        : `تمت إضافة ${label} «${payload.name}»`,
+                );
             },
             onFinish: () => (processing = false),
-        });
+        };
+
+        // الحمولة كائن عادي؛ `RequestPayload` يشمل FormData فيمنع قراءة حقوله.
+        const body = payload as Parameters<typeof router.post>[1];
+
+        if (target) {
+            router.put(`/commitments/${target.id}`, body, options);
+
+            return;
+        }
+
+        router.post('/commitments', body, options);
     }
 </script>
 
@@ -127,16 +175,26 @@
     <div class="mx-auto w-full max-w-3xl p-3 md:p-6">
         <!-- الرأس -->
         <header class="mb-3">
-            <h1 class="truncate text-[17px] font-semibold tracking-tight">التزاماتي</h1>
+            <h1 class="truncate text-[17px] font-semibold tracking-tight">
+                التزاماتي
+            </h1>
             <p class="mt-0.5 truncate text-[11.5px] text-muted-foreground">
                 {commitments.length} التزام
-                {#if totals.overdueCount}· <span class="font-medium text-destructive">{totals.overdueCount} متأخّر</span>{/if}
+                {#if totals.overdueCount}· <span
+                        class="font-medium text-destructive"
+                        >{totals.overdueCount} متأخّر</span
+                    >{/if}
                 {#if periodLabel}· {periodLabel}{/if}
             </p>
         </header>
 
         <div class="space-y-3">
-            <CommitmentHealth total={totals.total} paid={totals.paid} reserved={totals.reserved} {income} />
+            <CommitmentHealth
+                total={totals.total}
+                paid={totals.paid}
+                reserved={totals.reserved}
+                {income}
+            />
 
             <!-- بطاقات الأنواع = الفلتر -->
             <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -161,7 +219,7 @@
             -->
             <button
                 type="button"
-                onclick={() => (sheetOpen = true)}
+                onclick={openAdd}
                 class="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-input bg-card text-[12.5px] font-semibold text-primary transition-colors hover:bg-secondary"
             >
                 <Plus class="size-4" /> إضافة التزام
@@ -170,7 +228,9 @@
             {#if filter}
                 <div class="flex items-center justify-between gap-2 px-0.5">
                     <p class="text-[11.5px] text-muted-foreground">
-                        تعرض: <b class="font-semibold text-foreground">{KIND_LABEL_PLURAL[filter]}</b>
+                        تعرض: <b class="font-semibold text-foreground"
+                            >{KIND_LABEL_PLURAL[filter]}</b
+                        >
                     </p>
                     <button
                         type="button"
@@ -186,21 +246,31 @@
             {#if visible.length}
                 <div class="grid gap-2 md:grid-cols-2">
                     {#each visible as c (c.id)}
-                        <CommitmentCard commitment={c} onPay={pay} onEdit={edit} onUndo={undo} />
+                        <CommitmentCard
+                            commitment={c}
+                            onPay={pay}
+                            onEdit={edit}
+                            onUndo={undo}
+                        />
                     {/each}
                 </div>
             {:else}
                 <EmptyState
                     icon="receipt"
-                    title={filter ? `ما عندك ${KIND_LABEL_PLURAL[filter]}` : 'ما أضفت التزامات بعد'}
+                    title={filter
+                        ? `ما عندك ${KIND_LABEL_PLURAL[filter]}`
+                        : 'ما أضفت التزامات بعد'}
                     description="الفواتير والإيجارات والأقساط والاشتراكات تُحجز من ميزانيتك تلقائياً، فتعرف كم يصفى لك فعلاً."
                     actionLabel="أضف أول التزام"
-                    onAction={() => (sheetOpen = true)}
+                    onAction={openAdd}
                 />
             {/if}
 
             {#if !filter || filter === 'installment'}
-                <FreedomCard label={freedom?.label ?? ''} monthly={freedom?.monthly ?? 0} />
+                <FreedomCard
+                    label={freedom?.label ?? ''}
+                    monthly={freedom?.monthly ?? 0}
+                />
             {/if}
         </div>
     </div>
@@ -209,7 +279,10 @@
         bind:open={sheetOpen}
         {income}
         {salaryDay}
-        currentObligations={totals.total}
+        {editing}
+        currentObligations={editing
+            ? totals.total - expectedAmount(editing)
+            : totals.total}
         {processing}
         onSave={save}
     />

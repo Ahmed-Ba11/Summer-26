@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\CommitmentService;
+use App\Services\SalaryMonthService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,48 +25,45 @@ class CalendarController extends Controller
         $end = $start->endOfMonth();
         $events = collect();
 
-        $user->bills()
-            ->whereBetween('due_date', [$start, $end])
-            ->orderBy('due_date')
-            ->get()
-            ->each(function ($bill) use ($events): void {
-                $events->push([
-                    'id' => $bill->id,
-                    'date' => $bill->due_date->format('Y-m-d'),
-                    'kind' => 'bill',
-                    'label' => $bill->name,
-                    'amount' => (int) ($bill->amount ?? 0),
-                    'isPaid' => (bool) $bill->is_paid,
-                    'canPay' => ! $bill->is_paid,
-                    'editUrl' => '/bills?edit='.$bill->id,
-                ]);
-            });
+        /**
+         * الالتزامات — من جدول `commitments` وبنفس حساب صفحة الالتزامات.
+         *
+         * كان التقويم يقرأ من `bills` و`installments` القديمين، وقد صار
+         * `commitments` المصدر الوحيد منذ ترحيل 2026-08-24. فكل التزام
+         * أُضيف بعدها يظهر في صفحة الالتزامات «يستحق بعد 23 يوم» ولا أثر
+         * له في التقويم — نصّان يتناقضان لأنهما يقرآن من جدولين.
+         *
+         * والتاريخ نفسه يُحسب هنا بـ`CommitmentService::dueDateFor` على
+         * فترة الراتب، لا بحساب مستقلّ على حدود الشهر التقويمي: الالتزام
+         * المربوط بيوم الراتب يتحرّك مع الراتب، وحسابه على يوم 1 يزيحه.
+         */
+        $service = CommitmentService::for($user);
+        $commitments = $user->commitments()->active()->orderBy('name')->get();
 
-        $user->installments()
-            ->orderBy('start_date')
-            ->get()
-            ->each(function ($installment) use ($events, $start): void {
-                $installmentStart = CarbonImmutable::parse($installment->start_date)->startOfMonth();
-                $monthIndex = $installmentStart->diffInMonths($start, false);
+        foreach ($this->periodsOverlapping($user, $start, $end) as $period) {
+            foreach ($commitments as $commitment) {
+                $dueDate = $service->dueDateFor($commitment, $period);
 
-                if ($monthIndex < 0 || $monthIndex >= $installment->total_months) {
-                    return;
+                if ($dueDate->lessThan($start) || $dueDate->greaterThan($end)) {
+                    continue;
                 }
 
-                $day = min(CarbonImmutable::parse($installment->start_date)->day, $start->daysInMonth);
-                $isPaid = $monthIndex < $installment->paid_months;
+                $isPaid = $commitment->payments()
+                    ->where('period_key', $period['key'])
+                    ->exists();
 
                 $events->push([
-                    'id' => $installment->id,
-                    'date' => $start->setDay($day)->format('Y-m-d'),
-                    'kind' => 'installment',
-                    'label' => $installment->name,
-                    'amount' => (int) $installment->monthly_amount,
+                    'id' => $commitment->id,
+                    'date' => $dueDate->format('Y-m-d'),
+                    'kind' => $commitment->kind === 'installment' ? 'installment' : 'bill',
+                    'label' => $commitment->name,
+                    'amount' => $service->expectedAmount($commitment),
                     'isPaid' => $isPaid,
                     'canPay' => ! $isPaid,
-                    'editUrl' => '/installments',
+                    'editUrl' => '/commitments',
                 ]);
-            });
+            }
+        }
 
         $salaryAmount = (int) $user->incomes()->where('is_recurring', true)->sum('amount');
         if ($salaryAmount > 0) {
@@ -106,6 +105,30 @@ class CalendarController extends Controller
             'nextMonth' => $start->addMonth()->format('Y-m'),
             'events' => $events->sortBy(fn (array $event): string => $event['date'].'-'.$event['kind'])->values()->all(),
         ]);
+    }
+
+    /**
+     * فترات الراتب التي تتقاطع مع الشهر التقويمي المعروض — واحدة أو اثنتان.
+     *
+     * الشهر التقويمي والشهر الراتبي لا ينطبقان: عرض «أغسطس» يقع جزؤه الأول
+     * في فترة راتب يوليو وجزؤه الأخير في فترة أغسطس، ولكل فترة استحقاقاتها
+     * وحالة دفعها. المرور على الفترتين معاً هو ما يجعل كل استحقاق داخل
+     * الشهر المعروض يظهر فيه.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function periodsOverlapping($user, CarbonImmutable $start, CarbonImmutable $end): array
+    {
+        $salaryMonth = SalaryMonthService::for($user);
+        $periods = [];
+        $period = $salaryMonth->periodFor($start);
+
+        while ($period['startsOn']->lessThanOrEqualTo($end)) {
+            $periods[] = $period;
+            $period = $salaryMonth->periodFor($period['nextSalary']);
+        }
+
+        return $periods;
     }
 
     private function resolveMonth(mixed $requested): string

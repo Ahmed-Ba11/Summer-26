@@ -39,6 +39,9 @@ export interface Commitment {
     months_paid: number;
     payment_method: PaymentMethod;
     due_type: DueType;
+    /** يوم الشهر — `null` حين يتبع الاستحقاق يوم الراتب */
+    due_day: number | null;
+    notify_when: NotifyWhen;
     /** التاريخ المحسوب لاستحقاق هذا الشهر — ISO */
     due_date: string;
     reserve_in_budget: boolean;
@@ -74,7 +77,12 @@ export const KIND_COLOR: Record<CommitmentKind, string> = {
     subscription: 'var(--chart-3)',
 };
 
-export const KIND_ORDER: CommitmentKind[] = ['bill', 'rent', 'installment', 'subscription'];
+export const KIND_ORDER: CommitmentKind[] = [
+    'bill',
+    'rent',
+    'installment',
+    'subscription',
+];
 
 /** الأيام المتبقّية للاستحقاق — سالب = متأخر. */
 export function daysUntil(due: string): number {
@@ -132,11 +140,21 @@ export function totalsOf(list: Commitment[]): CommitmentTotals {
         }
     }
 
-    return { total: paid + reserved, paid, reserved, count: list.length, paidCount, overdueCount };
+    return {
+        total: paid + reserved,
+        paid,
+        reserved,
+        count: list.length,
+        paidCount,
+        overdueCount,
+    };
 }
 
 /** نسبة الالتزامات من الدخل — مؤشّر صحة معياري. */
-export function healthOf(total: number, income: number): { pct: number; level: 'good' | 'warn' | 'bad' } {
+export function healthOf(
+    total: number,
+    income: number,
+): { pct: number; level: 'good' | 'warn' | 'bad' } {
     if (income <= 0) return { pct: 0, level: 'good' };
     const pct = (total / income) * 100;
     return { pct, level: pct > 70 ? 'bad' : pct > 50 ? 'warn' : 'good' };
@@ -157,14 +175,21 @@ export function finishLabel(monthsLeft: number): string {
     const d = new Date();
     d.setDate(1);
     d.setMonth(d.getMonth() + monthsLeft);
-    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { month: 'long', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
+        month: 'long',
+        year: 'numeric',
+    }).format(d);
 }
 
 /** «يوم تحرّرك»: آخر قسط ينتهي، وكم يرجع لك شهرياً بعده. */
-export function freedomDay(installments: Commitment[]): { label: string; monthly: number } | null {
+export function freedomDay(
+    installments: Commitment[],
+): { label: string; monthly: number } | null {
     const active = installments.filter((c) => c.months_count > c.months_paid);
     if (!active.length) return null;
-    const monthsLeft = Math.max(...active.map((c) => c.months_count - c.months_paid));
+    const monthsLeft = Math.max(
+        ...active.map((c) => c.months_count - c.months_paid),
+    );
     const monthly = active.reduce((s, c) => s + (c.amount ?? 0), 0);
     return { label: finishLabel(monthsLeft), monthly };
 }

@@ -176,14 +176,6 @@ class CommitmentController extends Controller
         return redirect()->back();
     }
 
-    public function edit(Request $request, Commitment $commitment)
-    {
-        $user = $request->user();
-        $this->authorizeOwnership($commitment, $user->id);
-
-        return redirect()->route('commitments');
-    }
-
     /**
      * @return array<string, mixed>
      */
