@@ -105,7 +105,8 @@ class BudgetGuardFeatureTest extends TestCase
         $user->budgets()->create([
             'category_id' => $category->id,
             'amount' => 10_000,
-            'month' => now()->format('Y-m'),
+            // الميزانية تتبع شهر الراتب لا الشهر التقويمي
+            'month' => \App\Services\SalaryMonthService::for($user)->current()['key'],
         ]);
 
         $this->actingAs($user)

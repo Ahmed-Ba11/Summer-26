@@ -19,12 +19,6 @@ use Illuminate\Support\Collection;
  */
 final class CommitmentService
 {
-    private const MONTHS = [
-        1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل',
-        5 => 'مايو', 6 => 'يونيو', 7 => 'يوليو', 8 => 'أغسطس',
-        9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر',
-    ];
-
     private const KIND_ICON = [
         'bill' => 'receipt', 'rent' => 'house', 'installment' => 'credit-card', 'subscription' => 'repeat',
     ];
@@ -43,31 +37,14 @@ final class CommitmentService
     /**
      * فترة الراتب الحالية = من نزول آخر راتب إلى اليوم قبل راتب الشهر التالي.
      *
-     * @return array{key:string, salaryDate:CarbonImmutable, nextSalary:CarbonImmutable, label:string}
+     * الحساب كلّه في `SalaryMonthService` — هنا استعمال فقط، حتى لا تختلف
+     * حدود الفترة بين وحدة وأخرى.
+     *
+     * @return array{key:string, salaryDate:CarbonImmutable, nextSalary:CarbonImmutable, label:string, range:string}
      */
     public function currentPeriod(): array
     {
-        $salaryDay = (int) ($this->user->salary_day ?? 27);
-        $today = CarbonImmutable::today();
-        $salaryDate = $this->salaryInMonth($today, $salaryDay);
-
-        if ($salaryDate->greaterThan($today)) {
-            $salaryDate = $this->salaryInMonth($today->subMonth(), $salaryDay);
-        }
-
-        $nextSalary = $this->salaryInMonth($salaryDate->addMonth(), $salaryDay);
-
-        return [
-            'key' => $salaryDate->format('Y-m'),
-            'salaryDate' => $salaryDate,
-            'nextSalary' => $nextSalary,
-            'label' => sprintf(
-                'راتب %s · %s ← %s',
-                self::MONTHS[(int) $salaryDate->month],
-                $salaryDate->format('d ').self::MONTHS[(int) $salaryDate->month],
-                $nextSalary->subDay()->format('d ').self::MONTHS[(int) $nextSalary->subDay()->month],
-            ),
-        ];
+        return SalaryMonthService::for($this->user)->current();
     }
 
     /**
@@ -111,9 +88,7 @@ final class CommitmentService
     /** دخل فترة الراتب الحالية (بدل التقدير بالدخل المتكرر إن لم يُسجَّل). */
     public function periodIncome(array $period): int
     {
-        $income = (int) $this->user->incomes()
-            ->whereBetween('income_date', [$period['salaryDate'], $period['nextSalary']])
-            ->sum('amount');
+        $income = SalaryMonthService::for($this->user)->incomeFor($period['key']);
 
         if ($income === 0) {
             $income = (int) $this->user->recurringTransactions()
@@ -241,19 +216,7 @@ final class CommitmentService
     /** مفتاح فترة الراتب لأي تاريخ — يُخزَّن في commitment_payments.period_key. */
     public function periodKeyFor(CarbonImmutable $date): string
     {
-        $salaryDay = (int) ($this->user->salary_day ?? 27);
-        $salaryDate = $this->salaryInMonth($date, $salaryDay);
-
-        if ($salaryDate->greaterThan($date)) {
-            $salaryDate = $this->salaryInMonth($date->subMonth(), $salaryDay);
-        }
-
-        return $salaryDate->format('Y-m');
-    }
-
-    private function salaryInMonth(CarbonImmutable $anchor, int $salaryDay): CarbonImmutable
-    {
-        return $anchor->setDay(min($salaryDay, $anchor->daysInMonth));
+        return SalaryMonthService::for($this->user)->keyFor($date);
     }
 
     private function dayWithinWindow(int $day, array $period): CarbonImmutable

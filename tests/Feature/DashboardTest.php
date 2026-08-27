@@ -30,7 +30,8 @@ class DashboardTest extends TestCase
     {
         $user = User::factory()->create(['salary_day' => 27]);
         $category = $user->categories()->firstOrFail();
-        $month = now()->format('Y-m');
+        // الميزانية تتبع شهر الراتب لا الشهر التقويمي
+        $month = \App\Services\SalaryMonthService::for($user)->current()['key'];
 
         $user->incomes()->create([
             'amount' => 800000,

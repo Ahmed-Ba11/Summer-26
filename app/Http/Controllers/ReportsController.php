@@ -17,17 +17,19 @@ class ReportsController extends Controller
 {
     public function index(ReportRequest $request): Response
     {
-        $month = $request->validated()['month'] ?? now()->format('Y-m');
+        $user = $request->user();
+        $salaryMonth = SalaryMonthService::for($user);
+        $month = $request->validated()['month'] ?? $salaryMonth->current()['key'];
 
-        return Inertia::render('Reports', $this->report($request->user(), $month));
+        return Inertia::render('Reports', $this->report($user, $month));
     }
 
     public function export(ReportRequest $request): StreamedResponse
     {
-        $month = $request->validated()['month'] ?? now()->format('Y-m');
         $user = $request->user();
-        $start = CarbonImmutable::createFromFormat('!Y-m-d', $month.'-01')->startOfMonth();
-        $end = $start->endOfMonth();
+        $salaryMonth = SalaryMonthService::for($user);
+        $month = $request->validated()['month'] ?? $salaryMonth->current()['key'];
+        [$start, $end] = $salaryMonth->rangeFor($month);
 
         return response()->streamDownload(function () use ($user, $start, $end): void {
             $handle = fopen('php://output', 'w');
@@ -69,10 +71,11 @@ class ReportsController extends Controller
      */
     private function report(User $user, string $month): array
     {
-        $start = CarbonImmutable::createFromFormat('!Y-m-d', $month.'-01')->startOfMonth();
-        $end = $start->endOfMonth();
-        $totalIncome = (int) $user->incomes()->whereBetween('income_date', [$start, $end])->sum('amount');
-        $totalExpenses = (int) $user->expenses()->whereBetween('expense_date', [$start, $end])->sum('amount');
+        $salaryMonth = SalaryMonthService::for($user);
+        $period = $salaryMonth->period($month);
+        [$start, $end] = $salaryMonth->rangeFor($month);
+        $totalIncome = $salaryMonth->incomeFor($month);
+        $totalExpenses = $salaryMonth->expensesFor($month);
         $categoryTotals = $user->expenses()
             ->selectRaw('category_id, SUM(amount) as amount')
             ->whereBetween('expense_date', [$start, $end])

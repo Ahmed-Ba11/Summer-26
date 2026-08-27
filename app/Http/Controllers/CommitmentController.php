@@ -27,7 +27,7 @@ class CommitmentController extends Controller
             'commitments' => $service->hydrate($commitments, $period),
             'income' => $service->periodIncome($period),
             'salaryDay' => (int) ($user->salary_day ?? 27),
-            'periodLabel' => $period['label'],
+            'periodLabel' => $period['label'].' · '.$period['range'],
         ]);
     }
 

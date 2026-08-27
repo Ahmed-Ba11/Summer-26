@@ -20,6 +20,7 @@ use App\Models\SavingsGoal;
 use App\Services\BudgetGuard;
 use App\Services\ExpenseFundingService;
 use App\Services\RecurringTransactionService;
+use App\Services\SalaryMonthService;
 use App\Services\SavingsLedger;
 use App\Support\Money;
 use Illuminate\Http\Request;
@@ -35,6 +36,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/calendar', CalendarController::class)->name('calendar');
+
+    // إقفال شهر الراتب — الفائض لا يُرحَّل صامتاً، المستخدم يقرّر وجهته.
+    Route::post('/salary-month/close', function (Request $request) {
+        $validated = $request->validate([
+            'period_key' => ['required', 'string', 'regex:/^\d{4}-\d{2}$/'],
+            'action' => 'required|in:saved,rolled,split',
+            'savings_goal_id' => 'nullable|integer',
+        ]);
+
+        SalaryMonthService::for($request->user())->close(
+            $validated['period_key'],
+            $validated['action'],
+            $validated['savings_goal_id'] ?? null,
+        );
+
+        return redirect()->back();
+    })->name('salary-month.close');
 
     // Commitments (فواتير · إيجارات · أقساط · اشتراكات موحّدة)
     Route::get('/commitments', [CommitmentController::class, 'index'])->name('commitments');
@@ -173,10 +191,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             return $expense;
         });
 
-        $warnings = BudgetGuard::for(auth()->user())->inspectExpense(
+        $warnings = BudgetGuard::for($user)->inspectExpense(
             (int) $expense->amount,
             (int) $expense->category_id,
-            substr((string) $validated['expense_date'], 0, 7),
+            SalaryMonthService::for($user)->keyFor($validated['expense_date']),
         );
 
         return redirect()->back()->with('warnings', $warnings);
@@ -371,14 +389,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Budgets
     Route::get('/budgets', function () {
         $user = auth()->user();
-        $currentMonth = now()->format('Y-m');
+        $salaryMonth = SalaryMonthService::for($user);
+        $period = $salaryMonth->current();
+        $currentMonth = $period['key'];
+        $periodRange = $salaryMonth->rangeFor($currentMonth);
         $categories = Category::where(function ($q) use ($user) {
             $q->where('user_id', $user->id)->orWhereNull('user_id');
         })->get();
 
-        $budgets = $categories->map(function ($cat) use ($user, $currentMonth) {
+        $budgets = $categories->map(function ($cat) use ($user, $currentMonth, $periodRange) {
             $budget = $user->budgets()->where('category_id', $cat->id)->where('month', $currentMonth)->first();
-            $spent = (int) $user->expenses()->where('category_id', $cat->id)->where('expense_date', 'like', $currentMonth.'%')->sum('amount');
+            $spent = (int) $user->expenses()->where('category_id', $cat->id)
+                ->whereBetween('expense_date', $periodRange)
+                ->sum('amount');
 
             return [
                 'id' => $budget?->id,
@@ -405,6 +428,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'rollover' => 0,
             ],
             'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]),
+            'salaryMonth' => [
+                'key' => $period['key'],
+                'label' => $period['label'],
+                'range' => $period['range'],
+                'daysLeft' => $period['daysLeft'],
+            ],
         ]);
     })->name('budgets');
 
@@ -420,7 +449,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
 
         $user = auth()->user();
-        $month = $validated['month'] ?? now()->format('Y-m');
+        $month = $validated['month'] ?? SalaryMonthService::for($user)->current()['key'];
         $amount = Money::toHalalas($validated['amount']);
         $previousAmount = (int) $user->budgets()
             ->where('category_id', $validated['category_id'])
@@ -483,7 +512,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Savings
     Route::get('/savings', function () {
         $user = auth()->user();
-        $currentMonth = now()->format('Y-m');
+        $salaryMonth = SalaryMonthService::for($user);
+        $period = $salaryMonth->current();
 
         $goals = $user->savingsGoals()->latest()->get()->map(fn (SavingsGoal $g) => [
             'id' => $g->id,
@@ -497,8 +527,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
 
         $totalSaved = (int) $user->savingsGoals()->sum('current_amount');
-        $monthlyIncome = (int) $user->incomes()->where('income_date', 'like', $currentMonth.'%')->sum('amount');
-        $monthlyDeposits = SavingsLedger::for($user)->netForPeriod(SalaryPeriod::keyFor($user));
+        $monthlyIncome = $salaryMonth->incomeFor($period['key']);
+        $monthlyDeposits = SavingsLedger::for($user)->netForPeriod($period['key']);
 
         return Inertia::render('Savings', [
             'goals' => $goals,
@@ -507,6 +537,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'monthly_income' => $monthlyIncome,
                 'monthly_deposits' => $monthlyDeposits,
                 'savings_rate' => $monthlyIncome > 0 ? (int) round(($monthlyDeposits / $monthlyIncome) * 100) : 0,
+            ],
+            'salaryMonth' => [
+                'key' => $period['key'],
+                'label' => $period['label'],
+                'range' => $period['range'],
+                'daysLeft' => $period['daysLeft'],
             ],
         ]);
     })->name('savings');

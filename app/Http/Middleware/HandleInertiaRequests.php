@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Services\BudgetGuard;
 use App\Services\CommitmentService;
 use App\Services\ExpenseFundingService;
+use App\Services\SalaryMonthService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -55,30 +56,23 @@ class HandleInertiaRequests extends Middleware
                 'toast' => fn (): mixed => $request->session()->get('toast'),
             ],
             'navStats' => $user ? function () use ($user): array {
-                $context = BudgetGuard::for($user)->context();
+                // كل الأرقام هنا على **شهر الراتب** لا الشهر التقويمي:
+                // «المتبقي لك» و«الحد اليومي الآمن» أهم رقمين في التطبيق،
+                // وتصفيرهما يوم 1 يجعلهما غلطاً معظم أيام شهر المستخدم.
+                $salaryMonth = SalaryMonthService::for($user);
+                $period = $salaryMonth->current();
+                $range = $salaryMonth->rangeFor($period['key']);
+                $context = BudgetGuard::for($user)->context($period['key']);
                 $commitmentService = CommitmentService::for($user);
-                $commitmentPeriod = $commitmentService->currentPeriod();
-                $commitmentsTotal = $commitmentService->obligationsForPeriod($commitmentPeriod);
-                $today = now();
-                $salaryDay = (int) ($user->salary_day ?? 27);
-                $salaryDate = $salaryDay === 0
-                    ? $today->copy()->endOfMonth()->startOfDay()
-                    : $today->copy()->setDay(min($salaryDay, $today->daysInMonth));
+                $commitmentsTotal = $commitmentService->obligationsForPeriod($period);
 
-                if ($salaryDate->lessThanOrEqualTo($today)) {
-                    $nextMonth = $today->copy()->addMonth();
-                    $salaryDate = $salaryDay === 0
-                        ? $nextMonth->endOfMonth()->startOfDay()
-                        : $nextMonth->setDay(min($salaryDay, $nextMonth->daysInMonth));
-                }
-
-                $daysLeft = max(0, (int) $today->diffInDays($salaryDate));
+                $daysLeft = $period['daysLeft'];
                 $monthlyIncome = $context['monthlyIncome'];
                 $budgetUsedPct = $context['budgetedTotal'] > 0
                     ? (int) round(($context['spent'] / $context['budgetedTotal']) * 100)
                     : 0;
                 $monthlySavings = (int) $user->savingsDeposits()
-                    ->whereBetween('deposited_at', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->whereBetween('deposited_at', $range)
                     ->sum('amount');
                 $savingsPct = $monthlyIncome > 0
                     ? (int) round(($monthlySavings / $monthlyIncome) * 100)
@@ -86,12 +80,12 @@ class HandleInertiaRequests extends Middleware
 
                 $plannedSavings = max(0, $context['obligations'] - $commitmentsTotal);
                 $transactionsCount = $user->expenses()
-                    ->whereBetween('expense_date', [now()->startOfMonth(), now()->endOfMonth()])
+                    ->whereBetween('expense_date', $range)
                     ->count()
                     + $user->incomes()
-                        ->whereBetween('income_date', [now()->startOfMonth(), now()->endOfMonth()])
+                        ->whereBetween('income_date', $range)
                         ->count();
-                $dueCommitments = $commitmentService->dueSoonCount(7, $commitmentPeriod);
+                $dueCommitments = $commitmentService->dueSoonCount(7, $period);
 
                 $incomeSplit = $monthlyIncome > 0 ? [
                     ['key' => 'commitments', 'pct' => (int) round(($commitmentsTotal / $monthlyIncome) * 100), 'color' => 'var(--chart-7)'],
@@ -104,6 +98,8 @@ class HandleInertiaRequests extends Middleware
                     'remaining' => $context['available'],
                     'dailySafe' => $daysLeft > 0 ? intdiv($context['available'], $daysLeft) : $context['available'],
                     'daysLeft' => $daysLeft,
+                    'salaryLabel' => $period['label'],
+                    'salaryRange' => $period['range'],
                     'budgetUsedPct' => $budgetUsedPct,
                     'transactionsCount' => $transactionsCount,
                     'dueCommitments' => $dueCommitments,
@@ -113,29 +109,20 @@ class HandleInertiaRequests extends Middleware
             } : null,
             'dueBillsCount' => $user ? CommitmentService::for($user)->dueSoonCount() : 0,
             'quickAdd' => $user ? function () use ($user): array {
-                $month = now()->format('Y-m');
-                $context = BudgetGuard::for($user)->context();
-                $today = now();
-                $salaryDay = (int) ($user->salary_day ?? 27);
-                $salaryDate = $salaryDay === 0
-                    ? $today->copy()->endOfMonth()->startOfDay()
-                    : $today->copy()->setDay(min($salaryDay, $today->daysInMonth));
-
-                if ($salaryDate->lessThanOrEqualTo($today)) {
-                    $nextMonth = $today->copy()->addMonth();
-                    $salaryDate = $salaryDay === 0
-                        ? $nextMonth->endOfMonth()->startOfDay()
-                        : $nextMonth->setDay(min($salaryDay, $nextMonth->daysInMonth));
-                }
+                $salaryMonth = SalaryMonthService::for($user);
+                $period = $salaryMonth->current();
+                $month = $period['key'];
+                $range = $salaryMonth->rangeFor($month);
+                $context = BudgetGuard::for($user)->context($month);
 
                 $categories = Category::query()
                     ->where('user_id', $user->id)
                     ->orderBy('id')
                     ->get()
-                    ->map(function (Category $category) use ($user, $month): array {
+                    ->map(function (Category $category) use ($user, $month, $range): array {
                         $spent = (int) $user->expenses()
                             ->where('category_id', $category->id)
-                            ->where('expense_date', 'like', $month.'%')
+                            ->whereBetween('expense_date', $range)
                             ->sum('amount');
                         $averageEntry = (int) round((float) ($user->expenses()
                             ->where('category_id', $category->id)
@@ -183,7 +170,8 @@ class HandleInertiaRequests extends Middleware
                         'obligations' => $context['obligations'],
                         'spent' => $context['spent'],
                         'budgetedTotal' => $context['budgetedTotal'],
-                        'daysUntilSalary' => (int) $today->diffInDays($salaryDate),
+                        'daysUntilSalary' => $period['daysLeft'],
+                        'salaryLabel' => $period['label'],
                     ],
                     'categories' => $categories,
                     'lastCategoryId' => $user->expenses()->latest('expense_date')->value('category_id'),

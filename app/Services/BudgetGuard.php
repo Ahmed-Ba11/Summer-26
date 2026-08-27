@@ -47,24 +47,21 @@ final class BudgetGuard
      */
     public function context(?string $month = null): array
     {
-        $month ??= now()->format('Y-m');
-        $start = CarbonImmutable::parse($month.'-01')->startOfMonth();
-        $end = $start->endOfMonth();
+        $salaryMonth = SalaryMonthService::for($this->user);
+        $month ??= $salaryMonth->current()['key'];
 
-        $income = (int) $this->user->incomes()
-            ->whereBetween('income_date', [$start, $end])->sum('amount');
+        $income = $salaryMonth->incomeFor($month);
 
-        // لو ما فيه دخل مسجّل هذا الشهر، نرجع للدخل المتكرر كتقدير —
+        // لو ما فيه دخل مسجّل في شهر الراتب هذا، نرجع للدخل المتكرر كتقدير —
         // وإلا كل تحقّق في بداية الشهر بيفشل بلا سبب حقيقي.
         if ($income === 0) {
             $income = (int) $this->user->recurringTransactions()
                 ->where('type', 'income')->where('is_active', true)->sum('amount');
         }
 
-        $spent = (int) $this->user->expenses()
-            ->whereBetween('expense_date', [$start, $end])->sum('amount');
+        $spent = $salaryMonth->expensesFor($month);
 
-        $obligations = $this->obligations($start, $end);
+        $obligations = $this->obligations();
 
         $budgetedTotal = (int) $this->user->budgets()
             ->where('month', $month)->sum('amount');
@@ -83,7 +80,7 @@ final class BudgetGuard
     }
 
     /** التزامات فترة الراتب (مدفوعات + محجوز) + الادخار الشهري المطلوب. */
-    private function obligations(CarbonImmutable $start, CarbonImmutable $end): int
+    private function obligations(): int
     {
         $commitments = CommitmentService::for($this->user)->obligationsForPeriod();
 
@@ -112,6 +109,8 @@ final class BudgetGuard
      */
     public function inspectExpense(int $amount, ?int $categoryId, ?string $month = null): array
     {
+        $salaryMonth = SalaryMonthService::for($this->user);
+        $month ??= $salaryMonth->current()['key'];
         $ctx = $this->context($month);
         $warnings = [];
 
@@ -119,13 +118,13 @@ final class BudgetGuard
             $budget = (int) Budget::query()
                 ->where('user_id', $this->user->id)
                 ->where('category_id', $categoryId)
-                ->where('month', $month ?? now()->format('Y-m'))
+                ->where('month', $month)
                 ->value('amount');
 
             if ($budget > 0) {
                 $spent = (int) $this->user->expenses()
                     ->where('category_id', $categoryId)
-                    ->where('expense_date', 'like', ($month ?? now()->format('Y-m')).'%')
+                    ->whereBetween('expense_date', $salaryMonth->rangeFor($month))
                     ->sum('amount');
 
                 if ($spent > $budget) {

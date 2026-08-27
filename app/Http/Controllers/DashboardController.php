@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\User;
 use App\Services\CommitmentService;
+use App\Services\SalaryMonthService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -54,25 +55,21 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        $month = $this->resolveMonth($request->query('month'));
-        $commitmentService = CommitmentService::for($user);
-        $commitmentPeriod = $commitmentService->currentPeriod();
-        $start = CarbonImmutable::parse($month.'-01')->startOfMonth();
-        $end = $start->endOfMonth();
-        $prev = $start->subMonth()->format('Y-m');
+        $salaryMonth = SalaryMonthService::for($user);
+        $month = $this->resolveMonth($request->query('month'), $salaryMonth);
+        $period = $salaryMonth->period($month);
+        $range = $salaryMonth->rangeFor($month);
 
-        $isCurrentMonth = $month === now()->format('Y-m');
-        $today = CarbonImmutable::today();
+        $commitmentService = CommitmentService::for($user);
+        $commitmentPeriod = $salaryMonth->current();
+
+        $prev = $salaryMonth->periodFor($period['startsOn']->subDay())['key'];
+        $isCurrentMonth = $month === $commitmentPeriod['key'];
 
         // ── المبالغ الأساسية ────────────────────────────────────────────────
-        $totalIncome = (int) $user->incomes()
-            ->whereBetween('income_date', [$start, $end])->sum('amount');
-
-        $totalExpenses = (int) $user->expenses()
-            ->whereBetween('expense_date', [$start, $end])->sum('amount');
-
-        $prevExpenses = (int) $user->expenses()
-            ->where('expense_date', 'like', $prev.'%')->sum('amount');
+        $totalIncome = $salaryMonth->incomeFor($month);
+        $totalExpenses = $salaryMonth->expensesFor($month);
+        $prevExpenses = $salaryMonth->expensesFor($prev);
 
         $commitmentsTotal = $commitmentService->obligationsForPeriod($commitmentPeriod);
         $commitmentsReserved = $commitmentService->reservedForPeriod($commitmentPeriod);
@@ -82,9 +79,10 @@ class DashboardController extends Controller
         $savingsMonthly = $this->monthlySavingsNeed($user);
 
         // ── الأيام والمتوسطات ───────────────────────────────────────────────
-        $salaryDay = (int) ($user->salary_day ?? 27);
-        $daysLeft = $isCurrentMonth ? $this->daysUntilSalary($salaryDay, $today) : 0;
-        $daysElapsed = $isCurrentMonth ? max(1, $today->day) : $start->daysInMonth;
+        // كلها على أيام **شهر الراتب**: المتوسط اليومي في اليوم الثالث من
+        // الراتب يُقسَم على 3 لا على رقم اليوم في التقويم.
+        $daysLeft = $isCurrentMonth ? $period['daysLeft'] : 0;
+        $daysElapsed = $isCurrentMonth ? max(1, $period['dayIndex']) : $period['totalDays'];
         $avgDaily = (int) round($totalExpenses / $daysElapsed);
 
         // ── الفئات ──────────────────────────────────────────────────────────
@@ -96,7 +94,7 @@ class DashboardController extends Controller
             ->orderBy('id')
             ->get()
             ->values()
-            ->map(function (Category $c, int $i) use ($user, $start, $end, $budgets): array {
+            ->map(function (Category $c, int $i) use ($user, $range, $budgets): array {
                 return [
                     'id' => $c->id,
                     'name' => $c->name,
@@ -104,27 +102,20 @@ class DashboardController extends Controller
                     'color' => $this->normalizeColor($c->color, $i),
                     'amount' => (int) $user->expenses()
                         ->where('category_id', $c->id)
-                        ->whereBetween('expense_date', [$start, $end])
+                        ->whereBetween('expense_date', $range)
                         ->sum('amount'),
                     'budget' => (int) ($budgets[$c->id] ?? 0),
                     'rollover' => 0,
                 ];
             });
 
-        // ── الاتجاه: آخر ٦ أشهر ─────────────────────────────────────────────
-        $monthly = collect(range(5, 0))->map(function (int $back) use ($user, $start): array {
-            $m = $start->subMonths($back);
-
-            return [
-                'month' => self::MONTHS[(int) $m->month],
-                'income' => (int) $user->incomes()
-                    ->whereBetween('income_date', [$m->startOfMonth(), $m->endOfMonth()])
-                    ->sum('amount'),
-                'expenses' => (int) $user->expenses()
-                    ->whereBetween('expense_date', [$m->startOfMonth(), $m->endOfMonth()])
-                    ->sum('amount'),
-            ];
-        })->values();
+        // ── الاتجاه: آخر ٦ رواتب ────────────────────────────────────────────
+        $monthly = collect($salaryMonth->lastPeriods(6, $month))
+            ->map(fn (array $p): array => [
+                'month' => self::MONTHS[(int) substr($p['key'], 5, 2)],
+                'income' => $salaryMonth->incomeFor($p['key']),
+                'expenses' => $salaryMonth->expensesFor($p['key']),
+            ])->values();
 
         // ── آخر المعاملات ───────────────────────────────────────────────────
         $expenseTxns = $user->expenses()->with('category')
@@ -164,9 +155,22 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard', [
             'month' => $month,
-            'availableMonths' => $this->availableMonths(),
+            'availableMonths' => $this->availableMonths($salaryMonth),
             'hasData' => $hasData,
             'onboardingComplete' => $user->onboarding_completed_at !== null,
+
+            'salaryMonth' => [
+                'key' => $period['key'],
+                'label' => $period['label'],
+                'range' => $period['range'],
+                'daysLeft' => $period['daysLeft'],
+                'dayIndex' => $period['dayIndex'],
+                'totalDays' => $period['totalDays'],
+                'isCurrent' => $isCurrentMonth,
+            ],
+
+            // إقفال الراتب السابق — يُعرض مرة واحدة، والفائض بقرار المستخدم.
+            'salaryClose' => $isCurrentMonth ? $salaryMonth->pendingClose() : null,
 
             'stats' => [
                 'totalIncome' => $totalIncome,
@@ -194,7 +198,7 @@ class DashboardController extends Controller
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    private function resolveMonth(?string $requested): string
+    private function resolveMonth(?string $requested, SalaryMonthService $salaryMonth): string
     {
         if ($requested
             && preg_match('/^\d{4}-\d{2}$/', $requested)
@@ -202,34 +206,24 @@ class DashboardController extends Controller
             return $requested;
         }
 
-        return now()->format('Y-m');
+        return $salaryMonth->current()['key'];
     }
 
-    /** @return list<array{value: string, label: string}> */
-    private function availableMonths(): array
+    /**
+     * آخر اثني عشر راتباً — «راتب أغسطس 2026» لا «أغسطس 2026».
+     *
+     * @return list<array{value: string, label: string}>
+     */
+    private function availableMonths(SalaryMonthService $salaryMonth): array
     {
-        return collect(range(0, 11))->map(function (int $back): array {
-            $m = now()->subMonths($back);
-
-            return [
-                'value' => $m->format('Y-m'),
-                'label' => self::MONTHS[(int) $m->month].' '.$m->year,
-            ];
-        })->all();
-    }
-
-    /** عدد الأيام حتى يوم الراتب القادم. */
-    private function daysUntilSalary(int $salaryDay, CarbonImmutable $from): int
-    {
-        $day = min($salaryDay, $from->daysInMonth);
-        $next = $from->setDay($day);
-
-        if ($next->lessThanOrEqualTo($from)) {
-            $nextMonth = $from->addMonth();
-            $next = $nextMonth->setDay(min($salaryDay, $nextMonth->daysInMonth));
-        }
-
-        return (int) $from->diffInDays($next);
+        return collect($salaryMonth->lastPeriods(12))
+            ->reverse()
+            ->map(fn (array $p): array => [
+                'value' => $p['key'],
+                'label' => $p['label'].' '.substr($p['key'], 0, 4),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
