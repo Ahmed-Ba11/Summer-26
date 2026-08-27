@@ -9,6 +9,7 @@ use App\Http\Requests\OnboardingCommitmentsRequest;
 use App\Http\Requests\OnboardingIncomeRequest;
 use App\Models\Category;
 use App\Services\RecurringTransactionService;
+use App\Services\SalaryMonthService;
 use App\Support\Money;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -127,7 +128,9 @@ class OnboardingController extends Controller
             return redirect()->route('dashboard');
         }
         $budgets = $validated['budgets'] ?? (isset($validated['category_id']) ? [$validated] : []);
-        $month = $validated['month'] ?? now()->format('Y-m');
+        // الميزانية تُخزَّن بمفتاح شهر الراتب — لو استعملنا الشهر التقويمي هنا
+        // لسقطت ميزانية الإعداد في فترة غير التي يراها المستخدم في اللوحة.
+        $month = $validated['month'] ?? SalaryMonthService::for($user)->current()['key'];
 
         DB::transaction(function () use ($budgets, $month, $user): void {
             foreach ($budgets as $budget) {

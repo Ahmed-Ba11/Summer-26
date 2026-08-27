@@ -53,10 +53,19 @@
             remaining: 0,
             rollover: 0,
         } as BudgetStats,
+        salaryMonth = null,
     }: {
         budgets?: BudgetRecord[];
         stats?: BudgetStats;
+        salaryMonth?: { key: string; label: string; range: string; daysLeft: number } | null;
     } = $props();
+
+    /** الميزانية تتبع شهر الراتب — يُذكر مداه صراحةً حتى لا يُقرأ كشهر تقويمي. */
+    const periodLine = $derived(
+        salaryMonth
+            ? `${salaryMonth.label} · ${salaryMonth.range}`
+            : 'وزّع دخلك على الفئات وراقب إنفاقك',
+    );
 
     const serverErrors = $derived(
         (page.props.errors ?? {}) as ValidationErrors,
@@ -252,15 +261,13 @@
 </script>
 
 <AppHead title="الميزانيات" />
-<MobileHeader title="الميزانية العامة" subtitle="وزّع دخلك على الفئات وراقب إنفاقك" />
+<MobileHeader title="الميزانية العامة" subtitle={periodLine} />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
     <div class="hidden items-center justify-between md:flex">
         <div>
             <h1 class="text-2xl font-bold">الميزانية العامة</h1>
-            <p class="text-muted-foreground">
-                وزّع دخلك على الفئات وراقب إنفاقك
-            </p>
+            <p class="text-muted-foreground">{periodLine}</p>
         </div>
         <Button size="sm" class="gap-1.5" onclick={openCatModal}>
             <Plus class="size-3.5" />

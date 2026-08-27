@@ -8,7 +8,7 @@ use App\Http\Requests\ReportRequest;
 use App\Models\Category;
 use App\Models\Expense;
 use App\Models\User;
-use Carbon\CarbonImmutable;
+use App\Services\SalaryMonthService;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -99,16 +99,14 @@ class ReportsController extends Controller
             ];
         })->values();
 
-        $monthly = collect(range(11, 0))->map(function (int $back) use ($start, $user): array {
-            $monthStart = $start->subMonths($back)->startOfMonth();
-            $monthEnd = $monthStart->endOfMonth();
-
-            return [
-                'month' => $monthStart->format('Y-m'),
-                'income' => (int) $user->incomes()->whereBetween('income_date', [$monthStart, $monthEnd])->sum('amount'),
-                'expenses' => (int) $user->expenses()->whereBetween('expense_date', [$monthStart, $monthEnd])->sum('amount'),
-            ];
-        })->values();
+        // الاتجاه على آخر اثني عشر **راتباً** لا اثني عشر شهراً تقويمياً
+        $monthly = collect($salaryMonth->lastPeriods(12, $month))
+            ->map(fn (array $p): array => [
+                'month' => $p['key'],
+                'label' => $p['label'],
+                'income' => $salaryMonth->incomeFor($p['key']),
+                'expenses' => $salaryMonth->expensesFor($p['key']),
+            ])->values();
 
         $topExpenses = $user->expenses()->with('category')
             ->whereBetween('expense_date', [$start, $end])
@@ -126,6 +124,11 @@ class ReportsController extends Controller
 
         return [
             'month' => $month,
+            'salaryMonth' => [
+                'key' => $period['key'],
+                'label' => $period['label'],
+                'range' => $period['range'],
+            ],
             'hasData' => $totalIncome > 0 || $totalExpenses > 0,
             'summary' => [
                 'total_income' => $totalIncome,

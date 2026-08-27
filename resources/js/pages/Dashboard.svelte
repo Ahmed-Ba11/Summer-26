@@ -32,6 +32,7 @@ import Vault from 'lucide-svelte/icons/vault';
     import AppHead from '@/components/AppHead.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
+    import SalaryCloseSheet from '@/components/SalaryCloseSheet.svelte';
     import MoneyStoryCard from '@/components/MoneyStoryCard.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import UpcomingStrip from '@/components/UpcomingStrip.svelte';
@@ -59,6 +60,17 @@ import Vault from 'lucide-svelte/icons/vault';
         kind: 'salary' | 'bill' | 'rent' | 'installment' | 'subscription' | 'savings';
         label: string;
         amount: number;
+    }
+
+    /** شهر الراتب المعروض — يبدأ يوم نزول الراتب لا يوم 1. */
+    interface SalaryMonth {
+        key: string;
+        label: string;
+        range: string;
+        daysLeft: number;
+        dayIndex: number;
+        totalDays: number;
+        isCurrent: boolean;
     }
 
     interface Transaction {
@@ -94,6 +106,8 @@ import Vault from 'lucide-svelte/icons/vault';
         availableMonths = [] as { value: string; label: string }[],
         hasData = false,
         onboardingComplete = true,
+        salaryMonth = null,
+        salaryClose = null,
     }: {
         stats?: Stats;
         calendarEvents?: CalEvent[];
@@ -102,6 +116,8 @@ import Vault from 'lucide-svelte/icons/vault';
         availableMonths?: { value: string; label: string }[];
         hasData?: boolean;
         onboardingComplete?: boolean;
+        salaryMonth?: SalaryMonth | null;
+        salaryClose?: any;
     } = $props();
 
     const expenseDelta = $derived(
@@ -110,7 +126,24 @@ import Vault from 'lucide-svelte/icons/vault';
             : 0,
     );
 
-    const currentMonthLabel = $derived(availableMonths.find((m) => m.value === month)?.label ?? month);
+    const currentMonthLabel = $derived(
+        availableMonths.find((m) => m.value === month)?.label ?? salaryMonth?.label ?? month,
+    );
+
+    /**
+     * سطر الفترة تحت العنوان.
+     *
+     * شهر المستخدم يبدأ يوم راتبه، فالمدى المعروض («27 أغسطس ← 26 سبتمبر»)
+     * هو ما يجعل بقية الأرقام مفهومة — بدونه يقرأ «باقي 26 يوم» على أنه
+     * باقي من الشهر التقويمي.
+     */
+    const periodLine = $derived(
+        salaryMonth
+            ? salaryMonth.isCurrent && salaryMonth.daysLeft > 0
+                ? `${salaryMonth.label} · ${salaryMonth.range} — باقي ${salaryMonth.daysLeft} يوم`
+                : `${salaryMonth.label} · ${salaryMonth.range}`
+            : 'صورة ميزانيتك الكاملة.',
+    );
 
     let monthOpen = $state(false);
 
@@ -122,25 +155,17 @@ import Vault from 'lucide-svelte/icons/vault';
 </script>
 
 <AppHead title="لوحة التحكم" />
-<MobileHeader
-    title="لوحة التحكم"
-    subtitle={stats.daysLeft > 0
-        ? `صورة ميزانيتك الكاملة — باقي ${stats.daysLeft} يوم على الراتب.`
-        : 'صورة ميزانيتك الكاملة لهذا الشهر.'}
-/>
+<MobileHeader title="لوحة التحكم" subtitle={periodLine} />
+
+<!-- إقفال الراتب السابق — يُعرض قبل أي رقم، لأنه يغيّر الأرقام كلها -->
+<SalaryCloseSheet data={salaryClose} />
 
 <div class="flex flex-1 flex-col gap-3 p-3 md:gap-5 md:p-6">
     <!-- رأس الصفحة -->
     <div class="hidden flex-wrap items-start justify-between gap-4 md:flex">
         <div>
             <h1 class="text-[22px] font-semibold tracking-tight">لوحة التحكم</h1>
-            <p class="text-[13px] text-muted-foreground">
-                {#if stats.daysLeft > 0}
-                    صورة ميزانيتك الكاملة — باقي {stats.daysLeft} يوم على الراتب.
-                {:else}
-                    صورة ميزانيتك الكاملة لهذا الشهر.
-                {/if}
-            </p>
+            <p class="text-[13px] text-muted-foreground">{periodLine}</p>
         </div>
 
         <div class="flex gap-2">

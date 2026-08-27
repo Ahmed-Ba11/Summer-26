@@ -21,7 +21,7 @@ class ExpenseFundingTest extends TestCase
         $user->incomes()->create([
             'amount' => 100_000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         return [$user, $user->categories()->firstOrFail()];

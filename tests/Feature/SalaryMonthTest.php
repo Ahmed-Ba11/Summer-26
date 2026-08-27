@@ -7,6 +7,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\SalaryMonthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class SalaryMonthTest extends TestCase
@@ -209,7 +211,89 @@ class SalaryMonthTest extends TestCase
             'income_date' => '2026-08-27', 'is_recurring' => true,
         ]);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
         SalaryMonthService::for($user)->close('2026-08', 'saved');
+    }
+
+    public function test_the_dashboard_offers_to_close_an_unclosed_previous_salary(): void
+    {
+        $this->travelTo('2026-09-27');
+        $user = $this->user();
+        $user->incomes()->create([
+            'amount' => 600_000, 'source' => 'راتب',
+            'income_date' => '2026-08-27', 'is_recurring' => true,
+        ]);
+        $goal = $user->savingsGoals()->create([
+            'name' => 'سفر', 'target_amount' => 900_000,
+            'current_amount' => 100_000, 'is_completed' => false, 'is_closed' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('salaryClose.key', '2026-08')
+                ->where('salaryClose.label', 'راتب أغسطس')
+                ->where('salaryClose.surplus', 600_000)
+                ->where('salaryClose.nextLabel', 'راتب سبتمبر')
+                ->where('salaryClose.goals.0.id', $goal->id)
+                ->where('salaryClose.goals.0.remaining', 800_000));
+
+        $this->actingAs($user)
+            ->post(route('salary-month.close'), [
+                'period_key' => '2026-08',
+                'action' => 'saved',
+                'savings_goal_id' => $goal->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(700_000, (int) $goal->fresh()->current_amount);
+
+        // بعد الإقفال لا يُسأل مرّة ثانية
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page->where('salaryClose', null));
+    }
+
+    /**
+     * الاختبار الحاسم للمرحلة.
+     *
+     * أول سبتمبر ويوم الراتب 27: اللوحة لازم تعرض «راتب أغسطس»، و«المتبقي لك»
+     * يُحسب من 27 أغسطس لا من 1 سبتمبر — وإلا صُفِّر الرقم في منتصف شهر
+     * المستخدم وصار المصروف المسجَّل يوم 28 أغسطس كأنه لم يحصل.
+     */
+    public function test_on_september_first_the_dashboard_still_reads_the_august_salary(): void
+    {
+        $this->travelTo('2026-09-01');
+        $user = $this->user();
+        $category = $user->categories()->firstOrFail();
+
+        $user->incomes()->create([
+            'amount' => 1_000_000, 'source' => 'راتب',
+            'income_date' => '2026-08-27', 'is_recurring' => true,
+        ]);
+        // مصروف بعد نزول الراتب وقبل أول سبتمبر — يجب أن يبقى محسوباً
+        $user->expenses()->create([
+            'amount' => 120_000, 'category_id' => $category->id,
+            'expense_date' => '2026-08-28',
+        ]);
+        $user->expenses()->create([
+            'amount' => 30_000, 'category_id' => $category->id,
+            'expense_date' => '2026-09-01',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('month', '2026-08')
+                ->where('salaryMonth.label', 'راتب أغسطس')
+                ->where('salaryMonth.range', '27 أغسطس ← 26 سبتمبر')
+                ->where('salaryMonth.dayIndex', 6)
+                ->where('salaryMonth.daysLeft', 26)
+                // الدخل والمصروف من 27 أغسطس، لا من 1 سبتمبر
+                ->where('stats.totalIncome', 1_000_000)
+                ->where('stats.totalExpenses', 150_000)
+                ->where('navStats.remaining', 850_000)
+                // الحد اليومي الآمن على أيام الراتب الباقية
+                ->where('navStats.dailySafe', intdiv(850_000, 26)));
     }
 }

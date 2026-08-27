@@ -84,7 +84,7 @@ class CommitmentController extends Controller
 
         if ($commitment->payments()->where('period_key', $period['key'])->exists()) {
             throw ValidationException::withMessages([
-                'amount' => 'هذا الالتزام مدفوع بالفعل في هذه الدورة.',
+                'amount' => 'هذا الالتزام مدفوع بالفعل في '.$period['label'].'.',
             ]);
         }
 

@@ -73,10 +73,15 @@
     let {
         goals = [],
         stats = { total_saved: 0, monthly_income: 0, monthly_deposits: 0, savings_rate: 0 },
+        salaryMonth = null,
     }: {
         goals?: GoalItem[];
         stats?: SavingsStats;
+        salaryMonth?: { key: string; label: string; range: string; daysLeft: number } | null;
     } = $props();
+
+    /** «المُودَع» يُحسب على شهر الراتب، فيُذكر الراتب باسمه لا «هذا الشهر». */
+    const periodLine = $derived(salaryMonth ? `أهدافك الادخارية · ${salaryMonth.label}` : 'أهدافك الادخارية');
 
     const serverErrors = $derived(
         (page.props.errors ?? {}) as ValidationErrors,
@@ -331,7 +336,7 @@
 </script>
 
 <AppHead title="الادخار" />
-<MobileHeader title="الادخار" subtitle="أهدافك الادخارية" />
+<MobileHeader title="الادخار" subtitle={periodLine} />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
     <!-- Header -->
@@ -340,7 +345,7 @@
     >
         <div>
             <h1 class="text-2xl font-bold">الادخار</h1>
-            <p class="text-muted-foreground">أهدافك الادخارية</p>
+            <p class="text-muted-foreground">{periodLine}</p>
         </div>
         <Button class="gap-1.5" onclick={openAddModal}>
             <Plus class="size-4" />

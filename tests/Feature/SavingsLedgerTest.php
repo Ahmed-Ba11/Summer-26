@@ -41,7 +41,7 @@ class SavingsLedgerTest extends TestCase
         $user->incomes()->create([
             'amount' => 100_000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
         $goal = $user->savingsGoals()->create([
             'name' => 'هدف',

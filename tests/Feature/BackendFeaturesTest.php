@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Category;
 use App\Models\User;
+use App\Services\SalaryMonthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Inertia;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -71,7 +72,7 @@ class BackendFeaturesTest extends TestCase
         $user->incomes()->create([
             'amount' => 100_000,
             'source' => 'دخل اختباري',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         $this->actingAs($user)->post(route('expenses.store'), [
@@ -257,7 +258,7 @@ class BackendFeaturesTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Dashboard')
-                ->where('month', now()->format('Y-m')),
+                ->where('month', SalaryMonthService::for($user)->current()['key']),
             );
     }
 
@@ -269,13 +270,13 @@ class BackendFeaturesTest extends TestCase
         $user->incomes()->create([
             'amount' => 10000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
         $user->expenses()->create([
             'category_id' => $category->id,
             'amount' => 2500,
             'description' => 'مشتريات',
-            'expense_date' => now()->startOfMonth(),
+            'expense_date' => now(),
         ]);
 
         $response = $this->actingAs($user)

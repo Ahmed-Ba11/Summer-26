@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
+use App\Services\SalaryMonthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Inertia;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -151,18 +152,20 @@ class BackendCompletionTest extends TestCase
     {
         $user = User::factory()->create();
         $category = $user->categories()->firstOrFail();
-        $month = now()->format('Y-m');
+        // التقرير يتبع شهر الراتب — تُبذر الحركات داخل الفترة لا داخل الشهر التقويمي
+        $period = SalaryMonthService::for($user)->current();
+        $month = $period['key'];
 
         $user->incomes()->create([
             'amount' => 10000,
             'source' => 'راتب',
-            'income_date' => $month.'-01',
+            'income_date' => $period['startsOn']->toDateString(),
         ]);
         $user->expenses()->create([
             'category_id' => $category->id,
             'amount' => 2500,
             'description' => 'مشتريات',
-            'expense_date' => $month.'-02',
+            'expense_date' => $period['startsOn']->addDay()->toDateString(),
         ]);
 
         $response = $this->actingAs($user)
@@ -198,7 +201,7 @@ class BackendCompletionTest extends TestCase
         $otherUser->incomes()->create([
             'amount' => 9999,
             'source' => 'خاص',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         $response = $this->actingAs($user)
@@ -271,7 +274,7 @@ class BackendCompletionTest extends TestCase
         $user->incomes()->create([
             'amount' => 100_000,
             'source' => 'دخل اختباري',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         $this->actingAs($user)->post(route('expenses.store'), [

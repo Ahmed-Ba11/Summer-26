@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\SalaryMonthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,7 +18,7 @@ class BudgetGuardFeatureTest extends TestCase
         $user->incomes()->create([
             'amount' => 10_000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         $this->actingAs($user)
@@ -37,7 +38,7 @@ class BudgetGuardFeatureTest extends TestCase
         $user->incomes()->create([
             'amount' => 10_000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         $this->actingAs($user)
@@ -57,7 +58,7 @@ class BudgetGuardFeatureTest extends TestCase
         $user->incomes()->create([
             'amount' => 10_000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         $this->actingAs($user)
@@ -79,7 +80,7 @@ class BudgetGuardFeatureTest extends TestCase
         $user->incomes()->create([
             'amount' => 10_000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         $this->actingAs($user)
@@ -100,13 +101,13 @@ class BudgetGuardFeatureTest extends TestCase
         $user->incomes()->create([
             'amount' => 100_000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
         $user->budgets()->create([
             'category_id' => $category->id,
             'amount' => 10_000,
             // الميزانية تتبع شهر الراتب لا الشهر التقويمي
-            'month' => \App\Services\SalaryMonthService::for($user)->current()['key'],
+            'month' => SalaryMonthService::for($user)->current()['key'],
         ]);
 
         $this->actingAs($user)
@@ -131,7 +132,7 @@ class BudgetGuardFeatureTest extends TestCase
         $user->incomes()->create([
             'amount' => 10_000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
         $user->commitments()->create([
             'kind' => 'bill',

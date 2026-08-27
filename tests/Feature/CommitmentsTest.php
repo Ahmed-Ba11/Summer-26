@@ -262,6 +262,8 @@ class CommitmentsTest extends TestCase
 
     public function test_commitment_appears_in_dashboard_calendar_immediately(): void
     {
+        // وقت مثبَّت: يوم 12 يقع داخل أفق التقويم (14 يوماً) لفترة راتب أغسطس
+        $this->travelTo('2026-09-01');
         $user = $this->userWithIncome();
         $user->commitments()->create([
             'kind' => 'bill',

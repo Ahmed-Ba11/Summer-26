@@ -41,10 +41,12 @@
         topExpenses?: ReportTopExpense[];
         hasData?: boolean;
         error?: string | null;
+        salaryMonth?: { key: string; label: string; range: string } | null;
     }
 
     let {
         month = '',
+        salaryMonth = null,
         summary = {},
         monthly = [],
         categories = [],
@@ -93,7 +95,10 @@
 </script>
 
 <AppHead title="التقارير" />
-<MobileHeader title="التقارير" subtitle="اتجاهات دخلك وإنفاقك من بياناتك المسجلة" />
+<MobileHeader
+    title="التقارير"
+    subtitle={salaryMonth ? `${salaryMonth.label} · ${salaryMonth.range}` : 'اتجاهات دخلك وإنفاقك من بياناتك المسجلة'}
+/>
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
     <div class="hidden flex-col gap-4 md:flex md:flex-row md:items-center md:justify-between">
@@ -109,7 +114,7 @@
             >
                 <CalendarRange class="size-[18px] text-muted-foreground" />
                 <span class="sr-only">شهر التقرير</span>
-                {month}
+                {salaryMonth?.label ?? month}
             </button>
             <a href={exportHref} download class="inline-flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-secondary">
                 <Download class="size-4" /> تصدير CSV

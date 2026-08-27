@@ -76,7 +76,7 @@ class BackendDataCorrectnessTest extends TestCase
         $legacyUser->incomes()->create([
             'amount' => 10000,
             'source' => 'مصدر حقيقي',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
         $legacyUser->budgets()->create([
             'category_id' => $legacyCategory->id,
@@ -187,7 +187,7 @@ class BackendDataCorrectnessTest extends TestCase
         $user->incomes()->create([
             'amount' => 100_000,
             'source' => 'دخل اختباري',
-            'income_date' => now()->startOfMonth(),
+            'income_date' => now(),
         ]);
 
         $this->actingAs($user)->post(route('expenses.store'), [

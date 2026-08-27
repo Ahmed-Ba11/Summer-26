@@ -15,7 +15,6 @@ use App\Models\Category;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Installment;
-use App\Models\SalaryPeriod;
 use App\Models\SavingsGoal;
 use App\Services\BudgetGuard;
 use App\Services\ExpenseFundingService;

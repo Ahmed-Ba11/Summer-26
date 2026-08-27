@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\SalaryMonthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -31,12 +32,12 @@ class DashboardTest extends TestCase
         $user = User::factory()->create(['salary_day' => 27]);
         $category = $user->categories()->firstOrFail();
         // الميزانية تتبع شهر الراتب لا الشهر التقويمي
-        $month = \App\Services\SalaryMonthService::for($user)->current()['key'];
+        $month = SalaryMonthService::for($user)->current()['key'];
 
         $user->incomes()->create([
             'amount' => 800000,
             'source' => 'راتب',
-            'income_date' => now()->startOfMonth()->toDateString(),
+            'income_date' => now()->toDateString(),
         ]);
         $user->expenses()->create([
             'category_id' => $category->id,
