@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Commitment;
 use App\Services\BudgetGuard;
 use App\Services\CommitmentService;
+use App\Services\SalaryMonthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -24,7 +25,8 @@ class CommitmentController extends Controller
         $commitments = $user->commitments()->active()->orderBy('kind')->orderBy('name')->get();
 
         return Inertia::render('Commitments', [
-            'commitments' => $service->hydrate($commitments, $period),
+            // بلا فترة صريحة: كل التزام يعرض ظهوره القابل للسداد
+            'commitments' => $service->hydrate($commitments),
             'income' => $service->periodIncome($period),
             'salaryDay' => (int) ($user->salary_day ?? 27),
             'periodLabel' => $period['label'].' · '.$period['range'],
@@ -78,7 +80,9 @@ class CommitmentController extends Controller
         $this->authorizeOwnership($commitment, $user->id);
 
         $service = CommitmentService::for($user);
-        $period = $service->currentPeriod();
+        // الظهور المستحقّ فعلاً — قد يكون ظهور الفترة السابقة الذي مضى
+        // موعده ولم يُدفع، لا ظهور نافذة اليوم المستقبلي.
+        $period = $service->payablePeriod($commitment);
 
         $amount = $this->resolvePayAmount($request, $commitment, $service);
 
@@ -108,8 +112,10 @@ class CommitmentController extends Controller
         $response = redirect()->back();
 
         // تجاوز الدفع «المتبقي لك» لا يُمنع — يمرّ تحذير فقط (الالتزام واقعة).
-        $income = $service->periodIncome($period);
-        if ($income > 0 && $service->obligationsForPeriod($period) > $income) {
+        // التحذير على ميزانية اليوم دائماً، أياً كانت فترة الظهور المسدَّد.
+        $current = $service->currentPeriod();
+        $income = $service->periodIncome($current);
+        if ($income > 0 && $service->obligationsForPeriod($current) > $income) {
             $response->with('warnings', [[
                 'severity' => 'warn',
                 'title' => 'دفعت من أصل محجوز لك',
@@ -128,9 +134,17 @@ class CommitmentController extends Controller
         $user = $request->user();
         $this->authorizeOwnership($commitment, $user->id);
 
-        $periodKey = CommitmentService::for($user)->currentPeriod()['key'];
+        // التراجع يحذف آخر سداد كُتب لهذا الالتزام في فترة اليوم أو التي
+        // قبلها — نفس نطاق `payablePeriod` وبعكس ترتيبها.
+        $service = CommitmentService::for($user);
+        $current = $service->currentPeriod();
+        $previous = SalaryMonthService::for($user)
+            ->periodFor($current['startsOn']->subDay());
 
-        $payment = $commitment->payments()->where('period_key', $periodKey)->first();
+        $payment = $commitment->payments()
+            ->whereIn('period_key', [$current['key'], $previous['key']])
+            ->latest('id')
+            ->first();
 
         if ($payment) {
             DB::transaction(function () use ($commitment, $payment): void {

@@ -194,18 +194,54 @@ final class CommitmentService
     }
 
     /**
+     * الفترة التي يخصّها سداد اليوم.
+     *
+     * ظهور الالتزام داخل نافذة الراتب الحالية قد يكون في المستقبل: فاتورة
+     * يوم 25 ونافذة الراتب تبدأ يوم 27 → أقرب ظهور داخل النافذة هو 25 من
+     * الشهر القادم، بينما الظهور المستحقّ فعلاً هو ظهور الفترة السابقة
+     * الذي مضى موعده ولم يُدفع.
+     *
+     * نسبة السداد لفترة اليوم في هذه الحالة تقلب الواقع رأساً على عقب:
+     * المنقضي يبقى «فات موعده» والمستقبلي يصير «تم السداد». فالسداد
+     * يُنسب لأقدم ظهور مضى موعده ولم يُدفع، وإلا فلفترة اليوم.
+     */
+    public function payablePeriod(Commitment $commitment): array
+    {
+        $current = $this->currentPeriod();
+        $previous = SalaryMonthService::for($this->user)
+            ->periodFor($current['startsOn']->subDay());
+
+        $previousDue = $this->dueDateFor($commitment, $previous);
+
+        // لا يُنسب سداد لظهور سابق لوجود الالتزام نفسه
+        $existedThen = $commitment->created_at === null
+            || CarbonImmutable::parse($commitment->created_at)->startOfDay()
+                ->lessThanOrEqualTo($previousDue);
+
+        if ($existedThen
+            && $previousDue->lessThanOrEqualTo(CarbonImmutable::today())
+            && $this->paymentFor($commitment, $previous['key']) === null) {
+            return $previous;
+        }
+
+        return $current;
+    }
+
+    /**
      * تحويل الالتزامات إلى شكل الواجهة مع حقول محسوبة (الاستحقاق · الدفع هذا الشهر).
+     *
+     * بلا فترة صريحة يُعرض **الظهور القابل للسداد** لكل التزام على حدة، لا
+     * ظهور نافذة اليوم: وإلّا عُرض استحقاق مستقبلي وبقي المنقضي غير المدفوع
+     * غائباً عن الصفحة، فلا سبيل لتسويته أصلاً.
      *
      * @param  Collection<int,Commitment>  $commitments
      * @return list<array<string,mixed>>
      */
     public function hydrate(Collection $commitments, ?array $period = null): array
     {
-        $period ??= $this->currentPeriod();
-
         return $commitments
             ->map(function (Commitment $c) use ($period): array {
-                $occurrence = $this->occurrence($c, $period);
+                $occurrence = $this->occurrence($c, $period ?? $this->payablePeriod($c));
 
                 return [
                     'id' => $c->id,

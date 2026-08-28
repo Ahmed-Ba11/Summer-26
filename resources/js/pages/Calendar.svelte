@@ -11,6 +11,8 @@
     import ChevronLeft from 'lucide-svelte/icons/chevron-left';
     import ChevronRight from 'lucide-svelte/icons/chevron-right';
     import CircleAlert from 'lucide-svelte/icons/circle-alert';
+    import Check from 'lucide-svelte/icons/check';
+    import TriangleAlert from 'lucide-svelte/icons/triangle-alert';
     import Pencil from 'lucide-svelte/icons/pencil';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
@@ -245,8 +247,7 @@
 
         <div class="grid grid-cols-7 gap-1 p-2 md:gap-2 md:p-4">
             {#each Array(leadingEmptyDays) as _}
-                <span class="min-h-20 rounded-xl bg-background/50 md:min-h-28"
-                ></span>
+                <span class="min-h-16 rounded-xl md:min-h-24"></span>
             {/each}
 
             {#each days as day (day.date)}
@@ -257,42 +258,44 @@
                 <button
                     type="button"
                     onclick={() => selectDay(day.date)}
-                    class="flex min-h-20 min-w-0 flex-col items-start rounded-xl border p-1.5 text-start transition-colors hover:border-primary md:min-h-28 md:p-2.5 {today
-                        ? 'border-primary bg-accent'
+                    class="flex min-h-16 min-w-0 flex-col items-start gap-1 rounded-xl border p-1.5 text-start transition-colors hover:border-primary md:min-h-24 md:p-2 {today
+                        ? 'border-primary bg-accent ring-2 ring-primary/20'
                         : past
-                          ? 'border-border bg-secondary/60'
-                          : 'border-border bg-background'}"
+                          ? 'border-border/60 bg-background'
+                          : 'border-border bg-card'}"
                 >
                     <span
-                        class="text-[11.5px] font-semibold tabular-nums md:text-sm {past && !today
+                        class="text-[11.5px] font-semibold tabular-nums md:text-[13px] {past && !today
                             ? 'text-muted-foreground'
                             : ''}"
                     >
                         {day.day}
                     </span>
 
-                    <!-- النقاط لا تقول شيئاً — الاسم المختصر يقوله -->
+                    <!-- المعلومة الأهم وحدها: نوع الالتزام (باللون والمفتاح) واسمه -->
                     {#if first}
                         {@const state = statusOf(first)}
                         <span
-                            class="mt-1 w-full truncate text-[11px] leading-tight font-medium {past
-                                ? 'text-muted-foreground'
-                                : ''}"
-                            style={past ? '' : `color: ${EVENT_KIND[first.kind].color}`}
+                            class="flex w-full min-w-0 items-center gap-1 rounded-md px-1 py-0.5"
+                            style="background-color: color-mix(in srgb, {EVENT_KIND[first.kind]
+                                .color} 14%, transparent)"
                         >
-                            {first.label}
+                            {#if state.tone === 'bad'}
+                                <TriangleAlert class="size-3 shrink-0 text-destructive" />
+                            {:else if state.tone === 'ok' && past}
+                                <Check class="size-3 shrink-0 text-success-text" />
+                            {/if}
+                            <span
+                                class="min-w-0 flex-1 truncate text-[11px] leading-tight font-medium {past
+                                    ? 'text-muted-foreground'
+                                    : ''}"
+                            >
+                                {first.label}
+                            </span>
                         </span>
 
-                        {#if past}
-                            <span
-                                class="w-full truncate text-[11px] leading-tight {STATUS_TONE[state.tone]}"
-                            >
-                                {state.text}
-                            </span>
-                        {/if}
-
                         {#if more > 0}
-                            <span class="mt-auto text-[11px] text-muted-foreground tabular-nums">
+                            <span class="text-[11px] text-muted-foreground tabular-nums">
                                 +{more}
                             </span>
                         {/if}

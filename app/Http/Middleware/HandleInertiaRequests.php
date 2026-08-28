@@ -169,7 +169,6 @@ class HandleInertiaRequests extends Middleware
                 $commitmentService = CommitmentService::for($user);
                 $commitments = $commitmentService->hydrate(
                     $user->commitments()->active()->orderBy('name')->get(),
-                    $period,
                 );
                 $unpaid = array_values(array_filter(
                     $commitments,

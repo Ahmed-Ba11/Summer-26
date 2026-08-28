@@ -17,7 +17,6 @@
     import Vault from 'lucide-svelte/icons/vault';
     import Zap from 'lucide-svelte/icons/zap';
     import { Link } from '@inertiajs/svelte';
-    import EmptyState from '@/components/EmptyState.svelte';
     import { formatAmount, formatRelativeDays } from '@/lib/format';
 
     interface CalEvent {
@@ -53,11 +52,11 @@
 </script>
 
 <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-    <header class="flex items-center justify-between border-b border-border px-4 py-3 md:px-5 md:py-4">
-        <h2 class="text-[13px] font-semibold md:text-[14.5px]">التقويم المالي</h2>
+    <header class="flex items-center justify-between border-b border-border px-4 py-1 md:px-5">
+        <h2 class="text-[13px] font-semibold">التقويم المالي</h2>
         <Link
             href="/calendar"
-            class="inline-flex items-center gap-1 text-[11.5px] text-primary no-underline md:text-[12.5px]"
+            class="inline-flex min-h-11 items-center gap-1 text-[11.5px] text-primary no-underline"
         >
             التقويم الكامل
             <ArrowLeft class="size-3.5" />
@@ -69,23 +68,26 @@
             {#each upcoming as e (e.date + e.label)}
                 {@const k = KIND[e.kind]}
                 {@const urgent = isUrgent(e.date)}
-                <li class="flex items-center gap-3 border-b border-border px-4 py-3 last:border-0 md:px-5">
+                <li class="flex items-center gap-2.5 border-b border-border px-4 py-2 last:border-0 md:px-5">
                     <span
-                        class="grid size-9 shrink-0 place-items-center rounded-[10px]"
+                        class="grid size-8 shrink-0 place-items-center rounded-[9px]"
                         style="background-color: color-mix(in srgb, {k.color} 12%, transparent); color: {k.color}"
                     >
-                        <k.icon class="size-[17px]" />
+                        <k.icon class="size-4" stroke-width="1.9" />
                     </span>
 
-                    <div class="min-w-0 flex-1">
-                        <p class="truncate text-[13px] font-medium">{e.label}</p>
-                        <p class="text-[11px] {urgent ? 'font-medium text-warning-text' : 'text-muted-foreground'}">
-                            {formatRelativeDays(e.date)}
-                        </p>
-                    </div>
+                    <span class="min-w-0 flex-1 truncate text-[12.5px] font-medium">{e.label}</span>
 
                     <span
-                        class="shrink-0 text-[13px] font-semibold tabular-nums {e.kind === 'salary'
+                        class="shrink-0 text-[11.5px] tabular-nums {urgent
+                            ? 'font-medium text-warning-text'
+                            : 'text-muted-foreground'}"
+                    >
+                        {formatRelativeDays(e.date)}
+                    </span>
+
+                    <span
+                        class="shrink-0 text-[12.5px] font-semibold tabular-nums {e.kind === 'salary'
                             ? 'text-success-text'
                             : 'text-foreground'}"
                     >
@@ -95,12 +97,16 @@
             {/each}
         </ul>
     {:else}
-        <EmptyState
-            icon={CalendarDays}
-            title="ما فيه استحقاقات قريبة"
-            description="سجّل فواتيرك وأقساطك عشان ننبّهك قبل موعدها."
-            actionLabel="أضف التزاماً"
-            href="/commitments"
-        />
+        <!-- حالة فارغة: سطر واحد — لا تستحق مساحة بطاقة كاملة -->
+        <p class="flex items-center gap-2 px-4 py-1 text-[12.5px] text-muted-foreground md:px-5">
+            <CalendarDays class="size-4 shrink-0" />
+            <span class="flex-1">ما فيه استحقاقات قريبة</span>
+            <Link
+                href="/commitments"
+                class="inline-flex min-h-11 shrink-0 items-center text-[11.5px] text-primary no-underline"
+            >
+                أضف التزاماً
+            </Link>
+        </p>
     {/if}
 </section>
