@@ -137,11 +137,13 @@ import Vault from 'lucide-svelte/icons/vault';
      * هو ما يجعل بقية الأرقام مفهومة — بدونه يقرأ «باقي 26 يوم» على أنه
      * باقي من الشهر التقويمي.
      */
+    const pageTitle = $derived(salaryMonth?.label ?? 'لوحة التحكم');
+
     const periodLine = $derived(
         salaryMonth
             ? salaryMonth.isCurrent && salaryMonth.daysLeft > 0
-                ? `${salaryMonth.label} · ${salaryMonth.range} — باقي ${salaryMonth.daysLeft} يوم`
-                : `${salaryMonth.label} · ${salaryMonth.range}`
+                ? `باقي ${salaryMonth.daysLeft} يوم للراتب الجاي · ${salaryMonth.range}`
+                : salaryMonth.range
             : 'صورة ميزانيتك الكاملة.',
     );
 
@@ -155,7 +157,7 @@ import Vault from 'lucide-svelte/icons/vault';
 </script>
 
 <AppHead title="لوحة التحكم" />
-<MobileHeader title="لوحة التحكم" subtitle={periodLine} />
+<MobileHeader title={pageTitle} subtitle={periodLine} />
 
 <!-- إقفال الراتب السابق — يُعرض قبل أي رقم، لأنه يغيّر الأرقام كلها -->
 <SalaryCloseSheet data={salaryClose} />
@@ -164,7 +166,7 @@ import Vault from 'lucide-svelte/icons/vault';
     <!-- رأس الصفحة -->
     <div class="hidden flex-wrap items-start justify-between gap-4 md:flex">
         <div>
-            <h1 class="text-[22px] font-semibold tracking-tight">لوحة التحكم</h1>
+            <h1 class="text-[22px] font-semibold tracking-tight">{pageTitle}</h1>
             <p class="text-[13px] text-muted-foreground">{periodLine}</p>
         </div>
 

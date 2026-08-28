@@ -63,5 +63,5 @@
         bind:sheetOpen={quickAddOpen}
         bind:sheetMode={quickAddMode}
     />
-    <Toaster />
+    <Toaster position="top-center" />
 </AppShell>

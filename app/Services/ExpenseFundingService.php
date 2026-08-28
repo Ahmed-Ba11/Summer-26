@@ -91,6 +91,57 @@ final class ExpenseFundingService
         });
     }
 
+    /**
+     * تغطية عجز حركة ليست مصروفاً — الإيداع الادخاري تحديداً.
+     *
+     * الإيداع الذي يتجاوز «المتبقي لك» لا يُمنع: الفلوس انتقلت من جيب
+     * لجيب، لكنها لازم تجي من مكان. نفس المصادر الثلاثة ونفس التحقّقات،
+     * بلا إنشاء مصروف — فالادخار ليس صرفاً.
+     *
+     * @param  array{
+     *   funding_source:?string, savings_goal_id:?int,
+     *   income_amount:?int, income_source:?string, date:?string
+     * }  $data
+     * @return int العجز الذي غُطّي — صفر إذا لم يكن هناك عجز
+     *
+     * @throws ValidationException
+     */
+    public function coverShortfall(int $amount, array $data): int
+    {
+        // بلا دخل معروف لا يوجد سقف يُتجاوَز. سؤال «من وين جاء؟» هنا
+        // يمنع الادخار على من لم يسجّل دخله بعد — منعٌ على جهل لا على حساب.
+        if (BudgetGuard::for($this->user)->context()['monthlyIncome'] <= 0) {
+            return 0;
+        }
+
+        $shortfall = $this->shortfall($amount);
+
+        if ($shortfall === 0) {
+            return 0;
+        }
+
+        $source = $data['funding_source'] ?? null;
+
+        if (! in_array($source, self::SOURCES, true)) {
+            throw ValidationException::withMessages([
+                'funding_source' => 'هذا المبلغ يتجاوز المتبقي لك — لازم تحدّد من وين جاء.',
+            ]);
+        }
+
+        match ($source) {
+            'savings' => $this->drawFromSavings($data['savings_goal_id'] ?? null, $shortfall),
+            'unlogged_income' => $this->logMissingIncome(
+                (int) ($data['income_amount'] ?? 0),
+                $data['income_source'] ?? null,
+                $shortfall,
+                $data['date'] ?? now()->toDateString(),
+            ),
+            'overspend' => null,
+        };
+
+        return $shortfall;
+    }
+
     // ═══════════════════════════════════════════════════════════════════
 
     /** @throws ValidationException */

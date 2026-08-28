@@ -224,7 +224,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
             SalaryMonthService::for($user)->keyFor($validated['expense_date']),
         );
 
-        return redirect()->back()->with('warnings', $warnings);
+        // «تم الحفظ» المجرّدة لا تؤكّد شيئاً — الإشعار يحمل المبلغ والفئة،
+        // وزر التراجع لأن أكثر خطأ يتكرّر هو تسجيل مصروف في غير موضعه.
+        $category = $expense->category()->value('name');
+
+        return redirect()->back()
+            ->with('warnings', $warnings)
+            ->with('toast', [
+                'type' => 'success',
+                'message' => 'تم تسجيل مصروف :amount'.($category ? ' — '.$category : ''),
+                'amount' => (int) $expense->amount,
+                'undo' => [
+                    'url' => '/expenses/'.$expense->id,
+                    'method' => 'delete',
+                ],
+            ]);
     })->name('expenses.store');
 
     Route::put('/expenses/{expense}', function (Request $request, Expense $expense, RecurringTransactionService $recurring) {
@@ -358,7 +372,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'next_due_date' => 'nullable|date',
         ]);
 
-        DB::transaction(function () use ($validated, $recurring): void {
+        $income = DB::transaction(function () use ($validated, $recurring): Income {
             $income = auth()->user()->incomes()->create([
                 'amount' => Money::toHalalas($validated['amount']),
                 'source' => $validated['source'],
@@ -374,9 +388,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
                     $validated['next_due_date'] ?? null,
                 );
             }
+
+            return $income;
         });
 
-        return redirect()->back();
+        return redirect()->back()->with('toast', [
+            'type' => 'success',
+            'message' => 'تم تسجيل دخل :amount',
+            'amount' => (int) $income->amount,
+            'undo' => [
+                'url' => '/income/'.$income->id,
+                'method' => 'delete',
+            ],
+        ]);
     })->name('income.store');
 
     Route::put('/income/{income}', function (Request $request, Income $income, RecurringTransactionService $recurring) {
@@ -457,6 +481,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $totalBudget = $budgets->sum('budget');
         $totalSpent = $budgets->sum('spent');
 
+        // «غير مخصّص» — ما تبقّى من الدخل بعد الالتزامات والميزانيات.
+        // مصدره الحارس نفسه الذي يمنع تجاوز الميزانيات، فلا يختلف رقمان.
+        $context = BudgetGuard::for($user)->context($currentMonth);
+
         return Inertia::render('Budgets', [
             'budgets' => $budgets,
             'stats' => [
@@ -464,6 +492,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'totalSpent' => $totalSpent,
                 'remaining' => $totalBudget - $totalSpent,
                 'rollover' => 0,
+                'unallocated' => max(0, (int) $context['unallocated']),
+                'monthlyIncome' => (int) $context['monthlyIncome'],
             ],
             'categories' => $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]),
             'salaryMonth' => [
@@ -622,8 +652,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01|decimal:0,2',
+            // الإيداع الذي يتجاوز «المتبقي لك» يمرّ بمسار التمويل لا بالمنع
+            'funding_source' => 'nullable|in:savings,unlogged_income,overspend',
+            'savings_goal_id' => 'nullable|integer',
+            'income_amount' => 'nullable|integer|min:0',
+            'income_source' => 'nullable|string|max:255',
         ]);
 
+        $user = $request->user();
         $addition = Money::toHalalas($validated['amount']);
         $newAmount = (int) $goal->current_amount + $addition;
 
@@ -633,7 +669,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ]);
         }
 
-        SavingsLedger::for(auth()->user())->deposit($goal, $addition);
+        // السحب من نفس الهدف لتمويل الإيداع فيه دوران بلا أثر
+        if (($validated['funding_source'] ?? null) === 'savings'
+            && (int) ($validated['savings_goal_id'] ?? 0) === $goal->id) {
+            throw ValidationException::withMessages([
+                'savings_goal_id' => 'اختر هدفاً آخر — السحب من نفس الهدف ما يضيف شيئاً.',
+            ]);
+        }
+
+        DB::transaction(function () use ($user, $goal, $addition, $validated): void {
+            ExpenseFundingService::for($user)->coverShortfall($addition, [
+                'funding_source' => $validated['funding_source'] ?? null,
+                'savings_goal_id' => $validated['savings_goal_id'] ?? null,
+                'income_amount' => $validated['income_amount'] ?? null,
+                'income_source' => $validated['income_source'] ?? null,
+            ]);
+
+            SavingsLedger::for($user)->deposit($goal, $addition);
+        });
 
         $response = redirect()->back();
         $overage = $newAmount - (int) $goal->target_amount;

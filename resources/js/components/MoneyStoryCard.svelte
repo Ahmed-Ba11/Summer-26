@@ -40,7 +40,7 @@
     const slices = $derived(
         [
             { key: 'commitments', label: 'التزامات', amount: commitments, color: 'var(--chart-7)' },
-            { key: 'save', label: 'ادخار', amount: savings, color: 'var(--chart-3)' },
+            { key: 'save', label: 'ادخار', amount: savings, color: 'var(--success)' },
             { key: 'exp', label: 'مصاريف', amount: expenses, color: 'var(--chart-1)' },
         ].filter((s) => s.amount > 0),
     );
@@ -78,7 +78,7 @@
                     تجاوزت دخلك بـ <b class="font-semibold">{formatCurrency(Math.abs(remaining))}</b>
                 </p>
             {:else if daysLeft === 0}
-                <p class="mt-1 text-[12px] text-foreground/80">راتبك اليوم — ميزانية جديدة 🎉</p>
+                <p class="mt-1 text-[12px] text-success-text">راتبك اليوم — ميزانية جديدة</p>
             {:else}
                 <p class="mt-1 text-[12px] text-foreground/80">
                     تقدر تصرف <b class="font-semibold text-success-text">{formatCurrency(safeDaily)} يومياً</b>

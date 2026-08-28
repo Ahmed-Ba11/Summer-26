@@ -39,11 +39,48 @@
         editUrl: string | null;
     }
 
-    const STATUS_LABEL: Record<EventStatus, string> = {
-        paid: 'مسدَّد',
-        overdue: 'متأخّر',
-        upcoming: 'قادم',
+    /**
+     * حالة كل حدث — نصّاً صريحاً لا لوناً.
+     *
+     * الاستحقاق المنقضي لا يُترك بلا حالة أبداً: إمّا «تم السداد» وإمّا
+     * «فات موعده»، والفرق بينهما من `commitment_payments` لا من التاريخ
+     * وحده — فالمدفوع مبكراً ليس متأخّراً، والمنقضي غير المدفوع ليس قادماً.
+     */
+    type StatusTone = 'ok' | 'bad' | 'muted';
+
+    const STATUS_TONE: Record<StatusTone, string> = {
+        ok: 'text-success-text',
+        bad: 'text-destructive',
+        muted: 'text-muted-foreground',
     };
+
+    const TODAY = new Date().toISOString().slice(0, 10);
+
+    function isPast(date: string): boolean {
+        return date < TODAY;
+    }
+
+    function statusOf(event: CalendarEvent): { text: string; tone: StatusTone } {
+        if (event.kind === 'salary') {
+            return isPast(event.date)
+                ? { text: 'نزل', tone: 'ok' }
+                : { text: 'قادم', tone: 'muted' };
+        }
+
+        if (event.kind === 'savings') {
+            return { text: 'تم الإيداع', tone: 'ok' };
+        }
+
+        if (event.status === 'paid') {
+            return { text: 'تم السداد', tone: 'ok' };
+        }
+
+        if (event.status === 'overdue') {
+            return { text: 'فات موعده', tone: 'bad' };
+        }
+
+        return { text: 'قادم', tone: 'muted' };
+    }
 
     interface CalendarDay {
         date: string;
@@ -213,42 +250,52 @@
             {/each}
 
             {#each days as day (day.date)}
+                {@const past = isPast(day.date)}
+                {@const today = day.date === TODAY}
+                {@const first = day.events[0]}
+                {@const more = day.events.length - 1}
                 <button
                     type="button"
                     onclick={() => selectDay(day.date)}
-                    class="flex min-h-20 min-w-0 flex-col items-start rounded-xl border border-border bg-background p-1.5 text-start transition-colors hover:border-primary hover:bg-accent md:min-h-28 md:p-2.5"
+                    class="flex min-h-20 min-w-0 flex-col items-start rounded-xl border p-1.5 text-start transition-colors hover:border-primary md:min-h-28 md:p-2.5 {today
+                        ? 'border-primary bg-accent'
+                        : past
+                          ? 'border-border bg-secondary/60'
+                          : 'border-border bg-background'}"
                 >
-                    <span class="text-xs font-semibold tabular-nums md:text-sm"
-                        >{day.day}</span
+                    <span
+                        class="text-[11.5px] font-semibold tabular-nums md:text-sm {past && !today
+                            ? 'text-muted-foreground'
+                            : ''}"
                     >
-                    <span class="mt-1 flex flex-wrap gap-1 md:hidden">
-                        {#each day.events.slice(0, 4) as event (event.id ?? event.kind + event.date)}
-                            <i
-                                class="size-1.5 rounded-full"
-                                style="background-color: {EVENT_KIND[event.kind]
-                                    .color}"
-                            ></i>
-                        {/each}
+                        {day.day}
                     </span>
-                    <span class="mt-2 hidden w-full flex-col gap-1 md:flex">
-                        {#each day.events.slice(0, 3) as event (event.id ?? event.kind + event.date)}
-                            <span
-                                class="flex min-w-0 items-center gap-1 text-[11px] text-foreground/80"
-                            >
-                                <i
-                                    class="size-1.5 shrink-0 rounded-full"
-                                    style="background-color: {EVENT_KIND[
-                                        event.kind
-                                    ].color}"
-                                ></i>
-                                <span class="truncate">{event.label}</span>
-                            </span>
-                        {/each}
-                    </span>
-                    {#if day.events.length > 3}
-                        <span class="mt-auto text-[11px] text-muted-foreground"
-                            >+{day.events.length - 3}</span
+
+                    <!-- النقاط لا تقول شيئاً — الاسم المختصر يقوله -->
+                    {#if first}
+                        {@const state = statusOf(first)}
+                        <span
+                            class="mt-1 w-full truncate text-[11px] leading-tight font-medium {past
+                                ? 'text-muted-foreground'
+                                : ''}"
+                            style={past ? '' : `color: ${EVENT_KIND[first.kind].color}`}
                         >
+                            {first.label}
+                        </span>
+
+                        {#if past}
+                            <span
+                                class="w-full truncate text-[11px] leading-tight {STATUS_TONE[state.tone]}"
+                            >
+                                {state.text}
+                            </span>
+                        {/if}
+
+                        {#if more > 0}
+                            <span class="mt-auto text-[11px] text-muted-foreground tabular-nums">
+                                +{more}
+                            </span>
+                        {/if}
                     {/if}
                 </button>
             {/each}
@@ -295,6 +342,7 @@
     {#if selectedEvents.length}
         <ul class="flex flex-col gap-2.5">
             {#each selectedEvents as event (event.id ?? event.kind + event.date)}
+                {@const state = statusOf(event)}
                 <li class="rounded-2xl border border-border bg-card p-3">
                     <div class="flex items-center gap-3">
                         <span
@@ -316,18 +364,13 @@
                                 {event.label}
                             </p>
                             <!-- الحالات الثلاث كما حسبها الخادم لهذا الظهور -->
-                            <p
-                                class="truncate text-[11.5px] {event.status ===
-                                'overdue'
-                                    ? 'font-medium text-destructive'
-                                    : 'text-muted-foreground'}"
-                            >
+                            <p class="truncate text-[11.5px] text-muted-foreground">
                                 {EVENT_KIND[event.kind].label}
-                                {#if event.status}
-                                    · {STATUS_LABEL[event.status]}
-                                    {#if event.status === 'paid' && event.paidAt}
-                                        · {formatDate(event.paidAt)}
-                                    {/if}
+                                <span class="font-medium {STATUS_TONE[state.tone]}">
+                                    · {state.text}
+                                </span>
+                                {#if event.status === 'paid' && event.paidAt}
+                                    · {formatDate(event.paidAt)}
                                 {/if}
                             </p>
                         </div>

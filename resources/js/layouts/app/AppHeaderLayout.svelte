@@ -20,5 +20,5 @@
     <AppContent variant="header">
         {@render children?.()}
     </AppContent>
-    <Toaster />
+    <Toaster position="top-center" />
 </AppShell>

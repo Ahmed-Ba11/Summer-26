@@ -7,18 +7,20 @@
 <script lang="ts">
     import { page, router } from '@inertiajs/svelte';
     import CircleAlert from 'lucide-svelte/icons/circle-alert';
+    import ArrowLeft from 'lucide-svelte/icons/arrow-left';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import Button from '@/components/ui/button/Button.svelte';
-    import { Card, CardContent } from '@/components/ui/card';
     import Plus from 'lucide-svelte/icons/plus';
+    import Vault from 'lucide-svelte/icons/vault';
     import BudgetRow from '@/components/BudgetRow.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
     import SheetShell from '@/components/ui/SheetShell.svelte';
     import AmountSheet from '@/components/ui/AmountSheet.svelte';
     import Check from 'lucide-svelte/icons/check';
-    import { formatCurrency } from '@/lib/format';
+    import { toast } from 'svelte-sonner';
+    import { formatAmount, formatCurrency, formatPercent } from '@/lib/format';
     import {
         store as storeBudget,
         update as updateBudget,
@@ -43,6 +45,8 @@
         totalSpent: number;
         remaining: number;
         rollover: number;
+        unallocated: number;
+        monthlyIncome: number;
     }
 
     let {
@@ -52,6 +56,8 @@
             totalSpent: 0,
             remaining: 0,
             rollover: 0,
+            unallocated: 0,
+            monthlyIncome: 0,
         } as BudgetStats,
         salaryMonth = null,
     }: {
@@ -112,40 +118,16 @@
         return 'text-emerald-600 dark:text-emerald-400';
     }
 
-    // Sort state
-    let sortBy = $state<'name' | 'budget' | 'spent' | 'percentage'>(
-        'percentage',
+    /**
+     * الترتيب ثابت: الأعلى استهلاكاً أولاً.
+     *
+     * شريط الترتيب حُذف عمداً — أربعة أزرار تُبدّل صفوفاً تحتها بلا حاجة
+     * حقيقية، والسؤال الوحيد الذي يهمّ («وين تروح فلوسي؟») يجيب عليه
+     * ترتيب واحد.
+     */
+    const sortedBudgets = $derived(
+        [...budgets].sort((a, b) => b.spent - a.spent || b.budget - a.budget),
     );
-    let sortDir = $state<'asc' | 'desc'>('desc');
-
-    const sortedBudgets = $derived.by(() => {
-        const items = [...budgets];
-        const dir = sortDir === 'asc' ? 1 : -1;
-        items.sort((a, b) => {
-            const pctA = a.budget > 0 ? a.spent / a.budget : 0;
-            const pctB = b.budget > 0 ? b.spent / b.budget : 0;
-            switch (sortBy) {
-                case 'name':
-                    return dir * a.name.localeCompare(b.name);
-                case 'budget':
-                    return dir * (a.budget - b.budget);
-                case 'spent':
-                    return dir * (a.spent - b.spent);
-                default:
-                    return dir * (pctA - pctB);
-            }
-        });
-        return items;
-    });
-
-    function toggleSort(field: typeof sortBy) {
-        if (sortBy === field) {
-            sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-            sortBy = field;
-            sortDir = 'desc';
-        }
-    }
 
     // Edit budget modal
     let editingBudget = $state<BudgetRecord | null>(null);
@@ -178,7 +160,9 @@
             budgetSubmitting = false;
             return;
         }
-        const month = new Date().toISOString().slice(0, 7);
+        // شهر الراتب لا الشهر التقويمي — الميزانية تُقرأ بمفتاح الفترة.
+        const month = salaryMonth?.key ?? new Date().toISOString().slice(0, 7);
+        const name = editingBudget?.name ?? '';
 
         const request = editingBudget?.id
             ? updateBudget(editingBudget.id)
@@ -192,7 +176,12 @@
                 month: month,
             },
             preserveScroll: true,
-            onSuccess: () => closeBudgetModal(),
+            onSuccess: () => {
+                toast.success(
+                    `تم تحديد ميزانية ${name} ${formatAmount(halalas)} ر.س`,
+                );
+                closeBudgetModal();
+            },
             onError: (errors) => {
                 budgetErrors = errors as Record<string, string>;
             },
@@ -243,12 +232,16 @@
             return;
         }
         catSubmitting = true;
+        const name = catName.trim();
         router.post(
             storeCategory(),
-            { name: catName.trim(), icon: catIcon, color: catColor },
+            { name, icon: catIcon, color: catColor },
             {
                 preserveScroll: true,
-                onSuccess: () => closeCatModal(),
+                onSuccess: () => {
+                    toast.success(`تمت إضافة فئة ${name}`);
+                    closeCatModal();
+                },
                 onError: (errors) => {
                     catErrors = errors as Record<string, string>;
                 },
@@ -263,87 +256,91 @@
 <AppHead title="الميزانيات" />
 <MobileHeader title="الميزانية العامة" subtitle={periodLine} />
 
-<div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
+<div class="flex flex-1 flex-col gap-3 p-3 md:gap-5 md:p-6">
     <div class="hidden items-center justify-between md:flex">
         <div>
-            <h1 class="text-2xl font-bold">الميزانية العامة</h1>
-            <p class="text-muted-foreground">{periodLine}</p>
+            <h1 class="text-[22px] font-semibold tracking-tight">الميزانية العامة</h1>
+            <p class="text-[13px] text-muted-foreground">{periodLine}</p>
         </div>
         <Button size="sm" class="gap-1.5" onclick={openCatModal}>
-            <Plus class="size-3.5" />
+            <Plus class="size-[17px]" stroke-width="1.9" />
             إضافة فئة
         </Button>
     </div>
 
-    <!-- بطاقة ملخص الميزانية العامة -->
-    <Card class="border-emerald-500/30">
-        <CardContent class="p-6">
-            <div
-                class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"
-            >
-                <div>
-                    <p class="text-sm text-muted-foreground">
-                        إجمالي الميزانية
-                    </p>
-                    <p class="text-3xl font-bold">
-                        {formatCurrency(stats.totalBudget)}
-                    </p>
-                </div>
-                <div class="flex flex-wrap gap-6">
-                    <div>
-                        <p class="text-xs text-muted-foreground">المنفق</p>
-                        <p class="text-lg font-bold text-destructive">
-                            {formatCurrency(stats.totalSpent)}
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-muted-foreground">المتبقي</p>
-                        <p
-                            class="text-lg font-bold text-emerald-600 dark:text-emerald-400"
+    <!-- «غير مخصّص» — أبرز رقم في الصفحة، ويختفي تماماً إذا كان صفراً -->
+    {#if stats.unallocated > 0}
+        <section class="rounded-2xl border border-primary/30 bg-card p-3 shadow-xs md:p-6">
+            <div class="flex items-start gap-3">
+                <span
+                    class="grid size-10 shrink-0 place-items-center rounded-xl"
+                    style="background-color: color-mix(in srgb, var(--chart-3) 12%, transparent); color: var(--chart-3)"
+                >
+                    <Vault class="size-[19px]" stroke-width="1.9" />
+                </span>
+                <div class="min-w-0 flex-1">
+                    <p class="text-[11.5px] text-muted-foreground">غير مخصّص</p>
+                    <p class="mt-0.5 text-[30px] leading-none font-semibold tracking-tighter tabular-nums md:text-[36px]">
+                        {formatAmount(stats.unallocated)}<span
+                            class="ms-1 text-[13px] font-medium text-foreground/80 md:text-[16px]">ر.س</span
                         >
-                            {formatCurrency(stats.remaining)}
-                        </p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-muted-foreground">
-                            نسبة الاستخدام
-                        </p>
-                        <p class="text-lg font-bold {getTextColor(usagePct)}">
-                            {usagePct}%
-                        </p>
-                    </div>
+                    </p>
+                    <p class="mt-1.5 text-[12.5px] text-foreground/80">
+                        فلوس ما لها وجهة بعد — تقدر تضمّه لهدف ادخار.
+                    </p>
                 </div>
             </div>
-            <div
-                class="mt-4 h-2 w-full overflow-hidden rounded-full bg-secondary"
+
+            <a
+                href="/savings"
+                class="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl bg-primary px-4 text-[14px] font-semibold text-primary-foreground no-underline transition-transform active:scale-[.98]"
             >
-                <div
-                    class="h-full rounded-full {getProgressColor(usagePct)}"
-                    style="width: {Math.min(usagePct, 100)}%"
-                ></div>
+                ضمّه لهدف ادخار
+                <ArrowLeft class="size-[18px]" stroke-width="1.9" />
+            </a>
+        </section>
+    {/if}
+
+    <!-- ملخّص الميزانية العامة -->
+    <section class="rounded-2xl border border-border bg-card p-3 shadow-xs md:p-6">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-5">
+            <div>
+                <p class="text-[11.5px] text-muted-foreground">إجمالي الميزانية</p>
+                <p class="mt-0.5 text-[24px] font-semibold tracking-tight tabular-nums md:text-[28px]">
+                    {formatCurrency(stats.totalBudget)}
+                </p>
             </div>
-        </CardContent>
-    </Card>
+            <div class="grid grid-cols-3 gap-3 border-t border-border pt-2.5 md:flex md:gap-6 md:border-0 md:pt-0">
+                <div>
+                    <p class="text-[11px] text-muted-foreground">المنفق</p>
+                    <p class="mt-0.5 text-[15px] font-semibold text-destructive tabular-nums md:text-[18px]">
+                        {formatAmount(stats.totalSpent)}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-[11px] text-muted-foreground">المتبقي</p>
+                    <p class="mt-0.5 text-[15px] font-semibold text-success-text tabular-nums md:text-[18px]">
+                        {formatAmount(stats.remaining)}
+                    </p>
+                </div>
+                <div>
+                    <p class="text-[11px] text-muted-foreground">نسبة الاستخدام</p>
+                    <p class="mt-0.5 text-[15px] font-semibold tabular-nums md:text-[18px] {getTextColor(usagePct)}">
+                        {formatPercent(usagePct)}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3 h-2 w-full overflow-hidden rounded-full border border-border bg-secondary">
+            <div
+                class="h-full rounded-full {getProgressColor(usagePct)}"
+                style="width: {Math.min(usagePct, 100)}%"
+            ></div>
+        </div>
+    </section>
 
-    <!-- ترتيب -->
-    <div class="flex flex-wrap items-center gap-2 text-sm">
-        <span class="text-muted-foreground">ترتيب:</span>
-        {#each [{ v: 'percentage' as const, l: 'نسبة الإنفاق' }, { v: 'name' as const, l: 'الاسم' }, { v: 'budget' as const, l: 'الميزانية' }, { v: 'spent' as const, l: 'المنفق' }] as opt}
-            <button
-                class="rounded-md px-2.5 py-1 text-xs transition-colors {sortBy ===
-                opt.v
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted hover:bg-muted/80'}"
-                onclick={() => toggleSort(opt.v)}
-            >
-                {opt.l}
-                {sortBy === opt.v ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-            </button>
-        {/each}
-    </div>
-
-    <!-- فئات الميزانية -->
-    <div class="grid gap-3 sm:grid-cols-2">
+    <!-- فئات الميزانية — الأعلى استهلاكاً أولاً -->
+    <div class="grid gap-3 md:grid-cols-2">
         {#each sortedBudgets as b, i (b.category_id ?? b.id ?? `cat-${i}`)}
             <BudgetRow
                 name={b.name}
@@ -352,31 +349,20 @@
                 spent={b.spent}
                 budget={b.budget}
                 rollover={b.rollover}
-                onclick={() => openBudgetModal(b)}
+                onEdit={() => openBudgetModal(b)}
             />
         {/each}
     </div>
 
     <!-- إضافة فئة جديدة -->
-    <Card
-        class="cursor-pointer border-dashed hover:border-primary/50 transition-colors"
+    <button
+        type="button"
         onclick={openCatModal}
+        class="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-input bg-card px-4 py-4 text-[13px] font-medium text-foreground/85 transition-transform active:scale-[.99]"
     >
-        <CardContent class="flex items-center justify-center py-8">
-            <div class="text-center">
-                <div
-                    class="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted"
-                >
-                    <Plus class="size-6 text-muted-foreground" />
-                </div>
-                <p class="text-sm font-medium">إضافة فئة مخصصة</p>
-                <p class="text-xs text-muted-foreground">
-                    أنشئ فئة جديدة مع أيقونة ولون
-                </p>
-            </div>
-        </CardContent>
-    </Card>
-
+        <Plus class="size-[18px]" stroke-width="1.9" />
+        إضافة فئة مخصصة
+    </button>
 </div>
 
 <!-- لوح إضافة فئة -->
@@ -431,7 +417,7 @@
                         class="grid size-11 place-items-center rounded-xl border transition-colors {catColor === clr
                             ? 'border-primary'
                             : 'border-border'}"
-                        aria-label={`اختيار اللون ${clr}`}
+                        aria-label="اختيار اللون {clr}"
                         aria-pressed={catColor === clr}
                         onclick={() => (catColor = clr)}
                     >
@@ -474,5 +460,6 @@
         generalError(budgetErrors) ||
         generalError(serverErrors)}
     quickAdd={[100, 500, 1000]}
+    saveLabel={budgetSubmitting ? 'جارٍ الحفظ…' : 'حفظ'}
     onSave={handleBudgetSave}
 />

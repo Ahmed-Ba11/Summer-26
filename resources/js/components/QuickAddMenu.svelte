@@ -140,7 +140,7 @@
                             open = false;
                             reset();
                             toast.success(
-                                `أُودع ${formatAmount(halalas)} ر.س في «${goal.name}»`,
+                                `تم إيداع ${formatAmount(halalas)} ر.س في ${goal.name}`,
                             );
                         },
                         onFinish: () => (submitting = false),
@@ -166,8 +166,9 @@
                         open = false;
                         reset();
                         toast.success(
-                            `دُفع «${commitment.name}» — ${formatAmount(halalas)} ر.س`,
+                            `تم دفع ${commitment.name} ${formatAmount(halalas)} ر.س`,
                             {
+                                duration: 5000,
                                 action: {
                                     label: 'تراجع',
                                     onClick: () =>

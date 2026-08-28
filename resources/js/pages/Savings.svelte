@@ -6,31 +6,28 @@
 
 <script lang="ts">
     import { page, router } from '@inertiajs/svelte';
+    import { onMount } from 'svelte';
+    import { toast } from 'svelte-sonner';
+    import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
     import CircleAlert from 'lucide-svelte/icons/circle-alert';
     import Plus from 'lucide-svelte/icons/plus';
-    import TrendingUp from 'lucide-svelte/icons/trending-up';
+    import Target from 'lucide-svelte/icons/target';
     import Trash2 from 'lucide-svelte/icons/trash-2';
-    import CheckCircle2 from 'lucide-svelte/icons/check-circle-2';
     import Vault from 'lucide-svelte/icons/vault';
+    import Check from 'lucide-svelte/icons/check';
+    import CalendarDays from 'lucide-svelte/icons/calendar-days';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
-    import Button from '@/components/ui/button/Button.svelte';
-    import {
-        Card,
-        CardContent,
-        CardHeader,
-        CardTitle,
-    } from '@/components/ui/card';
+    import EmptyState from '@/components/EmptyState.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
-    import { ICON_LABELS, ICON_PICKER } from '@/lib/category-icons';
+    import FundingSourcePicker, {
+        type Funding,
+    } from '@/components/FundingSourcePicker.svelte';
     import SheetShell from '@/components/ui/SheetShell.svelte';
     import SheetField from '@/components/ui/SheetField.svelte';
     import AmountSheet from '@/components/ui/AmountSheet.svelte';
     import DateSheet from '@/components/ui/DateSheet.svelte';
     import ConfirmSheet from '@/components/ui/ConfirmSheet.svelte';
-    import Target from 'lucide-svelte/icons/target';
-    import CalendarDays from 'lucide-svelte/icons/calendar-days';
-    import Check from 'lucide-svelte/icons/check';
     import {
         formatAmount,
         formatCurrency,
@@ -38,15 +35,20 @@
         formatFullDate,
         formatPercent,
     } from '@/lib/format';
-    import type { ValidationErrors } from '@/types';
-    import type { SavingsStats } from '@/types';
+    import {
+        SEVERITY_STYLES,
+        availableToSpend,
+        checkSavingsGoal,
+        isBlocked,
+        type FinancialContext,
+    } from '@/lib/money-rules';
+    import type { SavingsStats, ValidationErrors } from '@/types';
     import {
         complete as completeSavings,
         destroy as destroySavings,
         store as storeSavings,
         update as updateSavings,
     } from '@/routes/savings';
-    import { onMount } from 'svelte';
 
     interface GoalItem {
         id: number;
@@ -58,17 +60,6 @@
         is_completed: boolean;
         is_closed: boolean;
     }
-
-    type FlashWarning =
-        | string
-        | {
-              overage?: number;
-              message?: string;
-              warning?: string;
-              title?: string;
-              detail?: string;
-              severity?: string;
-          };
 
     let {
         goals = [],
@@ -92,23 +83,10 @@
 
     /** «المُودَع» يُحسب على شهر الراتب، فيُذكر الراتب باسمه لا «هذا الشهر». */
     const periodLine = $derived(
-        salaryMonth
-            ? `أهدافك الادخارية · ${salaryMonth.label}`
-            : 'أهدافك الادخارية',
+        salaryMonth ? `أهدافك الادخارية · ${salaryMonth.label}` : 'أهدافك الادخارية',
     );
 
-    const serverErrors = $derived(
-        (page.props.errors ?? {}) as ValidationErrors,
-    );
-    const flashWarnings = $derived.by(() => {
-        const warnings = page.props.flash?.warnings;
-
-        if (Array.isArray(warnings)) {
-            return warnings as FlashWarning[];
-        }
-
-        return warnings ? [warnings as FlashWarning] : [];
-    });
+    const serverErrors = $derived((page.props.errors ?? {}) as ValidationErrors);
 
     function errorText(
         errors: ValidationErrors | Record<string, string>,
@@ -133,74 +111,123 @@
         return '';
     }
 
-    function warningText(warning: FlashWarning): string {
-        if (typeof warning === 'string') {
-            return warning;
-        }
+    const EMPTY_CONTEXT: FinancialContext = {
+        monthlyIncome: 0,
+        obligations: 0,
+        spent: 0,
+        budgetedTotal: 0,
+        daysUntilSalary: 0,
+    };
 
-        if (typeof warning.overage === 'number') {
-            return `تجاوزت هدفك بـ ${formatCurrency(warning.overage)}`;
-        }
-
-        return (
-            warning.message ??
-            warning.warning ??
-            [warning.title, warning.detail].filter(Boolean).join(' — ')
-        );
-    }
+    const context = $derived(
+        (page.props.quickAdd?.context ?? EMPTY_CONTEXT) as FinancialContext,
+    );
+    const fundableGoals = $derived(page.props.quickAdd?.fundableGoals ?? []);
+    /**
+     * «المتبقي لك» — الإيداع فوقه لا يُمنع، بل يُسأل عن مصدره.
+     * وبلا دخل معروف لا سقف أصلاً، فلا يُسأل — نفس قاعدة الخادم.
+     */
+    const availableToDeposit = $derived(
+        context.monthlyIncome > 0 ? availableToSpend(context) : Number.MAX_SAFE_INTEGER,
+    );
 
     const totalSavings = $derived(stats.total_saved ?? 0);
     const monthlyIncome = $derived(stats.monthly_income ?? 0);
     const monthlyDeposits = $derived(stats.monthly_deposits ?? 0);
+
+    /** معدّل الادخار = إيداعات شهر الراتب ÷ دخله — لا الرصيد التراكمي. */
     const savingsRate = $derived(
         monthlyIncome > 0
             ? Math.round((monthlyDeposits / monthlyIncome) * 100)
             : null,
     );
-    const totalTarget = $derived(
-        goals.reduce((sum, g) => sum + g.target_amount, 0),
-    );
-    const overallPct = $derived(
-        totalTarget > 0
-            ? Math.min(100, Math.round((totalSavings / totalTarget) * 100))
-            : 0,
-    );
-    const completedGoals = $derived(
-        goals.filter((goal) => goal.is_completed).length,
-    );
 
-    function getProgressColorClass(pct: number): string {
+    const completedGoals = $derived(goals.filter((g) => g.is_completed).length);
+
+    /**
+     * تقدّم الهدف الادخاري لا يُلوَّن بالأحمر أبداً.
+     * الأحمر محجوز للتجاوز السلبي (صرف فوق الميزانية)؛ أمّا تجاوز هدف
+     * الادخار فإنجاز — أخضر ونصّ تهنئة.
+     */
+    function goalBarClass(pct: number): string {
         if (pct >= 100) return 'bg-success';
-        if (pct > 90) return 'bg-destructive';
-        if (pct >= 70) return 'bg-amber-500';
-        return 'bg-emerald-500';
+        if (pct >= 50) return 'bg-emerald-500';
+        return 'bg-chart-3';
     }
 
-    function getProgressTextClass(pct: number): string {
-        if (pct >= 100) return 'text-success-text';
-        if (pct > 90) return 'text-destructive';
-        if (pct >= 70) return 'text-amber-600 dark:text-amber-400';
-        return 'text-emerald-600 dark:text-emerald-400';
-    }
+    // ── نموذج الهدف ───────────────────────────────────────────────────
+    /** رقائق جاهزة لأشيع أربعة أهداف — كتابة الاسم من الصفر آخر الخيارات. */
+    const PRESETS = [
+        { name: 'طوارئ', icon: 'heart-pulse' },
+        { name: 'سيارة', icon: 'car' },
+        { name: 'سفر', icon: 'plane' },
+        { name: 'سكن', icon: 'house' },
+    ];
 
-    // Add goal modal
+    /** المدة بالأشهر — و`0` تعني «تاريخ محدّد» يختاره المستخدم. */
+    const DURATIONS = [
+        { months: 6, label: '6 أشهر' },
+        { months: 12, label: 'سنة' },
+        { months: 24, label: 'سنتين' },
+        { months: 0, label: 'تاريخ محدّد' },
+    ];
+
     let showFormModal = $state(false);
     let formName = $state('');
     let formIcon = $state('banknote');
     /** المبلغ المستهدف بالهللات */
     let formTargetAmount = $state(0);
-    let formTargetDate = $state('');
+    let formMonths = $state(12);
+    let formCustomDate = $state('');
     let targetAmountSheetOpen = $state(false);
     let targetDateSheetOpen = $state(false);
     let formErrors = $state<Record<string, string>>({});
     let submitting = $state(false);
+
+    function addMonths(months: number): string {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setMonth(d.getMonth() + months);
+
+        return d.toISOString().slice(0, 10);
+    }
+
+    function monthsUntil(iso: string): number {
+        if (!iso) return 0;
+        const target = new Date(iso);
+        const today = new Date();
+
+        return Math.max(
+            0,
+            Math.round((target.getTime() - today.getTime()) / (30.44 * 86_400_000)),
+        );
+    }
+
+    const formTargetDate = $derived(
+        formMonths > 0 ? addMonths(formMonths) : formCustomDate,
+    );
+    const formMonthsToTarget = $derived(
+        formMonths > 0 ? formMonths : monthsUntil(formCustomDate),
+    );
+
+    /**
+     * «تحتاج تدّخر X ر.س شهرياً» — والتحذير عند تجاوز 30٪ من الدخل.
+     * القاعدة نفسها المطبّقة في الخادم، فلا يختلف نصّان.
+     */
+    const goalChecks = $derived(
+        formTargetAmount > 0 && formMonthsToTarget > 0
+            ? checkSavingsGoal(formTargetAmount, 0, formMonthsToTarget, context)
+            : [],
+    );
+    const goalBlocked = $derived(isBlocked(goalChecks));
 
     function openAddModal() {
         submitting = false;
         formName = '';
         formIcon = 'banknote';
         formTargetAmount = 0;
-        formTargetDate = '';
+        formMonths = 12;
+        formCustomDate = '';
         formErrors = {};
         showFormModal = true;
     }
@@ -210,32 +237,45 @@
         formErrors = {};
     }
 
+    function pickPreset(preset: (typeof PRESETS)[number]) {
+        formName = preset.name;
+        formIcon = preset.icon;
+    }
+
     function submitForm() {
         formErrors = {};
-        const targetSar = formTargetAmount / 100;
 
         if (!formName.trim()) {
             formErrors.name = 'اسم الهدف مطلوب';
             return;
         }
-        if (!targetSar || targetSar <= 0) {
+        if (formTargetAmount <= 0) {
             formErrors.target_amount = 'المبلغ المستهدف مطلوب';
+            return;
+        }
+        if (formMonths === 0 && !formCustomDate) {
+            formErrors.target_date = 'اختر التاريخ المستهدف';
             return;
         }
 
         submitting = true;
+        const name = formName.trim();
+        const target = formTargetAmount;
 
         router.post(
             storeSavings(),
             {
-                name: formName.trim(),
+                name,
                 icon: formIcon,
-                target_amount: targetSar,
+                target_amount: target / 100,
                 target_date: formTargetDate || null,
             },
             {
                 preserveScroll: true,
                 onSuccess: () => {
+                    toast.success(
+                        `تم إنشاء هدف ${name} — ${formatAmount(target)} ر.س`,
+                    );
                     closeFormModal();
                 },
                 onError: (errors) => {
@@ -248,62 +288,114 @@
         );
     }
 
-    // Add amount modal
-    let showAddAmountModal = $state(false);
-    let selectedGoalId = $state<number | null>(null);
-    let selectedGoalName = $state('');
-    /** المبلغ المضاف بالهللات */
-    let addAmountValue = $state(0);
-    let selectedGoalRemaining = $state(0);
-    let addAmountErrors = $state<Record<string, string>>({});
+    // ── الإيداع ───────────────────────────────────────────────────────
+    let showDepositSheet = $state(false);
+    let depositGoal = $state<GoalItem | null>(null);
+    /** المبلغ المُودَع بالهللات */
+    let depositAmount = $state(0);
+    let depositErrors = $state<Record<string, string>>({});
 
-    function openAddAmountModal(goal: GoalItem) {
+    /** الخطوة الثانية: «من وين جاء؟» — تظهر فقط عند تجاوز المتبقي لك. */
+    let fundingOpen = $state(false);
+    let funding = $state<Funding>({
+        source: null,
+        savingsGoalId: null,
+        incomeAmount: 0,
+        incomeSource: '',
+    });
+
+    const depositShortfall = $derived(
+        Math.max(0, depositAmount - availableToDeposit),
+    );
+    /** السحب من نفس الهدف لتمويل الإيداع فيه دوران بلا أثر — يُستبعد. */
+    const depositFundableGoals = $derived(
+        fundableGoals.filter((g: { id: number }) => g.id !== depositGoal?.id),
+    );
+    const fundingReady = $derived(
+        (funding.source === 'savings' && funding.savingsGoalId !== null) ||
+            (funding.source === 'unlogged_income' &&
+                funding.incomeAmount >= depositShortfall) ||
+            funding.source === 'overspend',
+    );
+
+    function openDeposit(goal: GoalItem) {
         submitting = false;
-        selectedGoalId = goal.id;
-        selectedGoalName = goal.name;
-        selectedGoalRemaining = Math.max(
-            0,
-            goal.target_amount - goal.current_amount,
-        );
-        addAmountValue = 0;
-        addAmountErrors = {};
-        showAddAmountModal = true;
+        depositGoal = goal;
+        depositAmount = 0;
+        depositErrors = {};
+        funding = {
+            source: null,
+            savingsGoalId: null,
+            incomeAmount: 0,
+            incomeSource: '',
+        };
+        showDepositSheet = true;
     }
 
-    function closeAddAmountModal() {
-        showAddAmountModal = false;
-        selectedGoalId = null;
-        selectedGoalName = '';
-        addAmountErrors = {};
-    }
+    function onDepositAmount(halalas: number) {
+        depositErrors = {};
 
-    function submitAddAmount(halalas: number) {
-        addAmountErrors = {};
-        const amountSar = halalas / 100;
-
-        if (!selectedGoalId) {
+        if (halalas <= 0) {
+            depositErrors.amount = 'المبلغ مطلوب';
             return;
         }
 
-        if (!amountSar || amountSar <= 0) {
-            addAmountErrors.amount = 'المبلغ مطلوب';
+        depositAmount = halalas;
+
+        // الإيداع فوق «المتبقي لك» لا يُمنع — يُسأل عن مصدره أولاً.
+        if (halalas > availableToDeposit) {
+            fundingOpen = true;
             return;
         }
 
+        sendDeposit();
+    }
+
+    function sendDeposit() {
+        const goal = depositGoal;
+
+        if (!goal || depositAmount <= 0) {
+            return;
+        }
+
+        const amount = depositAmount;
+        const needsFunding = depositShortfall > 0;
         submitting = true;
 
         router.put(
-            updateSavings(selectedGoalId),
+            updateSavings(goal.id),
             {
-                amount: amountSar,
+                amount: amount / 100,
+                funding_source: needsFunding ? funding.source : undefined,
+                savings_goal_id: needsFunding
+                    ? (funding.savingsGoalId ?? undefined)
+                    : undefined,
+                income_amount: needsFunding
+                    ? funding.incomeAmount || undefined
+                    : undefined,
+                income_source: needsFunding
+                    ? funding.incomeSource || undefined
+                    : undefined,
             },
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    closeAddAmountModal();
+                    fundingOpen = false;
+                    showDepositSheet = false;
+                    toast.success(
+                        `تم إيداع ${formatAmount(amount)} ر.س في ${goal.name}`,
+                    );
+                    depositGoal = null;
+                    depositAmount = 0;
                 },
                 onError: (errors) => {
-                    addAmountErrors = errors as Record<string, string>;
+                    depositErrors = errors as Record<string, string>;
+
+                    // الخطأ خارج مسار التمويل لا لوح يعرضه — نعيد فتح
+                    // لوح المبلغ حتى لا يفشل الإيداع صامتاً.
+                    if (!fundingOpen) {
+                        showDepositSheet = true;
+                    }
                 },
                 onFinish: () => {
                     submitting = false;
@@ -312,7 +404,7 @@
         );
     }
 
-    // Delete
+    // ── الحذف والإقفال ────────────────────────────────────────────────
     let deleteId = $state<number | null>(null);
     let deleteOpen = $state(false);
 
@@ -324,9 +416,7 @@
     function executeDelete() {
         if (!deleteId) return;
 
-        const id = deleteId;
-
-        router.delete(destroySavings(id), {
+        router.delete(destroySavings(deleteId), {
             preserveScroll: true,
             onSuccess: () => {
                 deleteId = null;
@@ -335,10 +425,9 @@
         });
     }
 
-    // Complete
     /**
-     * الإقفال قبل بلوغ الهدف يستحق تأكيداً: الزر بجانب «إضافة مبلغ» مباشرة،
-     * وهو إجراء لا يُتراجَع عنه من البطاقة.
+     * الإقفال قبل بلوغ الهدف يستحق تأكيداً — وهو قرار المستخدم
+     * («ما عدت أحتاجه»)، لا واقعة يقرّرها الرصيد.
      */
     let closeConfirmGoal = $state<GoalItem | null>(null);
     let closeConfirmOpen = $state(false);
@@ -376,383 +465,191 @@
 <AppHead title="الادخار" />
 <MobileHeader title="الادخار" subtitle={periodLine} />
 
-<div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-    <!-- Header -->
-    <div
-        class="hidden flex-col gap-4 md:flex md:flex-row md:items-center md:justify-between"
-    >
-        <div>
-            <h1 class="text-2xl font-bold">الادخار</h1>
-            <p class="text-muted-foreground">{periodLine}</p>
-        </div>
-        <Button class="gap-1.5" onclick={openAddModal}>
-            <Plus class="size-4" />
-            إضافة هدف جديد
-        </Button>
+<div class="flex flex-1 flex-col gap-3 p-3 md:gap-5 md:p-6">
+    <div class="hidden md:block">
+        <h1 class="text-[22px] font-semibold tracking-tight">الادخار</h1>
+        <p class="text-[13px] text-muted-foreground">{periodLine}</p>
     </div>
 
-    {#if flashWarnings.length > 0}
-        <div class="flex flex-col gap-2" aria-live="polite">
-            {#each flashWarnings as warning}
-                {#if warningText(warning)}
-                    {@const isSuccess =
-                        typeof warning !== 'string' &&
-                        warning.severity === 'success'}
-                    <p
-                        class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm {isSuccess
-                            ? 'bg-success/10 text-success-text'
-                            : 'bg-warning/15 text-warning-text'}"
-                        role="status"
+    <!-- صف «إجمالي المدخرات» المضغوط — وزر إنشاء الهدف الوحيد في الرأس -->
+    <section class="rounded-2xl border border-border bg-card p-3 shadow-xs md:p-6">
+        <div class="flex items-center gap-3">
+            <span
+                class="grid size-10 shrink-0 place-items-center rounded-xl"
+                style="background-color: color-mix(in srgb, var(--chart-3) 12%, transparent); color: var(--chart-3)"
+            >
+                <Vault class="size-[19px]" stroke-width="1.9" />
+            </span>
+
+            <div class="min-w-0 flex-1">
+                <p class="text-[11.5px] text-muted-foreground">إجمالي المدخرات</p>
+                <p class="mt-0.5 text-[24px] leading-none font-semibold tracking-tight tabular-nums md:text-[28px]">
+                    {formatAmount(totalSavings)}<span
+                        class="ms-1 text-[13px] font-medium text-foreground/80">ر.س</span
                     >
-                        {#if isSuccess}
-                            <CheckCircle2 class="size-4 shrink-0" />
-                        {:else}
-                            <CircleAlert class="size-4 shrink-0" />
-                        {/if}
-                        {warningText(warning)}
-                    </p>
-                {/if}
-            {/each}
+                </p>
+                <p class="mt-1 flex flex-wrap gap-x-2 text-[11.5px] text-muted-foreground tabular-nums">
+                    <span>{completedGoals} من {goals.length} هدف مكتمل</span>
+                    {#if savingsRate !== null}
+                        <span aria-hidden="true">·</span>
+                        <span>ادّخرت {formatPercent(savingsRate)} من دخل {salaryMonth?.label ?? 'الشهر'}</span>
+                    {/if}
+                </p>
+            </div>
+
+            <button
+                type="button"
+                onclick={openAddModal}
+                class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-2xl bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground transition-transform active:scale-[.98]"
+            >
+                <Plus class="size-[18px]" stroke-width="1.9" />
+                هدف جديد
+            </button>
         </div>
-    {/if}
+    </section>
 
-    <!-- Stats bar -->
-    {#if goals.length > 0}
-        <div class="grid gap-4 sm:grid-cols-3">
-            <Card>
-                <CardContent class="pt-6">
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm text-muted-foreground">
-                            إجمالي المدخرات
-                        </p>
-                        <Vault class="size-4 text-success" />
-                    </div>
-                    <p
-                        class="mt-2 text-xl font-bold text-emerald-600 dark:text-emerald-400"
-                    >
-                        {formatCurrency(totalSavings)}
-                    </p>
-                </CardContent>
-            </Card>
-            {#if savingsRate !== null}
-                <Card>
-                    <CardContent class="pt-6">
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm text-muted-foreground">
-                                معدل الادخار
-                            </p>
-                            <TrendingUp class="size-4 text-chart-1" />
-                        </div>
-                        <p class="mt-2 text-xl font-bold tabular-nums">
-                            {formatPercent(savingsRate)}
-                        </p>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            من إيداعات الشهر الحالي
-                        </p>
-                    </CardContent>
-                </Card>
-            {/if}
-            <Card>
-                <CardContent class="pt-6">
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm text-muted-foreground">الأهداف</p>
-                        <CheckCircle2 class="size-4 text-amber-500" />
-                    </div>
-                    <p class="mt-2 text-xl font-bold">
-                        {completedGoals} من {goals.length} هدف مكتمل
-                    </p>
-                </CardContent>
-            </Card>
+    {#if goals.length === 0}
+        <div class="rounded-2xl border border-border bg-card">
+            <EmptyState
+                icon={Vault}
+                title="ما عندك أهداف ادخار بعد"
+                description="حدّد هدفاً ومبلغاً ومدة، وبنقول لك كم تحتاج تدّخر كل شهر."
+                actionLabel="أنشئ أول هدف"
+                onAction={openAddModal}
+            />
         </div>
-    {/if}
-
-    <!-- Big green banner -->
-    {#if goals.length > 0}
-        <Card
-            class="border-emerald-500/30 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/40 dark:to-emerald-900/20"
-        >
-            <CardContent class="p-6 sm:p-8">
-                <div
-                    class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                    <div>
-                        <p
-                            class="text-sm font-medium text-emerald-700 dark:text-emerald-300"
-                        >
-                            إجمالي المدخرات
-                        </p>
-                        <p
-                            class="mt-1 text-4xl font-bold text-emerald-900 dark:text-emerald-100"
-                        >
-                            {formatCurrency(totalSavings)}
-                        </p>
-                        {#if savingsRate !== null}
-                            <div class="mt-2 flex items-center gap-2">
-                                <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-foreground"
-                                >
-                                    <TrendingUp class="size-3" />
-                                    {formatPercent(savingsRate)} من إيداعات الشهر
-                                    الحالي
-                                </span>
-                            </div>
-                        {/if}
-                    </div>
-                    <div class="flex flex-col items-center gap-1">
-                        <div
-                            class="relative flex h-24 w-24 items-center justify-center"
-                        >
-                            <svg
-                                viewBox="0 0 100 100"
-                                class="h-24 w-24 -rotate-90"
-                            >
-                                <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="40"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="8"
-                                    class="text-emerald-200 dark:text-emerald-800"
-                                />
-                                <circle
-                                    cx="50"
-                                    cy="50"
-                                    r="40"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="8"
-                                    stroke-linecap="round"
-                                    class="text-emerald-600 dark:text-emerald-400 transition-all duration-1000"
-                                    stroke-dasharray={`${overallPct * 2.51} 251`}
-                                />
-                            </svg>
-                            <span
-                                class="absolute text-lg font-bold text-emerald-800 dark:text-emerald-200"
-                                >{overallPct}%</span
-                            >
-                        </div>
-                        <span
-                            class="text-xs text-emerald-600 dark:text-emerald-400"
-                            >{completedGoals} من {goals.length} هدف مكتمل</span
-                        >
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    {/if}
-
-    <!-- Goals Section -->
-    <div>
-        <h2 class="mb-4 text-lg font-semibold">أهداف الادخار</h2>
-        <div class="grid gap-4 sm:grid-cols-2">
+    {:else}
+        <div class="grid gap-3 md:grid-cols-2">
             {#each goals as goal (goal.id)}
                 {@const pct =
                     goal.target_amount > 0
-                        ? Math.round(
-                              (goal.current_amount / goal.target_amount) * 100,
-                          )
+                        ? Math.round((goal.current_amount / goal.target_amount) * 100)
                         : 0}
                 {@const remaining = goal.target_amount - goal.current_amount}
-                <Card
-                    class="overflow-hidden transition-all hover:shadow-md {goal.is_completed
-                        ? 'opacity-70'
-                        : ''}"
-                >
-                    <CardHeader class="pb-3">
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3">
-                                <CategoryIcon
-                                    icon={goal.icon}
-                                    color={goal.is_completed
-                                        ? '#0ca30c'
-                                        : '#1baf7a'}
-                                    size="md"
-                                />
-                                <div>
-                                    <CardTitle class="text-base"
-                                        >{goal.name}</CardTitle
-                                    >
-                                    {#if goal.target_date}
-                                        <p
-                                            class="text-xs text-muted-foreground"
-                                        >
-                                            {formatDate(goal.target_date)}
-                                        </p>
-                                    {/if}
-                                </div>
-                            </div>
-                            {#if goal.is_completed}
-                                <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0"
-                                >
-                                    <CheckCircle2 class="size-2.5" />
-                                    مكتمل
-                                </span>
-                            {:else if goal.is_closed}
-                                <!-- أُقفل قبل بلوغه — «مكتمل» هنا كذب على المستخدم -->
-                                <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground shrink-0"
-                                >
-                                    مغلق
-                                </span>
-                            {:else}
-                                <span
-                                    class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 shrink-0"
-                                >
-                                    قيد الادخار
-                                </span>
+                <article class="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-xs">
+                    <div class="flex items-center gap-3">
+                        <CategoryIcon
+                            icon={goal.icon}
+                            color={pct >= 100 ? 'var(--success)' : 'var(--chart-3)'}
+                            size="md"
+                        />
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-[14px] font-semibold">{goal.name}</p>
+                            {#if goal.target_date}
+                                <p class="text-[11.5px] text-muted-foreground tabular-nums">
+                                    {formatDate(goal.target_date)}
+                                </p>
                             {/if}
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div class="space-y-4">
-                            <div>
-                                <div
-                                    class="relative h-3 w-full overflow-hidden rounded-full bg-secondary"
-                                >
-                                    <div
-                                        class="absolute inset-y-0 h-full rounded-full transition-all duration-500 {getProgressColorClass(
-                                            pct,
-                                        )}"
-                                        style="inset-inline-start: 0; width: {Math.min(
-                                            pct,
-                                            100,
-                                        )}%"
-                                    ></div>
-                                </div>
-                                <div
-                                    class="mt-1.5 flex items-center justify-between text-sm"
-                                >
-                                    <span
-                                        class="{getProgressTextClass(
-                                            pct,
-                                        )} font-medium tabular-nums"
-                                        >{pct}%</span
-                                    >
-                                    <span
-                                        class="text-muted-foreground tabular-nums"
-                                    >
-                                        {#if remaining > 0 && goal.is_closed}
-                                            أُقفل عند {formatAmount(
-                                                goal.current_amount,
-                                            )} ر.س
-                                        {:else if remaining > 0}
-                                            متبقي: {formatAmount(remaining)} ر.س
-                                        {:else}
-                                            مكتمل
-                                        {/if}
-                                    </span>
-                                </div>
-                            </div>
 
-                            <div
-                                class="grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg bg-muted/50 p-3 text-sm"
+                        {#if goal.is_completed}
+                            <span
+                                class="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success-text"
                             >
-                                <div class="flex flex-col">
-                                    <span class="text-xs text-muted-foreground"
-                                        >المبلغ المستهدف</span
-                                    >
-                                    <span class="font-bold tabular-nums"
-                                        >{formatAmount(goal.target_amount)} ر.س</span
-                                    >
-                                </div>
-                                <div class="flex flex-col">
-                                    <span class="text-xs text-muted-foreground"
-                                        >المدخر حالياً</span
-                                    >
-                                    <span
-                                        class="font-bold tabular-nums text-emerald-600 dark:text-emerald-400"
-                                        >{formatAmount(goal.current_amount)} ر.س</span
-                                    >
-                                </div>
-                            </div>
+                                <CheckCircle2 class="size-3" stroke-width="1.9" />
+                                مكتمل
+                            </span>
+                        {:else if goal.is_closed}
+                            <span
+                                class="inline-flex shrink-0 items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground"
+                            >
+                                مغلق
+                            </span>
+                        {:else}
+                            <span
+                                class="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                            >
+                                قيد الادخار
+                            </span>
+                        {/if}
+                    </div>
 
-                            <div class="flex gap-2">
-                                {#if !goal.is_closed}
-                                    <Button
-                                        size="sm"
-                                        class="flex-1 gap-1.5 text-xs"
-                                        onclick={() => openAddAmountModal(goal)}
-                                    >
-                                        <Plus class="size-3.5" />
-                                        إضافة مبلغ
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        class="gap-1 text-xs"
-                                        aria-label="إقفال هدف {goal.name}"
-                                        title="إقفال الهدف"
-                                        onclick={() => completeGoal(goal)}
-                                    >
-                                        <CheckCircle2 class="size-3.5" />
-                                        إقفال
-                                    </Button>
-                                {/if}
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label="حذف"
-                                    class="text-destructive hover:text-destructive {goal.is_closed
-                                        ? 'ms-auto'
-                                        : ''}"
-                                    onclick={() => confirmDelete(goal.id)}
-                                >
-                                    <Trash2 class="size-3.5" />
-                                </Button>
-                            </div>
+                    <div>
+                        <div class="h-2 overflow-hidden rounded-full border border-border bg-secondary">
+                            <div
+                                class="h-full rounded-full transition-[width] duration-500 {goalBarClass(pct)}"
+                                style="width: {Math.min(pct, 100)}%"
+                            ></div>
                         </div>
-                    </CardContent>
-                </Card>
-            {/each}
-
-            <!-- Add goal dashed card -->
-            <Card
-                class="border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer"
-                onclick={openAddModal}
-            >
-                <CardContent class="flex items-center justify-center py-10">
-                    <div class="text-center">
-                        <div
-                            class="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-muted"
-                        >
-                            <Plus class="size-6 text-muted-foreground" />
-                        </div>
-                        <p class="text-sm font-medium">إضافة هدف جديد</p>
-                        <p class="mt-1 text-xs text-muted-foreground">
-                            حدد هدفاً ادخارياً جديداً
+                        <p class="mt-1.5 flex items-center justify-between gap-2 text-[12.5px] tabular-nums">
+                            <span class="font-semibold {pct >= 100 ? 'text-success-text' : ''}">
+                                {formatPercent(pct)}
+                            </span>
+                            {#if remaining < 0}
+                                <!-- تجاوز الهدف إنجاز لا خطأ — أخضر لا أحمر -->
+                                <span class="font-medium text-success-text">
+                                    تجاوزت هدفك بـ {formatAmount(-remaining)} ر.س
+                                </span>
+                            {:else if remaining === 0}
+                                <span class="font-medium text-success-text">بلّغت هدفك</span>
+                            {:else if goal.is_closed}
+                                <span class="text-muted-foreground">
+                                    أُقفل عند {formatAmount(goal.current_amount)} ر.س
+                                </span>
+                            {:else}
+                                <span class="text-muted-foreground">
+                                    باقي {formatAmount(remaining)} ر.س
+                                </span>
+                            {/if}
                         </p>
                     </div>
-                </CardContent>
-            </Card>
-        </div>
-    </div>
 
-    {#if goals.length === 0}
-        <Card>
-            <CardContent
-                class="flex flex-col items-center justify-center py-12 text-center"
-            >
-                <Vault class="size-12 text-muted-foreground" />
-                <p class="mt-3 font-medium">لا توجد أهداف ادخارية</p>
-                <p class="text-sm text-muted-foreground">
-                    أضف هدفاً ادخارياً للبدء
-                </p>
-                <Button size="sm" class="mt-4 gap-1.5" onclick={openAddModal}>
-                    <Plus class="size-3.5" />
-                    إضافة هدف جديد
-                </Button>
-            </CardContent>
-        </Card>
+                    <div class="grid grid-cols-2 gap-3 rounded-xl border border-border bg-secondary p-2.5">
+                        <div>
+                            <p class="text-[11px] text-muted-foreground">المدخر حالياً</p>
+                            <p class="mt-0.5 text-[14px] font-semibold text-success-text tabular-nums">
+                                {formatAmount(goal.current_amount)} ر.س
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-[11px] text-muted-foreground">المبلغ المستهدف</p>
+                            <p class="mt-0.5 text-[14px] font-semibold tabular-nums">
+                                {formatAmount(goal.target_amount)} ر.س
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        {#if !goal.is_closed}
+                            <button
+                                type="button"
+                                onclick={() => openDeposit(goal)}
+                                class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-transform active:scale-[.98]"
+                            >
+                                <Plus class="size-[18px]" stroke-width="1.9" />
+                                إيداع
+                            </button>
+                            <button
+                                type="button"
+                                onclick={() => completeGoal(goal)}
+                                class="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-input px-3 text-[13px] font-medium text-foreground/85 transition-transform active:scale-[.98]"
+                            >
+                                <CheckCircle2 class="size-[18px]" stroke-width="1.9" />
+                                إقفال
+                            </button>
+                        {/if}
+                        <button
+                            type="button"
+                            onclick={() => confirmDelete(goal.id)}
+                            aria-label="حذف هدف {goal.name}"
+                            class="grid size-11 shrink-0 place-items-center rounded-xl border border-input text-destructive transition-transform active:scale-[.98] {goal.is_closed
+                                ? 'ms-auto'
+                                : ''}"
+                        >
+                            <Trash2 class="size-[18px]" stroke-width="1.9" />
+                        </button>
+                    </div>
+                </article>
+            {/each}
+        </div>
     {/if}
 </div>
 
-<!-- لوح إضافة هدف ادخاري -->
+<!-- لوح إنشاء الهدف -->
 <SheetShell
     bind:open={showFormModal}
-    title="إضافة هدف ادخاري"
-    subtitle="اسم وأيقونة ومبلغ مستهدف"
+    title="وش تبي تدّخر له؟"
+    subtitle="اسم وهدف ومدة — وبنحسب لك الشهري"
     onClose={closeFormModal}
 >
     <div class="flex flex-col gap-3">
@@ -766,32 +663,25 @@
             </p>
         {/if}
 
-        <SheetField
-            label="المبلغ المستهدف"
-            icon={Target}
-            value={formTargetAmount > 0
-                ? `${formatAmount(formTargetAmount)} ر.س`
-                : ''}
-            placeholder="اضغط لإدخال المبلغ"
-            error={formErrors.target_amount ||
-                errorText(serverErrors, 'target_amount')}
-            onclick={() => (targetAmountSheetOpen = true)}
-        />
-
-        <SheetField
-            label="التاريخ المستهدف (اختياري)"
-            icon={CalendarDays}
-            value={formTargetDate ? formatFullDate(formTargetDate) : ''}
-            placeholder="بدون تاريخ"
-            error={formErrors.target_date ||
-                errorText(serverErrors, 'target_date')}
-            onclick={() => (targetDateSheetOpen = true)}
-        />
+        <div class="flex flex-wrap gap-2">
+            {#each PRESETS as preset (preset.name)}
+                <button
+                    type="button"
+                    onclick={() => pickPreset(preset)}
+                    aria-pressed={formName === preset.name}
+                    class="inline-flex min-h-11 items-center gap-2 rounded-2xl border px-3 text-[13px] font-medium transition-transform active:scale-[.98] {formName ===
+                    preset.name
+                        ? 'border-primary bg-primary/8 text-primary'
+                        : 'border-input text-foreground/85'}"
+                >
+                    <CategoryIcon icon={preset.icon} size="sm" color="var(--chart-3)" />
+                    {preset.name}
+                </button>
+            {/each}
+        </div>
 
         <div class="flex flex-col gap-1.5">
-            <label for="goal-name" class="text-[11.5px] text-muted-foreground"
-                >الاسم</label
-            >
+            <label for="goal-name" class="text-[11.5px] text-muted-foreground">اسم الهدف</label>
             <input
                 id="goal-name"
                 type="text"
@@ -806,25 +696,62 @@
             {/if}
         </div>
 
+        <SheetField
+            label="المبلغ المستهدف"
+            icon={Target}
+            value={formTargetAmount > 0 ? `${formatAmount(formTargetAmount)} ر.س` : ''}
+            placeholder="اضغط لإدخال المبلغ"
+            error={formErrors.target_amount || errorText(serverErrors, 'target_amount')}
+            onclick={() => (targetAmountSheetOpen = true)}
+        />
+
         <div class="flex flex-col gap-1.5">
-            <span class="text-[11.5px] text-muted-foreground">الأيقونة</span>
+            <span class="text-[11.5px] text-muted-foreground">المدة</span>
             <div class="flex flex-wrap gap-2">
-                {#each ICON_PICKER as key (key)}
+                {#each DURATIONS as duration (duration.label)}
                     <button
                         type="button"
-                        class="grid size-11 place-items-center rounded-xl border transition-colors {formIcon ===
-                        key
-                            ? 'border-primary bg-primary/8'
-                            : 'border-border'}"
-                        aria-label={ICON_LABELS[key]}
-                        aria-pressed={formIcon === key}
-                        onclick={() => (formIcon = key)}
+                        onclick={() => (formMonths = duration.months)}
+                        aria-pressed={formMonths === duration.months}
+                        class="inline-flex min-h-11 items-center rounded-2xl border px-3.5 text-[13px] font-medium transition-transform active:scale-[.98] {formMonths ===
+                        duration.months
+                            ? 'border-primary bg-primary/8 text-primary'
+                            : 'border-input text-foreground/85'}"
                     >
-                        <CategoryIcon icon={key} size="sm" />
+                        {duration.label}
                     </button>
                 {/each}
             </div>
         </div>
+
+        {#if formMonths === 0}
+            <SheetField
+                label="التاريخ المستهدف"
+                icon={CalendarDays}
+                value={formCustomDate ? formatFullDate(formCustomDate) : ''}
+                placeholder="اختر التاريخ"
+                error={formErrors.target_date || errorText(serverErrors, 'target_date')}
+                onclick={() => (targetDateSheetOpen = true)}
+            />
+        {/if}
+
+        {#each goalChecks as check (check.title)}
+            <div class="rounded-2xl border px-3 py-2.5 {SEVERITY_STYLES[check.severity].box}">
+                <p class="text-[12.5px] font-semibold">{check.title}</p>
+                {#if check.detail}
+                    <p class="mt-0.5 text-[11.5px] opacity-90">{check.detail}</p>
+                {/if}
+                {#if check.suggestion}
+                    <button
+                        type="button"
+                        onclick={() => (formMonths = check.suggestion?.value ?? formMonths)}
+                        class="mt-2 inline-flex min-h-11 items-center rounded-xl border border-current px-3 text-[12.5px] font-semibold"
+                    >
+                        {check.suggestion.label}
+                    </button>
+                {/if}
+            </div>
+        {/each}
     </div>
 
     {#snippet footer()}
@@ -839,11 +766,11 @@
         <button
             type="button"
             onclick={submitForm}
-            disabled={submitting}
+            disabled={submitting || goalBlocked}
             class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-45"
         >
             <Check class="size-[18px]" />
-            {submitting ? 'جارٍ الإضافة…' : 'إضافة'}
+            {submitting ? 'جارٍ الإضافة…' : 'إنشاء الهدف'}
         </button>
     {/snippet}
 </SheetShell>
@@ -857,25 +784,73 @@
 
 <DateSheet
     bind:open={targetDateSheetOpen}
-    bind:value={formTargetDate}
+    bind:value={formCustomDate}
     title="التاريخ المستهدف"
 />
 
-<!-- لوح إيداع في هدف -->
+<!-- الإيداع — لوح المبلغ نفسه المستعمل في كل التطبيق -->
 <AmountSheet
-    bind:open={showAddAmountModal}
-    bind:value={addAmountValue}
-    title={`إيداع في ${selectedGoalName}`}
-    subtitle={selectedGoalRemaining > 0
-        ? `المتبقي ${formatCurrency(selectedGoalRemaining)}`
-        : 'الهدف مكتمل'}
-    hint={addAmountErrors.amount ||
+    bind:open={showDepositSheet}
+    bind:value={depositAmount}
+    title={depositGoal ? `إيداع في ${depositGoal.name}` : 'إيداع'}
+    subtitle={depositGoal && depositGoal.target_amount > depositGoal.current_amount
+        ? `باقي ${formatCurrency(depositGoal.target_amount - depositGoal.current_amount)} على الهدف`
+        : 'الهدف مكتمل — الزيادة تُحسب تجاوزاً للهدف'}
+    hint={depositErrors.amount ||
         errorText(serverErrors, 'amount') ||
-        generalError(addAmountErrors)}
+        errorText(serverErrors, 'funding_source') ||
+        generalError(depositErrors)}
     quickAdd={[100, 500, 1000]}
     saveLabel="إيداع"
-    onSave={submitAddAmount}
+    onSave={onDepositAmount}
 />
+
+<!-- «من وين جاء؟» — الإيداع فوق المتبقي لك لا يُمنع، يُسأل عن مصدره -->
+<SheetShell
+    bind:open={fundingOpen}
+    title="من وين جاء المبلغ؟"
+    subtitle="هذا الإيداع يتجاوز المتبقي لك"
+>
+    {#if generalError(depositErrors) || errorText(depositErrors, 'funding_source') || errorText(depositErrors, 'savings_goal_id') || errorText(depositErrors, 'income_amount')}
+        <p
+            class="mb-3 flex items-start gap-2 rounded-2xl bg-destructive/10 px-3 py-2 text-[12px] text-destructive"
+            role="alert"
+        >
+            <CircleAlert class="mt-px size-4 shrink-0" />
+            {errorText(depositErrors, 'funding_source') ||
+                errorText(depositErrors, 'savings_goal_id') ||
+                errorText(depositErrors, 'income_amount') ||
+                generalError(depositErrors)}
+        </p>
+    {/if}
+
+    <FundingSourcePicker
+        amount={depositAmount}
+        shortfall={depositShortfall}
+        goals={depositFundableGoals}
+        bind:value={funding}
+    />
+
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={() => (fundingOpen = false)}
+            disabled={submitting}
+            class="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85 disabled:opacity-45"
+        >
+            رجوع
+        </button>
+        <button
+            type="button"
+            onclick={sendDeposit}
+            disabled={submitting || !fundingReady}
+            class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:opacity-45"
+        >
+            <Check class="size-[18px]" />
+            {submitting ? 'جارٍ الإيداع…' : 'أودِع'}
+        </button>
+    {/snippet}
+</SheetShell>
 
 <ConfirmSheet
     bind:open={deleteOpen}
@@ -892,6 +867,5 @@
     message={closeConfirmGoal
         ? `ادّخرت ${formatAmount(closeConfirmGoal.current_amount)} ر.س من ${formatAmount(closeConfirmGoal.target_amount)} ر.س. الإقفال يوقف الإضافة إليه، ولن يُحسب هدفاً مكتملاً.`
         : ''}
-    onConfirm={() =>
-        closeConfirmGoal && submitCompleteGoal(closeConfirmGoal.id)}
+    onConfirm={() => closeConfirmGoal && submitCompleteGoal(closeConfirmGoal.id)}
 />

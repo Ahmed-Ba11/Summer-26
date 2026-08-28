@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\User;
 use App\Services\CommitmentService;
 use App\Services\SalaryMonthService;
+use App\Services\SavingsLedger;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -76,7 +77,10 @@ class DashboardController extends Controller
         $commitmentsPaid = $commitmentService->paidForPeriod($commitmentPeriod);
         $commitmentsDueSoon = $commitmentService->dueSoonCount(7, $commitmentPeriod);
 
-        $savingsMonthly = $this->monthlySavingsNeed($user);
+        // ما أُودع فعلاً في هذا الراتب — لا ما «يُفترض» ادخاره.
+        // الإيداع فلوس انتقلت من جيب لجيب: تنقص «المتبقي لك» ولا تُسجَّل
+        // مصروفاً. وربطها بخطة شهرية يجعل الرقم يتحرّك بلا حركة حقيقية.
+        $savingsMonthly = SavingsLedger::for($user)->netForPeriod($month);
 
         // ── الأيام والمتوسطات ───────────────────────────────────────────────
         // كلها على أيام **شهر الراتب**: المتوسط اليومي في اليوم الثالث من
@@ -224,24 +228,6 @@ class DashboardController extends Controller
             ])
             ->values()
             ->all();
-    }
-
-    /**
-     * المبلغ المطلوب ادخاره شهرياً للوصول لأهداف الادخار النشطة في وقتها.
-     * الأهداف بلا تاريخ مستهدف تُهمل (لا يمكن اشتقاق مبلغ شهري منها).
-     */
-    private function monthlySavingsNeed($user): int
-    {
-        return (int) $user->savingsGoals()
-            ->where('is_completed', false)
-            ->whereNotNull('target_date')
-            ->get()
-            ->sum(function ($goal): float {
-                $remaining = max(0, (int) $goal->target_amount - (int) $goal->current_amount);
-                $months = max(1, now()->diffInMonths($goal->target_date, false));
-
-                return $remaining / $months;
-            });
     }
 
     /**

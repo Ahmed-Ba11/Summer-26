@@ -57,7 +57,7 @@
             <div class="relative shrink-0">
                 <button
                     type="button"
-                    class="w-[46px] rounded-[10px] border py-2 text-center transition-colors {day.isToday
+                    class="min-h-11 w-[72px] rounded-[10px] border px-1 py-2 text-center transition-colors {day.isToday
                         ? 'border-primary bg-accent ring-2 ring-primary/20'
                         : 'border-border bg-secondary hover:border-input'}"
                     onclick={() => (openDay = openDay === day.iso ? null : day.iso)}
@@ -65,11 +65,21 @@
                 >
                     <span class="block text-[11px] text-muted-foreground">{day.weekday}</span>
                     <span class="block text-[15px] font-semibold tabular-nums">{day.dayNumber}</span>
-                    <span class="mt-1 flex h-1.5 justify-center gap-[3px]">
-                        {#each day.events.slice(0, 3) as e}
-                            <i class="block size-1.5 rounded-full" style="background-color: {KIND[e.kind].color}"></i>
-                        {/each}
-                    </span>
+
+                    <!-- اسم مختصر بدل النقطة — النقطة لا تقول أي التزام هذا -->
+                    {#if day.events.length}
+                        <span
+                            class="mt-1 block truncate text-[11px] leading-tight font-medium"
+                            style="color: {KIND[day.events[0].kind].color}"
+                        >
+                            {day.events[0].label}
+                        </span>
+                        {#if day.events.length > 1}
+                            <span class="block text-[11px] text-muted-foreground tabular-nums">
+                                +{day.events.length - 1}
+                            </span>
+                        {/if}
+                    {/if}
                 </button>
 
                 {#if openDay === day.iso && day.events.length}

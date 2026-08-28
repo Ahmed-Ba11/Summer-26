@@ -105,7 +105,7 @@
                 preserveScroll: true,
                 onSuccess: () =>
                     toast.success(
-                        `تم دفع ${c.name} — ${formatCurrency(expectedAmount(c))}`,
+                        `تم دفع ${KIND_LABEL[c.kind]} ${c.name} ${formatCurrency(expectedAmount(c))}`,
                         {
                             action: { label: 'تراجع', onClick: () => undo(c) },
                             duration: 5000,
@@ -134,6 +134,28 @@
         sheetOpen = true;
     }
 
+    /**
+     * «تستحق بعد يومين» — الإشعار يذكر الموعد لا مجرّد «تمت الإضافة»،
+     * فأول سؤال بعد تسجيل التزام هو متى يُسحب المبلغ.
+     */
+    function dueNote(payload: Record<string, unknown>): string {
+        const day = Number(payload.due_day ?? 0);
+
+        if (!day) {
+            return '';
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const next = new Date(today.getFullYear(), today.getMonth(), day);
+
+        if (next < today) {
+            next.setMonth(next.getMonth() + 1);
+        }
+
+        return ` — تستحق ${formatRelativeDays(next.toISOString().slice(0, 10))}`;
+    }
+
     function openAdd() {
         editing = null;
         sheetOpen = true;
@@ -151,8 +173,8 @@
                 editing = null;
                 toast.success(
                     target
-                        ? `حُفظ تعديل «${payload.name}»`
-                        : `تمت إضافة ${label} «${payload.name}»`,
+                        ? `حُفظ تعديل ${payload.name}`
+                        : `تمت إضافة ${label} ${payload.name}${dueNote(payload)}`,
                 );
             },
             onFinish: () => (processing = false),
