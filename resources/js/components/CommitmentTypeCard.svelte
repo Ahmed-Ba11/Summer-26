@@ -45,11 +45,11 @@
     <div class="flex items-center gap-2">
         <CategoryIcon icon={KIND_ICON[kind]} {color} size="sm" />
         <span class="truncate text-[12px] font-semibold text-foreground">{KIND_LABEL_PLURAL[kind]}</span>
-        <span class="ms-auto text-[10.5px] text-muted-foreground tabular-nums">{count}</span>
+        <span class="ms-auto text-[11.5px] text-muted-foreground tabular-nums">{count}</span>
     </div>
 
     <p class="mt-1.5 text-[15px] font-semibold tracking-tight text-foreground tabular-nums">
-        {formatAmount(total)}<span class="ms-1 text-[10.5px] font-medium text-muted-foreground">ر.س</span>
+        {formatAmount(total)}<span class="ms-1 text-[11.5px] font-medium text-muted-foreground">ر.س</span>
     </p>
 
     <div class="mt-1.5 flex h-1 gap-px overflow-hidden rounded-full bg-secondary">
@@ -59,7 +59,7 @@
         <div style="width:{100 - paidPct}%;background:{color}"></div>
     </div>
 
-    <p class="mt-1 truncate text-[10.5px] {paidPct === 100 ? 'text-success-text' : 'text-muted-foreground'}">
+    <p class="mt-1 truncate text-[11.5px] {paidPct === 100 ? 'text-success-text' : 'text-muted-foreground'}">
         {note}
     </p>
 </button>

@@ -63,7 +63,7 @@ class CalendarController extends Controller
                     'isPaid' => $occurrence['is_paid'],
                     'paidAt' => $occurrence['paid_at'],
                     'canPay' => ! $occurrence['is_paid'],
-                    'editUrl' => '/commitments',
+                    'editUrl' => '/commitments?edit='.$commitment->id,
                 ]);
             }
         }

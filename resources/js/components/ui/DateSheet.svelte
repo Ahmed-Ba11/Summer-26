@@ -126,7 +126,7 @@
         </button>
     </div>
 
-    <div class="mb-1.5 grid grid-cols-7 gap-1 text-center text-[10px] text-muted-foreground">
+    <div class="mb-1.5 grid grid-cols-7 gap-1 text-center text-[11px] text-muted-foreground">
         {#each WEEK as w (w)}<span>{w}</span>{/each}
     </div>
 

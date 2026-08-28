@@ -95,7 +95,7 @@
 
                 {#if c.kind === 'installment' || c.payment_method === 'auto'}
                     <span
-                        class="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px text-[10px] font-semibold {c.payment_method ===
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px text-[11px] font-semibold {c.payment_method ===
                         'auto'
                             ? 'bg-chart-2/12 text-chart-2'
                             : 'bg-secondary text-muted-foreground'}"
@@ -108,7 +108,7 @@
                     </span>
                 {:else if c.is_variable}
                     <span
-                        class="shrink-0 rounded-full bg-secondary px-1.5 py-px text-[10px] font-semibold text-muted-foreground"
+                        class="shrink-0 rounded-full bg-secondary px-1.5 py-px text-[11px] font-semibold text-muted-foreground"
                     >
                         متغيّرة
                     </span>
@@ -139,19 +139,19 @@
                 <!-- شارة الحالة -->
                 {#if state === 'paid'}
                     <span
-                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-1.5 py-px text-[10px] font-semibold text-success-text"
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-1.5 py-px text-[11px] font-semibold text-success-text"
                     >
                         <Check class="size-2.5" /> مدفوع
                     </span>
                 {:else if state === 'overdue'}
                     <span
-                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-px text-[10px] font-semibold text-destructive"
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-px text-[11px] font-semibold text-destructive"
                     >
                         <TriangleAlert class="size-2.5" /> متأخّر
                     </span>
                 {:else if c.reserve_in_budget}
                     <span
-                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-chart-7/12 px-1.5 py-px text-[10px] font-semibold text-chart-7"
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-chart-7/12 px-1.5 py-px text-[11px] font-semibold text-chart-7"
                     >
                         <Lock class="size-2.5" /> محجوز
                     </span>

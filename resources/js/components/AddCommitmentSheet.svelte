@@ -426,7 +426,7 @@
                     <p class="text-[12.5px] font-medium">
                         المبلغ متغيّر كل شهر
                     </p>
-                    <p class="text-[10.5px] text-muted-foreground">
+                    <p class="text-[11.5px] text-muted-foreground">
                         نحجز متوسّط آخر 3 أشهر حتى تسجّل الفعلي
                     </p>
                 </div>
@@ -479,7 +479,7 @@
                 </button>
             </div>
             <p
-                class="mt-1.5 text-[10.5px] leading-relaxed text-muted-foreground"
+                class="mt-1.5 text-[11.5px] leading-relaxed text-muted-foreground"
             >
                 التلقائي يُسجَّل مدفوعاً وحده يوم الاستحقاق. اليدوي يبقى محجوزاً
                 ويذكّرك.
@@ -562,7 +562,7 @@
         >
             <div class="flex-1">
                 <p class="text-[12.5px] font-medium">احجزه من ميزانيتي</p>
-                <p class="text-[10.5px] leading-relaxed text-muted-foreground">
+                <p class="text-[11.5px] leading-relaxed text-muted-foreground">
                     {#if reserve}
                         ينقص {formatCurrency(effectiveMonthly)} من «المتبقي لك» في
                         اللوحة حتى تدفعه

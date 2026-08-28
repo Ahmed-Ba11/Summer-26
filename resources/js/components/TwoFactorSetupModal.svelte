@@ -132,7 +132,7 @@
                     <div class="absolute inset-0 grid grid-cols-5 opacity-50">
                         {#each { length: 5 } as _, i (i)}
                             <div
-                                class="border-r border-border last:border-r-0"
+                                class="border-e border-border last:border-e-0"
                             ></div>
                         {/each}
                     </div>

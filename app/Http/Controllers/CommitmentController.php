@@ -29,6 +29,9 @@ class CommitmentController extends Controller
             'income' => $service->periodIncome($period),
             'salaryDay' => (int) ($user->salary_day ?? 27),
             'periodLabel' => $period['label'].' · '.$period['range'],
+            // `?edit={id}` يأتي من التقويم: يفتح لوح التعديل على الالتزام نفسه
+            // بدل إنزال المستخدم على القائمة ليبحث عنه بنفسه.
+            'editId' => $request->integer('edit') ?: null,
         ]);
     }
 

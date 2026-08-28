@@ -42,7 +42,7 @@
                 <p class="text-[17px] font-semibold tabular-nums" style="color:{pctColor}">
                     {Math.round(health.pct)}٪
                 </p>
-                <p class="text-[10.5px] text-muted-foreground">من دخلك</p>
+                <p class="text-[11.5px] text-muted-foreground">من دخلك</p>
             </div>
         {/if}
     </div>
@@ -54,7 +54,7 @@
         {/if}
         {#if reserved > 0}
             <div
-                class="grid place-items-center px-2 text-[10.5px] font-semibold text-white"
+                class="grid place-items-center px-2 text-[11.5px] font-semibold text-white"
                 style="flex:{1 - paidFlex};background:var(--chart-7)"
             >
                 محجوز · لم يخرج بعد

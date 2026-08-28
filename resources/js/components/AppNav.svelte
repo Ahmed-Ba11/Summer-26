@@ -170,7 +170,7 @@ moreOpen = false;
             </svg>
             <span class="absolute inset-0 grid place-content-center text-center">
                 <b class="block text-[13px] leading-none font-semibold tracking-tight tabular-nums">{formatPercent(stats.budgetUsedPct)}</b>
-                <span class="mt-px block text-[8px] text-muted-foreground">مصروف</span>
+                <span class="mt-px block text-[11px] text-muted-foreground">مصروف</span>
             </span>
         </button>
         <div class="my-2 h-px w-6 bg-sidebar-border"></div>

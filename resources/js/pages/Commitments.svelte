@@ -41,12 +41,15 @@
         income = 0,
         salaryDay = 27,
         periodLabel = '',
+        editId = null,
     }: {
         commitments?: Commitment[];
         income?: number;
         salaryDay?: number;
         /** «راتب أغسطس · 27 أغسطس ← 26 سبتمبر» */
         periodLabel?: string;
+        /** `/commitments?edit={id}` — قادم من التقويم. */
+        editId?: number | null;
     } = $props();
 
     let filter = $state<CommitmentKind | null>(null);
@@ -54,6 +57,28 @@
     let processing = $state(false);
     /** الالتزام المفتوح للتعديل — `null` يعني إضافة جديدة. */
     let editing = $state<Commitment | null>(null);
+
+    /**
+     * القادم من «تعديل» في التقويم يصل ومعه معرّف الالتزام، فيُفتح اللوح
+     * عليه مباشرة. بدونه يهبط المستخدم على القائمة كاملةً ليبحث عن البند
+     * الذي ضغط عليه قبل لحظة.
+     */
+    // غير تفاعلي عمداً: لو كان `$state` لأعاد الأثر فتح اللوح بعد كل إغلاق.
+    let editIdConsumed = false;
+
+    $effect(() => {
+        if (editId === null || editIdConsumed) {
+            return;
+        }
+
+        const target = commitments.find((c) => c.id === editId);
+
+        if (target) {
+            editIdConsumed = true;
+            editing = target;
+            sheetOpen = true;
+        }
+    });
 
     const totals = $derived(totalsOf(commitments));
 
