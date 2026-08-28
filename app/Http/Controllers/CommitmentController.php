@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Commitment;
 use App\Services\BudgetGuard;
 use App\Services\CommitmentService;
-use App\Services\SalaryMonthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -80,33 +79,20 @@ class CommitmentController extends Controller
         $this->authorizeOwnership($commitment, $user->id);
 
         $service = CommitmentService::for($user);
-        // الظهور المستحقّ فعلاً — قد يكون ظهور الفترة السابقة الذي مضى
-        // موعده ولم يُدفع، لا ظهور نافذة اليوم المستقبلي.
-        $period = $service->payablePeriod($commitment);
+        // الظهور المستحقّ فعلاً — من مولّد الظهورات نفسه الذي يقرأ منه
+        // التقويم، فالسداد يقع على ما يراه المستخدم لا على ظهور آخر.
+        $occurrence = $service->payableOccurrence($commitment);
 
         $amount = $this->resolvePayAmount($request, $commitment, $service);
 
-        if ($commitment->payments()->where('period_key', $period['key'])->exists()) {
+        if ($occurrence['is_paid']) {
             throw ValidationException::withMessages([
-                'amount' => 'هذا الالتزام مدفوع بالفعل في '.$period['label'].'.',
+                'amount' => 'هذا الاستحقاق مدفوع بالفعل.',
             ]);
         }
 
-        DB::transaction(function () use ($commitment, $amount, $period): void {
-            $commitment->payments()->create([
-                'amount' => $amount,
-                'paid_at' => now()->toDateString(),
-                'period_key' => $period['key'],
-                'source' => 'manual',
-            ]);
-
-            if ($commitment->kind === 'installment' && $commitment->months_count > 0) {
-                $paid = min($commitment->months_count, $commitment->months_paid + 1);
-                $commitment->update([
-                    'months_paid' => $paid,
-                    'is_active' => $paid < $commitment->months_count,
-                ]);
-            }
+        DB::transaction(function () use ($service, $commitment, $occurrence, $amount): void {
+            $service->recordPayment($commitment, $occurrence, $amount);
         });
 
         $response = redirect()->back();
@@ -134,16 +120,18 @@ class CommitmentController extends Controller
         $user = $request->user();
         $this->authorizeOwnership($commitment, $user->id);
 
-        // التراجع يحذف آخر سداد كُتب لهذا الالتزام في فترة اليوم أو التي
-        // قبلها — نفس نطاق `payablePeriod` وبعكس ترتيبها.
+        // التراجع يحذف آخر سداد كُتب داخل نافذة السداد — نفس نطاق
+        // `payableOccurrence` وبعكس ترتيبه.
         $service = CommitmentService::for($user);
-        $current = $service->currentPeriod();
-        $previous = SalaryMonthService::for($user)
-            ->periodFor($current['startsOn']->subDay());
+        $dueDates = array_column(
+            $service->occurrences($commitment, $service->windowPeriods()),
+            'due_date',
+        );
 
-        $payment = $commitment->payments()
-            ->whereIn('period_key', [$current['key'], $previous['key']])
-            ->latest('id')
+        $payment = collect($dueDates)
+            ->map(fn (string $due) => $service->paymentForDue($commitment, $due))
+            ->filter()
+            ->sortByDesc('id')
             ->first();
 
         if ($payment) {

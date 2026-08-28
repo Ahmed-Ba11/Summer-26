@@ -111,12 +111,12 @@ class CommitmentOccurrenceStatusTest extends TestCase
         );
 
         // مسدَّد: صفّ في commitment_payments لفترة 2026-07
-        $commitment->payments()->create([
-            'amount' => 8_000,
-            'paid_at' => '2026-08-25',
-            'period_key' => '2026-07',
-            'source' => 'manual',
-        ]);
+        $service->recordPayment(
+            $commitment,
+            $service->occurrence($commitment, $salaryMonth->period('2026-07')),
+            8_000,
+            '2026-08-25',
+        );
         $service->forgetPayments();
 
         $this->assertSame(

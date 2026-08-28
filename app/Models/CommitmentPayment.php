@@ -11,6 +11,9 @@ class CommitmentPayment extends Model
         'commitment_id',
         'amount',
         'paid_at',
+        // تاريخ استحقاق الظهور المسدَّد — هوية الدفعة الحقيقية.
+        // `period_key` يبقى مشتقّاً منه للتجميع والعرض.
+        'due_date',
         'period_key',
         'source',
     ];
@@ -20,6 +23,7 @@ class CommitmentPayment extends Model
         return [
             'amount' => 'integer',
             'paid_at' => 'date',
+            'due_date' => 'date',
         ];
     }
 

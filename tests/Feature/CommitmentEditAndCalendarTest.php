@@ -156,12 +156,11 @@ class CommitmentEditAndCalendarTest extends TestCase
         $period = $service->currentPeriod();
         $dueDate = $service->dueDateFor($commitment, $period);
 
-        $commitment->payments()->create([
-            'amount' => 25_000,
-            'paid_at' => now()->toDateString(),
-            'period_key' => $period['key'],
-            'source' => 'manual',
-        ]);
+        $service->recordPayment(
+            $commitment,
+            $service->occurrence($commitment, $period),
+            25_000,
+        );
 
         $this->actingAs($user)
             ->get(route('calendar', ['month' => $dueDate->format('Y-m')]))

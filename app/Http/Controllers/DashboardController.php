@@ -245,24 +245,25 @@ class DashboardController extends Controller
         $events = [];
 
         foreach ($user->commitments()->active()->get() as $commitment) {
-            $occurrence = $service->occurrence($commitment, $period);
+            // من مولّد الظهورات نفسه — ما لا يولَّد لا يُنبَّه عليه.
+            foreach ($service->occurrences($commitment, [$period]) as $occurrence) {
+                // «القادم» يستثني المسدَّد — والحالة من `commitment_payments`
+                // لا من التاريخ، فالمدفوع مبكراً لا يبقى معروضاً كمستحقّ.
+                if ($occurrence['status'] === CommitmentService::STATUS_PAID) {
+                    continue;
+                }
 
-            // «القادم» يستثني المسدَّد — والحالة من `commitment_payments`
-            // لا من التاريخ، فالمدفوع مبكراً لا يبقى معروضاً كمستحقّ.
-            if ($occurrence['status'] === CommitmentService::STATUS_PAID) {
-                continue;
-            }
+                $due = CarbonImmutable::parse($occurrence['due_date']);
 
-            $due = $service->dueDateFor($commitment, $period);
-
-            if ($due->betweenIncluded($period['salaryDate'], $horizon)) {
-                $events[] = [
-                    'date' => $occurrence['due_date'],
-                    'kind' => $commitment->kind,
-                    'label' => $commitment->name,
-                    'amount' => $occurrence['amount'],
-                    'status' => $occurrence['status'],
-                ];
+                if ($due->betweenIncluded($period['salaryDate'], $horizon)) {
+                    $events[] = [
+                        'date' => $occurrence['due_date'],
+                        'kind' => $commitment->kind,
+                        'label' => $commitment->name,
+                        'amount' => $occurrence['amount'],
+                        'status' => $occurrence['status'],
+                    ];
+                }
             }
         }
 

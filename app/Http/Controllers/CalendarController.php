@@ -40,10 +40,12 @@ class CalendarController extends Controller
         $service = CommitmentService::for($user);
         $commitments = $user->commitments()->active()->orderBy('name')->get();
 
-        foreach ($this->periodsOverlapping($user, $start, $end) as $period) {
-            foreach ($commitments as $commitment) {
-                $occurrence = $service->occurrence($commitment, $period);
+        $periods = $this->periodsOverlapping($user, $start, $end);
 
+        foreach ($commitments as $commitment) {
+            // مولّد الظهورات نفسه الذي تقرأ منه صفحة الالتزامات — فلا
+            // يعرض التقويم استحقاقاً تنكره الصفحة ولا العكس.
+            foreach ($service->occurrences($commitment, $periods) as $occurrence) {
                 if ($occurrence['due_date'] < $start->format('Y-m-d')
                     || $occurrence['due_date'] > $end->format('Y-m-d')) {
                     continue;

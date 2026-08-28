@@ -195,14 +195,12 @@ class CommitmentsTest extends TestCase
             'due_day' => 5,
             'is_active' => true,
         ]);
-        $periodKey = CommitmentService::for($user)->currentPeriod()['key'];
-        CommitmentPayment::create([
-            'commitment_id' => $commitment->id,
-            'amount' => 30_000,
-            'paid_at' => now()->toDateString(),
-            'period_key' => $periodKey,
-            'source' => 'manual',
-        ]);
+        $service = CommitmentService::for($user);
+        $service->recordPayment(
+            $commitment,
+            $service->payableOccurrence($commitment),
+            30_000,
+        );
 
         $this->actingAs($user)
             ->delete(route('commitments.undo', $commitment))
@@ -298,12 +296,12 @@ class CommitmentsTest extends TestCase
             'due_day' => 5,
             'is_active' => true,
         ]);
-        $commitment->payments()->create([
-            'amount' => 30_000,
-            'paid_at' => now()->toDateString(),
-            'period_key' => CommitmentService::for($user)->currentPeriod()['key'],
-            'source' => 'manual',
-        ]);
+        $service = CommitmentService::for($user);
+        $service->recordPayment(
+            $commitment,
+            $service->occurrence($commitment, $service->currentPeriod()),
+            30_000,
+        );
 
         $this->actingAs($user)->delete(route('commitments.destroy', $commitment))->assertRedirect();
 

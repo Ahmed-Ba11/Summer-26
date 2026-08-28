@@ -32,7 +32,13 @@ class CommitmentsPostDue extends Command
                 ->active()
                 ->where('payment_method', 'auto')
                 ->each(function (Commitment $commitment) use ($service, $period, $today, $incomeRecorded, &$count): void {
-                    if ($commitment->payments()->where('period_key', $period['key'])->exists()) {
+                    if (! $service->hasOccurrence($commitment, $period)) {
+                        return;
+                    }
+
+                    $occurrence = $service->occurrence($commitment, $period);
+
+                    if ($occurrence['is_paid']) {
                         return;
                     }
 
@@ -52,21 +58,14 @@ class CommitmentsPostDue extends Command
                         return;
                     }
 
-                    DB::transaction(function () use ($commitment, $amount, $period): void {
-                        $commitment->payments()->create([
-                            'amount' => $amount,
-                            'paid_at' => now()->toDateString(),
-                            'period_key' => $period['key'],
-                            'source' => 'auto',
-                        ]);
-
-                        if ($commitment->kind === 'installment' && $commitment->months_count > 0) {
-                            $paid = min($commitment->months_count, $commitment->months_paid + 1);
-                            $commitment->update([
-                                'months_paid' => $paid,
-                                'is_active' => $paid < $commitment->months_count,
-                            ]);
-                        }
+                    DB::transaction(function () use ($service, $commitment, $occurrence, $amount): void {
+                        $service->recordPayment(
+                            $commitment,
+                            $occurrence,
+                            $amount,
+                            null,
+                            'auto',
+                        );
                     });
 
                     if ($commitment->notify_when !== 'none') {
