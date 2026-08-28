@@ -21,8 +21,13 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="apple-mobile-web-app-title" content="موفّر">
 
-        <link rel="preload" href="/fonts/thmanyahsans-Regular.woff2" as="font" type="font/woff2" crossorigin>
-        <link rel="preload" href="/fonts/thmanyahsans-Bold.woff2" as="font" type="font/woff2" crossorigin>
+        {{--
+            مسارات الخطوط تمرّ من Vite (مهاشة عند البناء، ومن سيرفر dev
+            مباشرة أثناء التطوير) — لا رابط ثابت لـ/fonts هنا، فذاك المسار
+            لا يخدمه سيرفر Vite في وضع dev.
+        --}}
+        <link rel="preload" href="{{ Vite::asset('resources/fonts/thmanyahsans-Regular.woff2') }}" as="font" type="font/woff2" crossorigin>
+        <link rel="preload" href="{{ Vite::asset('resources/fonts/thmanyahsans-Bold.woff2') }}" as="font" type="font/woff2" crossorigin>
 
         @vite(['resources/css/app.css', 'resources/js/app.ts'])
         <x-inertia::head>

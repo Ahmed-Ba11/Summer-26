@@ -8,8 +8,10 @@ use App\Models\Category;
 use App\Models\Commitment;
 use App\Models\Expense;
 use App\Models\User;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Barryvdh\DomPDF\PDF as DomPdf;
+use Mpdf\Config\ConfigVariables;
+use Mpdf\Config\FontVariables;
+use Mpdf\Mpdf;
+use Mpdf\Output\Destination;
 
 /**
  * تقرير «وين راحت فلوسك» — نفس أرقام صفحة التقارير، مُجمَّعة في PDF واحد
@@ -34,10 +36,52 @@ final class ReportPdfService
         return number_format($halalas / 100, 0).' ر.س';
     }
 
-    public function render(string $month): DomPdf
+    public function render(string $month): Mpdf
     {
-        return Pdf::loadView('pdf.report', $this->build($month))
-            ->setPaper('a4');
+        $mpdf = $this->newMpdf();
+        $mpdf->SetHTMLFooter(
+            '<div style="font-family: thmanyahsans; direction: rtl; text-align: center; '
+            .'font-size: 9px; color: #9b9b9b;">'
+            .'موفّر — تقرير آلي، لا يُعتمد كمستند محاسبي رسمي · صفحة {PAGENO} من {nbpg}'
+            .'</div>'
+        );
+        $mpdf->WriteHTML(view('pdf.report', $this->build($month))->render());
+
+        return $mpdf;
+    }
+
+    /** بايتات الـPDF جاهزة للتنزيل أو الحفظ. */
+    public function output(string $month): string
+    {
+        return $this->render($month)->Output('', Destination::STRING_RETURN);
+    }
+
+    /**
+     * محرّك mpdf — يدعم تشكيل الحروف العربية (OTL) واتجاه BiDi أصالةً،
+     * خلافاً لـdompdf الذي جُرِّب قبله ولا يدعم أياً منهما.
+     */
+    private function newMpdf(): Mpdf
+    {
+        $fontDirs = (new ConfigVariables)->getDefaults()['fontDir'];
+        $fontData = (new FontVariables)->getDefaults()['fontdata'];
+
+        return new Mpdf([
+            'mode' => 'utf-8',
+            'format' => 'A4',
+            'default_font' => 'thmanyahsans',
+            'fontDir' => array_merge($fontDirs, [resource_path('fonts-pdf')]),
+            'fontdata' => $fontData + [
+                'thmanyahsans' => [
+                    'R' => 'thmanyahsans-Regular.ttf',
+                    'B' => 'thmanyahsans-Bold.ttf',
+                    // OTL: تشكيل حروف عربي حقيقي (اتصال الحروف حسب موضعها).
+                    'useOTL' => 0xFF,
+                    // Kashida: تمديد الحروف لضبط عرض السطر بدل تباعد الكلمات — عربي أصيل.
+                    'useKashida' => 75,
+                ],
+            ],
+            'tempDir' => storage_path('app/mpdf'),
+        ]);
     }
 
     /**

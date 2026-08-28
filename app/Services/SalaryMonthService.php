@@ -347,7 +347,7 @@ final class SalaryMonthService
 
         Storage::disk('local')->put(
             "reports/{$this->user->id}/{$key}.pdf",
-            ReportPdfService::for($this->user)->render($key)->output(),
+            ReportPdfService::for($this->user)->output($key),
         );
 
         return $period;

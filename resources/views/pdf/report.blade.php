@@ -3,21 +3,10 @@
 <head>
 <meta charset="utf-8">
 <style>
-    @font-face {
-        font-family: 'Thmanyah Sans';
-        src: url("{{ public_path('fonts/thmanyahsans-Regular.woff2') }}") format('woff2');
-        font-weight: 400;
-    }
-    @font-face {
-        font-family: 'Thmanyah Sans';
-        src: url("{{ public_path('fonts/thmanyahsans-Bold.woff2') }}") format('woff2');
-        font-weight: 700;
-    }
-
     * { box-sizing: border-box; }
 
     body {
-        font-family: 'Thmanyah Sans', 'DejaVu Sans', sans-serif;
+        font-family: thmanyahsans;
         direction: rtl;
         font-size: 11px;
         color: #1b1b1b;
@@ -114,15 +103,6 @@
         height: 6px;
     }
 
-    footer {
-        position: fixed;
-        bottom: 10px;
-        left: 28px;
-        right: 28px;
-        font-size: 9px;
-        color: #9b9b9b;
-        text-align: center;
-    }
 </style>
 </head>
 <body>
@@ -246,8 +226,6 @@
         <p>لا معاملات مسجَّلة في هذه الفترة.</p>
     @endif
 </section>
-
-<footer>موفّر — تقرير آلي، لا يُعتمد كمستند محاسبي رسمي.</footer>
 
 </body>
 </html>

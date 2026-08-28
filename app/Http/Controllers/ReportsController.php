@@ -74,7 +74,10 @@ class ReportsController extends Controller
         $salaryMonth = SalaryMonthService::for($user);
         $month = $request->validated()['month'] ?? $salaryMonth->current()['key'];
 
-        return ReportPdfService::for($user)->render($month)->stream("report-{$month}.pdf");
+        return response(ReportPdfService::for($user)->output($month), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "inline; filename=\"report-{$month}.pdf\"",
+        ]);
     }
 
     /**
