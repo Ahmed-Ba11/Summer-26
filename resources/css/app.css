@@ -1,9 +1,9 @@
+/* @font-face للعائلتين — العرض (Display) يلزم اسم «موفّر» في شاشة الترحيب */
+@import './fonts.css';
+
 @import 'tailwindcss';
 
 @import 'tw-animate-css';
-
-/* @font-face للعائلتين — العرض (Display) يلزم اسم «موفّر» في شاشة الترحيب */
-@import './fonts.css';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -12,9 +12,10 @@
 
 @theme inline {
     --font-sans:
-        'IBM Plex Sans Arabic', 'Tajawal', ui-sans-serif, system-ui, sans-serif,
+        'Thmanyah Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
+    --font-display: 'Thmanyah Display', 'Thmanyah Sans', serif;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);

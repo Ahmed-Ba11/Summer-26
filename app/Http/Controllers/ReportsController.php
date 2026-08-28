@@ -8,7 +8,9 @@ use App\Http\Requests\ReportRequest;
 use App\Models\Category;
 use App\Models\Expense;
 use App\Models\User;
+use App\Services\ReportPdfService;
 use App\Services\SalaryMonthService;
+use Illuminate\Http\Response as HttpResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -64,6 +66,15 @@ class ReportsController extends Controller
 
             fclose($handle);
         }, "report-{$month}.csv", ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    public function exportPdf(ReportRequest $request): HttpResponse
+    {
+        $user = $request->user();
+        $salaryMonth = SalaryMonthService::for($user);
+        $month = $request->validated()['month'] ?? $salaryMonth->current()['key'];
+
+        return ReportPdfService::for($user)->render($month)->stream("report-{$month}.pdf");
     }
 
     /**

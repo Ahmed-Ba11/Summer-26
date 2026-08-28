@@ -553,7 +553,22 @@
                         class="size-[18px] shrink-0 text-muted-foreground"
                         stroke-width="1.9"
                     />
-                    <span class="min-w-0 flex-1">تقرير {salaryMonth.label}</span
+                    <span class="min-w-0 flex-1">تقرير {salaryMonth.label} — CSV</span
+                    >
+                    <ChevronLeft
+                        class="size-4 shrink-0 text-muted-foreground"
+                    />
+                </a>
+
+                <a
+                    href="/reports/export-pdf?month={salaryMonth.key}"
+                    class="flex min-h-11 items-center gap-2.5 border-b border-border text-[13.5px] no-underline"
+                >
+                    <Download
+                        class="size-[18px] shrink-0 text-muted-foreground"
+                        stroke-width="1.9"
+                    />
+                    <span class="min-w-0 flex-1">تقرير {salaryMonth.label} — PDF</span
                     >
                     <ChevronLeft
                         class="size-4 shrink-0 text-muted-foreground"

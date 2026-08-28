@@ -9,6 +9,7 @@ use App\Models\SavingsGoal;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -300,7 +301,7 @@ final class SalaryMonthService
         [$start, $end] = $this->boundsFor($key);
         $nextStart = $end->addDay();
 
-        return DB::transaction(function () use ($key, $action, $summary, $surplus, $goal, $start, $end, $nextStart): SalaryPeriod {
+        $period = DB::transaction(function () use ($key, $action, $summary, $surplus, $goal, $start, $end, $nextStart): SalaryPeriod {
             $period = $this->user->salaryPeriods()->updateOrCreate(
                 ['period_key' => $key],
                 [
@@ -343,6 +344,13 @@ final class SalaryMonthService
 
             return $period;
         });
+
+        Storage::disk('local')->put(
+            "reports/{$this->user->id}/{$key}.pdf",
+            ReportPdfService::for($this->user)->render($key)->output(),
+        );
+
+        return $period;
     }
 
     // ═══════════════════════════════════════════════════════════════════

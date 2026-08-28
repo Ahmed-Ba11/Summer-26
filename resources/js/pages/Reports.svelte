@@ -61,6 +61,11 @@
             ? `/reports/export?month=${encodeURIComponent(month)}`
             : '/reports/export',
     );
+    const exportPdfHref = $derived(
+        month
+            ? `/reports/export-pdf?month=${encodeURIComponent(month)}`
+            : '/reports/export-pdf',
+    );
     const donutCategories = $derived(
         categories
             .filter((category) => category.amount > 0)
@@ -118,6 +123,9 @@
             </button>
             <a href={exportHref} download class="inline-flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-secondary">
                 <Download class="size-4" /> تصدير CSV
+            </a>
+            <a href={exportPdfHref} class="inline-flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-secondary">
+                <Download class="size-4" /> تصدير PDF
             </a>
         </div>
     </div>
