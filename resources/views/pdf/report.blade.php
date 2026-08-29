@@ -137,13 +137,16 @@
     </div>
 </section>
 
-<section>
-    <h2>قرارك في الفائض/العجز</h2>
-    <p class="decision">{{ $decision }}</p>
-</section>
+@if ($decision)
+    {{-- المدى المتدحرج لا يُقفَل، فلا قرار فائض له — والقسم يسقط كلّه --}}
+    <section>
+        <h2>قرارك في الفائض/العجز</h2>
+        <p class="decision">{{ $decision }}</p>
+    </section>
+@endif
 
 <section>
-    <h2>مقارنة بالشهر السابق ({{ $previousSummary['label'] }})</h2>
+    <h2>مقارنة بـ{{ $previousSummary['label'] }}</h2>
     <table>
         <thead>
             <tr><th></th><th class="amount">{{ $period['label'] }}</th><th class="amount">{{ $previousSummary['label'] }}</th></tr>

@@ -996,7 +996,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Reports
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports');
-    Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
     Route::get('/reports/export-pdf', [ReportsController::class, 'exportPdf'])->name('reports.export-pdf');
 
     // Assistant

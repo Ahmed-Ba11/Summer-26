@@ -196,6 +196,7 @@ class DashboardController extends Controller
             'categories' => $categories,
             'monthly' => $monthly,
             'calendarEvents' => $this->calendarEvents($user),
+            'periodCalendar' => $this->periodCalendar($user),
             'recentTransactions' => $recentTransactions,
         ]);
     }
@@ -278,6 +279,60 @@ class DashboardController extends Controller
         }
 
         return $events;
+    }
+
+    /**
+     * شبكة فترة الراتب الحالية — للتقويم المصغّر في اللوحة.
+     *
+     * يختلف عن {@see calendarEvents()} في أمرين مقصودين:
+     *  1. الفترة **كاملة** لا أفق أربعة عشر يوماً — الشبكة ترسم الفترة كلّها،
+     *     فيوم استحقاق بعد ثلاثة أسابيع خانةٌ في الشبكة لا حدث يُطوى.
+     *  2. المسدَّد **يُعلَّم ولا يُحذف** — «دفعتُه» معلومة يريدها المستخدم في
+     *     الشبكة، وحذفها يجعل يوم الاستحقاق يبدو فارغاً.
+     *
+     * الظهورات من المولّد الموحّد نفسه، فلا تتناقض مع صفحة الالتزامات.
+     *
+     * @return array<string, mixed>
+     */
+    private function periodCalendar(User $user): array
+    {
+        $service = CommitmentService::for($user);
+        $period = $service->currentPeriod();
+        $start = $period['salaryDate'];
+        $end = $period['nextSalary']->subDay();
+        $events = [];
+
+        foreach ($user->commitments()->active()->get() as $commitment) {
+            foreach ($service->occurrences($commitment, [$period]) as $occurrence) {
+                $events[] = [
+                    'date' => $occurrence['due_date'],
+                    'kind' => $commitment->kind,
+                    'label' => $commitment->name,
+                    'amount' => $occurrence['amount'],
+                    'status' => $occurrence['status'],
+                ];
+            }
+        }
+
+        /*
+         * يوم الراتب المعلَّم هو **أول أيام الفترة** لا الراتب القادم:
+         * الراتب القادم يقع خارج الشبكة أصلاً (أول أيام الفترة التالية)،
+         * فتعليمه لا يُرسم شيئاً. وأول الفترة معلومة يحتاجها المستخدم لأن
+         * شهره لا يبدأ يوم 1، فالعلامة تقول «من هنا بدأ هذا الراتب».
+         */
+        $salaryAmount = (int) $user->incomes()->where('is_recurring', true)->sum('amount');
+
+        usort($events, fn (array $a, array $b): int => strcmp($a['date'], $b['date']));
+
+        return [
+            'start' => $start->format('Y-m-d'),
+            'end' => $end->format('Y-m-d'),
+            'salaryDate' => $salaryAmount > 0 ? $start->format('Y-m-d') : null,
+            'salaryAmount' => $salaryAmount,
+            'label' => $period['label'],
+            'range' => $period['range'],
+            'events' => $events,
+        ];
     }
 
     private function normalizeIcon(?string $icon): string

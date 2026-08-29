@@ -11,7 +11,6 @@
     import ChevronLeft from 'lucide-svelte/icons/chevron-left';
     import ChevronRight from 'lucide-svelte/icons/chevron-right';
     import CircleAlert from 'lucide-svelte/icons/circle-alert';
-    import Check from 'lucide-svelte/icons/check';
     import TriangleAlert from 'lucide-svelte/icons/triangle-alert';
     import Pencil from 'lucide-svelte/icons/pencil';
     import AppHead from '@/components/AppHead.svelte';
@@ -34,6 +33,8 @@
         amount: number;
         /** فترة الراتب التي يخصّها هذا الظهور — 2026-08 */
         periodKey?: string;
+        /** «راتب أغسطس» — الشهر الذي يخصّه هذا السداد، لا شهر التقويم */
+        periodLabel?: string;
         status?: EventStatus;
         isPaid: boolean;
         paidAt?: string | null;
@@ -181,6 +182,41 @@
     }
 
     /**
+     * لوح التنبيه — مثلث التأخير يفتحه، لا نصّ مقصوص في خانة عرضها 45px.
+     *
+     * خانة اليوم لا تتّسع لجملة، فكانت تعرض «الـ...» و«إن...». المثلث يقول
+     * «هنا تأخير» بلا كلمة، واللوح يقول التفصيل كاملاً بلا قصّ.
+     */
+    let alertDate = $state<string | null>(null);
+    let alertSheetOpen = $state(false);
+
+    const alertEvents = $derived(
+        alertDate
+            ? ((days.find((day) => day.date === alertDate)?.events ?? []).filter(
+                  (event) => event.status === 'overdue',
+              ))
+            : [],
+    );
+
+    function openAlert(date: string): void {
+        alertDate = date;
+        alertSheetOpen = true;
+    }
+
+    function closeAlert(): void {
+        alertDate = null;
+        alertSheetOpen = false;
+    }
+
+    /** كم يوماً مضى على الموعد — بالأيام لا بالتاريخ، فالرقم أوقع. */
+    function daysLate(date: string): number {
+        const due = new Date(date + 'T00:00:00Z').getTime();
+        const today = new Date(TODAY + 'T00:00:00Z').getTime();
+
+        return Math.max(0, Math.round((today - due) / 86_400_000));
+    }
+
+    /**
      * السداد يمرّ من مسار الالتزامات — كان ينادي `/bills/{id}/pay` و
      * `/installments/{id}/pay` القديمين بمعرّف التزام، فيصيب سجلاً آخر
      * أو لا يصيب شيئاً. المعرّف الآن معرّف التزام، والمسار مسار الالتزامات.
@@ -193,7 +229,13 @@
         router.post(
             `/commitments/${event.id}/pay`,
             { amount: event.amount },
-            { preserveScroll: true, onSuccess: closeSheet },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    closeSheet();
+                    closeAlert();
+                },
+            },
         );
     }
 </script>
@@ -255,52 +297,116 @@
                 {@const today = day.date === TODAY}
                 {@const first = day.events[0]}
                 {@const more = day.events.length - 1}
-                <button
-                    type="button"
-                    onclick={() => selectDay(day.date)}
-                    class="flex min-h-16 min-w-0 flex-col items-start gap-1 rounded-xl border p-1.5 text-start transition-colors hover:border-primary md:min-h-24 md:p-2 {today
+                {@const fits = Boolean(first) && first.label.length <= 14}
+                {@const late = day.events.filter(
+                    (event) => event.status === 'overdue',
+                )}
+                <!--
+                    الخانة صندوق لا زر: المثلّث زرٌّ ثانٍ داخلها، وزرٌّ داخل زرّ
+                    ليس HTML صالحاً. فزرّ اليوم يملأ الخانة بـ`absolute inset-0`
+                    والمحتوى فوقه بلا التقاط للمس.
+                -->
+                <div
+                    class="relative flex min-h-16 min-w-0 flex-col items-start gap-1 rounded-xl border p-1.5 md:min-h-24 md:p-2 {today
                         ? 'border-primary bg-accent ring-2 ring-primary/20'
                         : past
-                          ? 'border-border/60 bg-background'
+                          ? 'border-border bg-secondary/50'
                           : 'border-border bg-card'}"
                 >
+                    <button
+                        type="button"
+                        onclick={() => selectDay(day.date)}
+                        aria-label="{day.day} {monthLabel} — {day.events
+                            .length} حدث"
+                        class="absolute inset-0 rounded-xl transition-colors hover:bg-primary/5"
+                    ></button>
+
+                    <!--
+                        المنقضي كان `muted-foreground` فلا يكاد يُرى. الرقم
+                        معلومة لا زخرفة — يبقى مقروءاً وإن مضى يومه.
+                    -->
                     <span
-                        class="text-[11.5px] font-semibold tabular-nums md:text-[13px] {past && !today
-                            ? 'text-muted-foreground'
+                        class="pointer-events-none relative text-[11.5px] font-semibold tabular-nums md:text-[13px] {past &&
+                        !today
+                            ? 'text-foreground/65'
                             : ''}"
                     >
                         {day.day}
                     </span>
 
-                    <!-- المعلومة الأهم وحدها: نوع الالتزام (باللون والمفتاح) واسمه -->
-                    {#if first}
-                        {@const state = statusOf(first)}
+                    <!--
+                        الاسم كاملاً أو لا شيء إطلاقاً.
+                        «الـ…» و«إن…» ليست أسماء التزامات — النص المقصوص في
+                        خانة عرضها 45px لا يُقرأ، فيشغل مساحة بلا فائدة. الاسم
+                        القصير يظهر على الشاشات المتّسعة وحدها، وما لا يتّسع يُختصر
+                        إلى نقاط ملوّنة واللوح يحمل التفصيل.
+                    -->
+                    {#if first && fits}
                         <span
-                            class="flex w-full min-w-0 items-center gap-1 rounded-md px-1 py-0.5"
-                            style="background-color: color-mix(in srgb, {EVENT_KIND[first.kind]
-                                .color} 14%, transparent)"
+                            class="pointer-events-none relative hidden w-full items-center rounded-md px-1 py-0.5 md:flex"
+                            style="background-color: color-mix(in srgb, {EVENT_KIND[
+                                first.kind
+                            ].color} 14%, transparent)"
                         >
-                            {#if state.tone === 'bad'}
-                                <TriangleAlert class="size-3 shrink-0 text-destructive" />
-                            {:else if state.tone === 'ok' && past}
-                                <Check class="size-3 shrink-0 text-success-text" />
-                            {/if}
                             <span
-                                class="min-w-0 flex-1 truncate text-[11px] leading-tight font-medium {past
-                                    ? 'text-muted-foreground'
+                                class="text-[11px] leading-tight font-medium whitespace-nowrap {past
+                                    ? 'text-foreground/70'
                                     : ''}"
                             >
                                 {first.label}
                             </span>
                         </span>
-
                         {#if more > 0}
-                            <span class="text-[11px] text-muted-foreground tabular-nums">
+                            <span
+                                class="pointer-events-none relative hidden text-[11px] text-muted-foreground tabular-nums md:block"
+                            >
                                 +{more}
                             </span>
                         {/if}
                     {/if}
-                </button>
+
+                    <!-- نقاط الأحداث: المدفوع مفرّغ والمستحقّ ممتلئ -->
+                    {#if day.events.length}
+                        <span
+                            class="pointer-events-none relative flex items-center gap-1 {fits
+                                ? 'md:hidden'
+                                : ''}"
+                        >
+                            {#each day.events.slice(0, 3) as event (event.kind + event.date + event.label)}
+                                <i
+                                    class="block size-1.5 rounded-full {event.isPaid
+                                        ? 'border'
+                                        : ''}"
+                                    style="{event.isPaid
+                                        ? 'border-color'
+                                        : 'background-color'}: {EVENT_KIND[
+                                        event.kind
+                                    ].color}"
+                                ></i>
+                            {/each}
+                            {#if day.events.length > 3}
+                                <span
+                                    class="text-[10px] text-muted-foreground tabular-nums"
+                                >
+                                    +{day.events.length - 3}
+                                </span>
+                            {/if}
+                        </span>
+                    {/if}
+
+                    <!-- مثلث التأخير — زرّ مستقلّ يفتح لوح التنبيه -->
+                    {#if late.length}
+                        <button
+                            type="button"
+                            onclick={() => openAlert(day.date)}
+                            aria-label="تنبيه تأخير — {late.length} استحقاق فات موعده في {day.day} {monthLabel}"
+                            class="absolute top-0 z-10 grid size-8 place-items-center rounded-lg text-destructive transition-colors hover:bg-destructive/10 md:size-11"
+                            style="inset-inline-end: 0"
+                        >
+                            <TriangleAlert class="size-3.5 md:size-[18px]" />
+                        </button>
+                    {/if}
+                </div>
             {/each}
         </div>
     </section>
@@ -335,6 +441,80 @@
         </section>
     {/if}
 </div>
+
+<!--
+    لوح التنبيه — تفصيل التأخير الذي كان نصّاً مقصوصاً في الخانة.
+-->
+<SheetShell
+    bind:open={alertSheetOpen}
+    title="تنبيه تأخير"
+    subtitle={alertDate ? formatFullDate(alertDate) : ''}
+    onClose={closeAlert}
+>
+    <ul class="flex flex-col gap-2.5">
+        {#each alertEvents as event (event.id ?? event.kind + event.date)}
+            {@const late = daysLate(event.date)}
+            <li class="rounded-2xl border border-destructive/40 bg-destructive/5 p-3">
+                <div class="flex items-start gap-3">
+                    <span
+                        class="grid size-10 shrink-0 place-items-center rounded-xl bg-destructive/12 text-destructive"
+                    >
+                        <TriangleAlert class="size-[19px]" />
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-[14px] font-semibold">
+                            {event.label}
+                        </p>
+                        <p class="text-[11.5px] text-destructive">
+                            فات موعده {late > 0
+                                ? `منذ ${late} يوم`
+                                : 'اليوم'}
+                        </p>
+                        {#if event.periodLabel}
+                            <p class="mt-0.5 text-[11px] text-foreground/70">
+                                يخصّ {event.periodLabel}
+                            </p>
+                        {/if}
+                    </div>
+                    <span class="shrink-0 text-[14px] font-semibold tabular-nums">
+                        {formatCurrency(event.amount)}
+                    </span>
+                </div>
+
+                <div class="mt-2.5 flex gap-2">
+                    {#if event.canPay}
+                        <button
+                            type="button"
+                            onclick={() => markPaid(event)}
+                            class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 text-[12.5px] font-semibold text-primary-foreground transition-transform active:scale-[.98]"
+                        >
+                            <CheckCircle2 class="size-4" /> تم الدفع
+                        </button>
+                    {/if}
+                    {#if event.editUrl}
+                        <Link
+                            href={event.editUrl}
+                            onclick={closeAlert}
+                            class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-input px-3 text-[12.5px] font-medium no-underline"
+                        >
+                            <Pencil class="size-4" /> تعديل
+                        </Link>
+                    {/if}
+                </div>
+            </li>
+        {/each}
+    </ul>
+
+    {#snippet footer()}
+        <button
+            type="button"
+            onclick={closeAlert}
+            class="inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-input px-4 text-[13px] text-foreground/85"
+        >
+            إغلاق
+        </button>
+    {/snippet}
+</SheetShell>
 
 <SheetShell
     bind:open={sheetOpen}
@@ -376,6 +556,18 @@
                                     · {formatDate(event.paidAt)}
                                 {/if}
                             </p>
+                            <!--
+                                الشهر الذي يخصّه السداد — الشهر التقويمي والشهر
+                                الراتبي لا ينطبقان، فاستحقاق 3 سبتمبر قد يخصّ
+                                راتب أغسطس. بلا هذا السطر يُقرأ السداد على أنه
+                                سداد الشهر المعروض في التقويم، وهو لبس يكلّف
+                                دفعة مكرّرة أو دفعة منسيّة.
+                            -->
+                            {#if event.periodLabel}
+                                <p class="mt-0.5 truncate text-[11px] text-foreground/70">
+                                    يخصّ {event.periodLabel}
+                                </p>
+                            {/if}
                         </div>
                         <span
                             class="shrink-0 text-[14px] font-semibold tabular-nums"

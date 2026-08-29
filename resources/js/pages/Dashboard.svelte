@@ -18,7 +18,7 @@
      *  4. دالة donutPath اليدوية — استُبدلت بـ stroke-dasharray.
      *  5. البطاقة الخامسة (الفواتير المستحقة) — مكرّرة مع «المحجوز» والتقويم.
      */
-    import { router } from '@inertiajs/svelte';
+    import { page, router } from '@inertiajs/svelte';
     import ArrowLeft from 'lucide-svelte/icons/arrow-left';
     import ChevronDown from 'lucide-svelte/icons/chevron-down';
     import Lock from 'lucide-svelte/icons/lock';
@@ -32,10 +32,10 @@ import Vault from 'lucide-svelte/icons/vault';
     import AppHead from '@/components/AppHead.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
+    import PeriodMiniCalendar from '@/components/PeriodMiniCalendar.svelte';
     import SalaryCloseSheet from '@/components/SalaryCloseSheet.svelte';
     import MoneyStoryCard from '@/components/MoneyStoryCard.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
-    import UpcomingStrip from '@/components/UpcomingStrip.svelte';
     import StatTile from '@/components/StatTile.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import { formatAmount, formatDate, formatPercent } from '@/lib/format';
@@ -60,6 +60,17 @@ import Vault from 'lucide-svelte/icons/vault';
         kind: 'salary' | 'bill' | 'rent' | 'installment' | 'subscription' | 'savings';
         label: string;
         amount: number;
+    }
+
+    /** شبكة فترة الراتب الحالية — مصدر التقويم المصغّر. */
+    interface PeriodCalendar {
+        start: string;
+        end: string;
+        salaryDate: string | null;
+        salaryAmount: number;
+        label: string;
+        range: string;
+        events: (CalEvent & { status?: 'paid' | 'overdue' | 'upcoming' })[];
     }
 
     /** شهر الراتب المعروض — يبدأ يوم نزول الراتب لا يوم 1. */
@@ -100,7 +111,7 @@ import Vault from 'lucide-svelte/icons/vault';
             savingsRate: 0,
             savingsTarget: 10,
         } as Stats,
-        calendarEvents = [] as CalEvent[],
+        periodCalendar = null,
         recentTransactions = [] as Transaction[],
         month = '',
         availableMonths = [] as { value: string; label: string }[],
@@ -110,7 +121,7 @@ import Vault from 'lucide-svelte/icons/vault';
         salaryClose = null,
     }: {
         stats?: Stats;
-        calendarEvents?: CalEvent[];
+        periodCalendar?: PeriodCalendar | null;
         recentTransactions?: Transaction[];
         month?: string;
         availableMonths?: { value: string; label: string }[];
@@ -147,6 +158,14 @@ import Vault from 'lucide-svelte/icons/vault';
             : 'صورة ميزانيتك الكاملة.',
     );
 
+    /**
+     * التحية — الاسم هو البطل بصرياً لا كلمة «أهلًا».
+     *
+     * التحية كلمة واحدة تتكرّر كل يوم، والاسم هو ما يجعل اللوحة لوحةَ
+     * صاحبها. لذلك الاسم بخط العرض (ثمانية) وبضعف حجم التحية.
+     */
+    const userName = $derived(page.props.auth?.user?.name ?? '');
+
     let monthOpen = $state(false);
 
     // فلتر شهر حقيقي — يعيد الطلب للسيرفر، لا يغيّر متغيّراً محلياً فقط
@@ -163,14 +182,22 @@ import Vault from 'lucide-svelte/icons/vault';
 <SalaryCloseSheet data={salaryClose} />
 
 <div class="flex flex-1 flex-col gap-3 p-3 md:gap-5 md:p-6">
-    <!-- رأس الصفحة -->
-    <div class="hidden flex-wrap items-start justify-between gap-4 md:flex">
-        <div>
-            <h1 class="text-[22px] font-semibold tracking-tight">{pageTitle}</h1>
-            <p class="text-[13px] text-muted-foreground">{periodLine}</p>
+    <!-- رأس الصفحة — التحية ثم الاسم -->
+    <div class="flex flex-wrap items-end justify-between gap-4">
+        <div class="min-w-0">
+            <p class="text-[12px] leading-none text-muted-foreground">أهلًا</p>
+            <h1
+                class="mt-1.5 truncate text-[27px] leading-none font-bold tracking-tight md:text-[33px]"
+                style="font-family: var(--font-display)"
+            >
+                {userName}
+            </h1>
+            <p class="mt-1.5 hidden text-[13px] text-muted-foreground md:block">
+                {pageTitle} · {periodLine}
+            </p>
         </div>
 
-        <div class="flex gap-2">
+        <div class="hidden gap-2 md:flex">
             <div class="relative">
                 <Button variant="outline" size="sm" class="gap-1.5" onclick={() => (monthOpen = !monthOpen)}>
                     {currentMonthLabel}
@@ -195,7 +222,7 @@ import Vault from 'lucide-svelte/icons/vault';
                     </div>
                 {/if}
             </div>
-            <Button variant="outline" size="sm" href="/reports">تصدير التقرير</Button>
+            <Button variant="outline" size="sm" href="/reports">التقارير</Button>
         </div>
     </div>
 
@@ -234,8 +261,8 @@ import Vault from 'lucide-svelte/icons/vault';
             avgDaily={stats.avgDaily}
         />
 
-        <!-- ٢ · التقويم المالي -->
-        <UpcomingStrip events={calendarEvents} />
+        <!-- ٢ · التقويم المصغّر — شبكة أيام الفترة، لا قائمة أحداث -->
+        <PeriodMiniCalendar data={periodCalendar} />
 
         <!-- ٣ · بطاقات مختصرة -->
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">

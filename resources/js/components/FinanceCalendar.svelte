@@ -66,14 +66,30 @@
                     <span class="block text-[11px] text-muted-foreground">{day.weekday}</span>
                     <span class="block text-[15px] font-semibold tabular-nums">{day.dayNumber}</span>
 
-                    <!-- اسم مختصر بدل النقطة — النقطة لا تقول أي التزام هذا -->
+                    <!--
+                        الاسم كاملاً أو نقطة — لا نصّ مقصوص.
+                        الخانة 72px، فما جاوز تسعة أحرف يخرج «الـ…» و«إن…»
+                        وهي ليست أسماء التزامات. النقطة تقول «هنا شيء» بصدق،
+                        واللوح أسفلها يقول ما هو.
+                    -->
                     {#if day.events.length}
-                        <span
-                            class="mt-1 block truncate text-[11px] leading-tight font-medium"
-                            style="color: {KIND[day.events[0].kind].color}"
-                        >
-                            {day.events[0].label}
-                        </span>
+                        {#if day.events[0].label.length <= 9}
+                            <span
+                                class="mt-1 block text-[11px] leading-tight font-medium whitespace-nowrap"
+                                style="color: {KIND[day.events[0].kind].color}"
+                            >
+                                {day.events[0].label}
+                            </span>
+                        {:else}
+                            <span class="mt-1.5 flex justify-center gap-1">
+                                {#each day.events.slice(0, 3) as event, index (index)}
+                                    <i
+                                        class="block size-1.5 rounded-full"
+                                        style="background-color: {KIND[event.kind].color}"
+                                    ></i>
+                                {/each}
+                            </span>
+                        {/if}
                         {#if day.events.length > 1}
                             <span class="block text-[11px] text-muted-foreground tabular-nums">
                                 +{day.events.length - 1}

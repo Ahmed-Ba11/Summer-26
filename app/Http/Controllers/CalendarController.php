@@ -38,6 +38,7 @@ class CalendarController extends Controller
          * المربوط بيوم الراتب يتحرّك مع الراتب، وحسابه على يوم 1 يزيحه.
          */
         $service = CommitmentService::for($user);
+        $salaryMonth = SalaryMonthService::for($user);
         $commitments = $user->commitments()->active()->orderBy('name')->get();
 
         $periods = $this->periodsOverlapping($user, $start, $end);
@@ -59,6 +60,10 @@ class CalendarController extends Controller
                     'amount' => $occurrence['amount'],
                     // حالة هذا الظهور وحده — لا حالة الالتزام عموماً
                     'periodKey' => $occurrence['period_key'],
+                    // «راتب أغسطس» — الشهر التقويمي والشهر الراتبي لا ينطبقان،
+                    // فاستحقاق 3 سبتمبر قد يخصّ راتب أغسطس. بلا هذا السطر يقرأ
+                    // المستخدم السداد على أنه سداد الشهر الذي يراه في التقويم.
+                    'periodLabel' => $salaryMonth->labelFor($occurrence['period_key']),
                     'status' => $occurrence['status'],
                     'isPaid' => $occurrence['is_paid'],
                     'paidAt' => $occurrence['paid_at'],
@@ -71,12 +76,18 @@ class CalendarController extends Controller
         $salaryAmount = (int) $user->incomes()->where('is_recurring', true)->sum('amount');
         if ($salaryAmount > 0) {
             $salaryDay = (int) ($user->salary_day ?? 27);
+            $salaryDate = $salaryDay === 0
+                ? $end
+                : $start->setDay(min($salaryDay, $start->daysInMonth));
+
             $events->push([
                 'id' => null,
-                'date' => ($salaryDay === 0 ? $end : $start->setDay(min($salaryDay, $start->daysInMonth)))->format('Y-m-d'),
+                'date' => $salaryDate->format('Y-m-d'),
                 'kind' => 'salary',
                 'label' => 'الراتب',
                 'amount' => $salaryAmount,
+                'periodKey' => $salaryMonth->keyFor($salaryDate),
+                'periodLabel' => $salaryMonth->labelFor($salaryMonth->keyFor($salaryDate)),
                 'isPaid' => false,
                 'canPay' => false,
                 'editUrl' => null,
@@ -88,13 +99,18 @@ class CalendarController extends Controller
             ->whereBetween('deposited_at', [$start, $end])
             ->orderBy('deposited_at')
             ->get()
-            ->each(function ($deposit) use ($events): void {
+            ->each(function ($deposit) use ($events, $salaryMonth): void {
+                $periodKey = $deposit->period_key
+                    ?: $salaryMonth->keyFor($deposit->deposited_at->format('Y-m-d'));
+
                 $events->push([
                     'id' => $deposit->id,
                     'date' => $deposit->deposited_at->format('Y-m-d'),
                     'kind' => 'savings',
                     'label' => 'إيداع ادخار'.($deposit->savingsGoal?->name ? ' — '.$deposit->savingsGoal->name : ''),
                     'amount' => (int) $deposit->amount,
+                    'periodKey' => $periodKey,
+                    'periodLabel' => $salaryMonth->labelFor($periodKey),
                     'isPaid' => true,
                     'canPay' => false,
                     'editUrl' => '/savings',

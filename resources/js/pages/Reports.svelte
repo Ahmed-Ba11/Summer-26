@@ -8,14 +8,14 @@
     import { router } from '@inertiajs/svelte';
     import BarChart3 from 'lucide-svelte/icons/bar-chart-3';
     import CalendarRange from 'lucide-svelte/icons/calendar-range';
-    import Download from 'lucide-svelte/icons/download';
+    import Check from 'lucide-svelte/icons/check';
+    import FileText from 'lucide-svelte/icons/file-text';
     import TrendingDown from 'lucide-svelte/icons/trending-down';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import WalletCards from 'lucide-svelte/icons/wallet-cards';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import CategoryDonut from '@/components/CategoryDonut.svelte';
-    import DateSheet from '@/components/ui/DateSheet.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
     import MonthlyBars from '@/components/MonthlyBars.svelte';
@@ -25,6 +25,7 @@
         CardHeader,
         CardTitle,
     } from '@/components/ui/card';
+    import SheetShell from '@/components/ui/SheetShell.svelte';
     import { formatCurrency, formatDate, formatPercent } from '@/lib/format';
     import type {
         ReportCategory,
@@ -33,20 +34,29 @@
         ReportTopExpense,
     } from '@/types';
 
+    /** المدد الصريحة — لا «شهرياً» وحدها. */
+    type ReportRange = '15d' | '30d' | '60d' | 'month';
+
     interface PageProps {
-        month?: string;
+        month?: string | null;
+        range?: ReportRange;
+        periodLabel?: string;
+        periodRange?: string;
+        availableMonths?: { value: string; label: string }[];
         summary?: ReportSummary;
         monthly?: ReportMonthlyPoint[];
         categories?: ReportCategory[];
         topExpenses?: ReportTopExpense[];
         hasData?: boolean;
         error?: string | null;
-        salaryMonth?: { key: string; label: string; range: string } | null;
     }
 
     let {
-        month = '',
-        salaryMonth = null,
+        month = null,
+        range = 'month',
+        periodLabel = '',
+        periodRange = '',
+        availableMonths = [],
         summary = {},
         monthly = [],
         categories = [],
@@ -55,16 +65,51 @@
         error = null,
     }: PageProps = $props();
 
+    const RANGES: { value: ReportRange; label: string }[] = [
+        { value: '15d', label: 'آخر 15 يوم' },
+        { value: '30d', label: 'آخر 30 يوم' },
+        { value: '60d', label: 'آخر 60 يوم' },
+        { value: 'month', label: 'شهر محدّد' },
+    ];
+
+    let monthSheetOpen = $state(false);
+
+    /** المدى المتدحرج ينتقل مباشرة، و«شهر محدّد» يفتح قائمة الأشهر. */
+    function pickRange(value: ReportRange): void {
+        if (value === 'month') {
+            monthSheetOpen = true;
+
+            return;
+        }
+
+        if (value === range) {
+            return;
+        }
+
+        router.get(
+            '/reports',
+            { range: value },
+            { preserveScroll: true, replace: true },
+        );
+    }
+
+    function pickMonth(value: string): void {
+        monthSheetOpen = false;
+
+        router.get(
+            '/reports',
+            { range: 'month', month: value },
+            { preserveScroll: true, replace: true },
+        );
+    }
+
     const netSavings = $derived(summary.net_savings ?? summary.net ?? 0);
-    const exportHref = $derived(
-        month
-            ? `/reports/export?month=${encodeURIComponent(month)}`
-            : '/reports/export',
-    );
+
+    /** التصدير يتبع المدّة المعروضة — لا يصدّر شهراً والشاشة تعرض أسبوعين. */
     const exportPdfHref = $derived(
-        month
-            ? `/reports/export-pdf?month=${encodeURIComponent(month)}`
-            : '/reports/export-pdf',
+        range === 'month' && month
+            ? `/reports/export-pdf?range=month&month=${encodeURIComponent(month)}`
+            : `/reports/export-pdf?range=${range}`,
     );
     const donutCategories = $derived(
         categories
@@ -78,57 +123,61 @@
             })),
     );
 
-    let monthSheetOpen = $state(false);
-    let monthIso = $state('');
-
-    $effect(() => {
-        monthIso = month ? `${month}-01` : '';
-    });
-
-    function selectMonth(iso: string): void {
-        const value = iso.slice(0, 7);
-
-        if (!value || value === month) {
-            return;
-        }
-
-        router.get('/reports', { month: value }, {
-            preserveScroll: true,
-            replace: true,
-        });
-    }
 </script>
 
 <AppHead title="التقارير" />
 <MobileHeader
     title="التقارير"
-    subtitle={salaryMonth ? `${salaryMonth.label} · ${salaryMonth.range}` : 'اتجاهات دخلك وإنفاقك من بياناتك المسجلة'}
+    subtitle={periodLabel ? `${periodLabel} · ${periodRange}` : 'اتجاهات دخلك وإنفاقك من بياناتك المسجلة'}
 />
 
 <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-    <div class="hidden flex-col gap-4 md:flex md:flex-row md:items-center md:justify-between">
-        <div>
-            <h1 class="text-2xl font-semibold">التقارير</h1>
-            <p class="text-sm text-muted-foreground">اقرأ اتجاهات دخلك وإنفاقك من بياناتك المسجلة.</p>
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-            <button
-                type="button"
-                onclick={() => (monthSheetOpen = true)}
-                class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm tabular-nums transition-transform active:scale-[.99]"
-            >
-                <CalendarRange class="size-[18px] text-muted-foreground" />
-                <span class="sr-only">شهر التقرير</span>
-                {salaryMonth?.label ?? month}
-            </button>
-            <a href={exportHref} download class="inline-flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-secondary">
-                <Download class="size-4" /> تصدير CSV
-            </a>
-            <a href={exportPdfHref} class="inline-flex items-center gap-2 rounded-lg border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-secondary">
-                <Download class="size-4" /> تصدير PDF
-            </a>
-        </div>
+    <div class="hidden flex-col gap-1 md:flex">
+        <h1 class="text-2xl font-semibold">التقارير</h1>
+        <p class="text-sm text-muted-foreground">اقرأ اتجاهات دخلك وإنفاقك من بياناتك المسجلة.</p>
     </div>
+
+    <!--
+        المدّة — خيارات صريحة معروضة كلّها، لا قائمة منسدلة تخفيها.
+        المستخدم يرى المدى المتاح قبل أن يسأل عنه.
+    -->
+    <div class="flex flex-wrap items-center gap-2">
+        <div
+            class="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1"
+            role="group"
+            aria-label="مدّة التقرير"
+        >
+            {#each RANGES as option (option.value)}
+                {@const active = range === option.value}
+                <button
+                    type="button"
+                    onclick={() => pickRange(option.value)}
+                    aria-pressed={active}
+                    class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[12.5px] whitespace-nowrap transition-colors {active
+                        ? 'bg-primary font-semibold text-primary-foreground'
+                        : 'text-foreground/80 hover:bg-secondary'}"
+                >
+                    {#if option.value === 'month'}
+                        <CalendarRange class="size-4" />
+                    {/if}
+                    {option.value === 'month' && range === 'month'
+                        ? periodLabel
+                        : option.label}
+                </button>
+            {/each}
+        </div>
+
+        <a
+            href={exportPdfHref}
+            class="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-input bg-card px-3 text-[12.5px] font-medium no-underline hover:bg-secondary"
+        >
+            <FileText class="size-4" /> تصدير PDF
+        </a>
+    </div>
+
+    {#if periodRange}
+        <p class="-mt-3 text-[11.5px] text-muted-foreground">{periodRange}</p>
+    {/if}
 
     {#if error}
         <Card class="border-destructive/40">
@@ -215,4 +264,29 @@
     {/if}
 </div>
 
-<DateSheet bind:open={monthSheetOpen} bind:value={monthIso} title="شهر التقرير" saveLabel="عرض" onSave={selectMonth} />
+<SheetShell
+    bind:open={monthSheetOpen}
+    title="شهر التقرير"
+    subtitle="الشهر يبدأ يوم نزول راتبك لا يوم 1"
+    onClose={() => (monthSheetOpen = false)}
+>
+    <ul class="flex flex-col gap-1.5">
+        {#each availableMonths as option (option.value)}
+            {@const active = range === 'month' && month === option.value}
+            <li>
+                <button
+                    type="button"
+                    onclick={() => pickMonth(option.value)}
+                    class="flex min-h-12 w-full items-center gap-2 rounded-2xl border px-3.5 text-[13.5px] transition-colors {active
+                        ? 'border-primary bg-primary/8 font-semibold text-primary'
+                        : 'border-input text-foreground/85 hover:bg-secondary'}"
+                >
+                    <span class="min-w-0 flex-1 text-start">{option.label}</span>
+                    {#if active}
+                        <Check class="size-4 shrink-0" />
+                    {/if}
+                </button>
+            </li>
+        {/each}
+    </ul>
+</SheetShell>

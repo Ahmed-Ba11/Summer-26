@@ -216,7 +216,7 @@ export function finishLabel(monthsLeft: number): string {
     }).format(d);
 }
 
-/** «يوم تحرّرك»: آخر قسط ينتهي، وكم يرجع لك شهرياً بعده. */
+/** «يوم الانتهاء»: آخر قسط ينتهي، وكم يرجع لك شهرياً بعده. */
 export function freedomDay(
     installments: Commitment[],
 ): { label: string; monthly: number } | null {

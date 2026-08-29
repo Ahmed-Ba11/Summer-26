@@ -19,6 +19,8 @@ class ReportRequest extends FormRequest
     {
         return [
             'month' => ['nullable', 'date_format:Y-m'],
+            // المدد الصريحة: مدى متدحرج بالأيام أو فترة راتب كاملة
+            'range' => ['nullable', 'in:15d,30d,60d,month'],
         ];
     }
 

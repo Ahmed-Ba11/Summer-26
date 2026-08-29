@@ -5,24 +5,35 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Category;
-use App\Models\Commitment;
 use App\Models\Expense;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Mpdf\Config\ConfigVariables;
 use Mpdf\Config\FontVariables;
 use Mpdf\Mpdf;
 use Mpdf\Output\Destination;
 
 /**
- * تقرير «وين راحت فلوسك» — نفس أرقام صفحة التقارير، مُجمَّعة في PDF واحد
- * لأي فترة راتب. يُستدعى يدوياً من الإعدادات أو صفحة التقارير، وتلقائياً
- * عند إقفال شهر الراتب في {@see SalaryMonthService::close()}.
+ * تقرير «وين راحت فلوسك» — نفس أرقام صفحة التقارير، مُجمَّعة في PDF واحد.
+ *
+ * يعمل على **نافذتين** لا واحدة:
+ *  • فترة راتب كاملة (`2026-08`) — تُقارَن بالفترة السابقة، ويُذكر قرار
+ *    الفائض. هذه النافذة يولّدها الإقفال تلقائياً في
+ *    {@see SalaryMonthService::close()}.
+ *  • مدى متدحرج بالأيام (آخر 15 · 30 · 60 يوماً) — يُقارَن بالمدى المكافئ
+ *    قبله، ولا قرار فائض فيه لأنه لا يُقفَل.
  *
  * كل مبلغ هنا بالهللات كما يخزّنه بقيّة التطبيق — التحويل للريالات في
  * قالب `resources/views/pdf/report.blade.php` وحده.
  */
 final class ReportPdfService
 {
+    private const MONTHS = [
+        1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل',
+        5 => 'مايو', 6 => 'يونيو', 7 => 'يوليو', 8 => 'أغسطس',
+        9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر',
+    ];
+
     public function __construct(private readonly User $user) {}
 
     public static function for(User $user): self
@@ -36,7 +47,8 @@ final class ReportPdfService
         return number_format($halalas / 100, 0).' ر.س';
     }
 
-    public function render(string $month): Mpdf
+    /** @param  array<string, mixed>  $window */
+    public function render(array $window): Mpdf
     {
         $mpdf = $this->newMpdf();
         $mpdf->SetHTMLFooter(
@@ -45,15 +57,71 @@ final class ReportPdfService
             .'موفّر — تقرير آلي، لا يُعتمد كمستند محاسبي رسمي · صفحة {PAGENO} من {nbpg}'
             .'</div>'
         );
-        $mpdf->WriteHTML(view('pdf.report', $this->build($month))->render());
+        $mpdf->WriteHTML(view('pdf.report', $this->build($window))->render());
 
         return $mpdf;
     }
 
-    /** بايتات الـPDF جاهزة للتنزيل أو الحفظ. */
+    /** بايتات تقرير فترة راتب كاملة — جاهزة للتنزيل أو الحفظ. */
     public function output(string $month): string
     {
-        return $this->render($month)->Output('', Destination::STRING_RETURN);
+        return $this->render($this->monthWindow($month))->Output('', Destination::STRING_RETURN);
+    }
+
+    /** بايتات تقرير مدى متدحرج بالأيام (15 · 30 · 60). */
+    public function outputDays(int $days): string
+    {
+        return $this->render($this->daysWindow($days))->Output('', Destination::STRING_RETURN);
+    }
+
+    /**
+     * نافذة فترة راتب — «راتب أغسطس»، ولها سابقةٌ تُقارَن بها وقرار فائض.
+     *
+     * @return array<string, mixed>
+     */
+    public function monthWindow(string $month): array
+    {
+        $salaryMonth = SalaryMonthService::for($this->user);
+        $period = $salaryMonth->period($month);
+        [$start, $end] = $salaryMonth->rangeFor($month);
+
+        return [
+            'key' => $month,
+            'label' => $period['label'],
+            'range' => $period['range'],
+            'start' => $start,
+            'end' => $end,
+            'period' => $period,
+        ];
+    }
+
+    /**
+     * نافذة مدى متدحرج تنتهي اليوم — «آخر 30 يوم».
+     *
+     * لا تُقفَل ولا قرار فائض لها، فقسم القرار يسقط من التقرير كلّه بدل أن
+     * يُطبع «لم تُقفل الفترة بعد» على مدى لا يُقفَل أصلاً.
+     *
+     * @return array<string, mixed>
+     */
+    public function daysWindow(int $days): array
+    {
+        $end = CarbonImmutable::today()->endOfDay();
+        $start = CarbonImmutable::today()->subDays($days - 1)->startOfDay();
+
+        return [
+            'key' => null,
+            'days' => $days,
+            'label' => 'آخر '.$days.' يوم',
+            'range' => self::dayLabel($start).' ← '.self::dayLabel($end),
+            'start' => $start,
+            'end' => $end,
+        ];
+    }
+
+    /** «27 أغسطس» — أرقام لاتينية وشهر بالعربي، كما في بقيّة التطبيق. */
+    public static function dayLabel(CarbonImmutable $date): string
+    {
+        return $date->day.' '.self::MONTHS[(int) $date->month];
     }
 
     /**
@@ -85,24 +153,15 @@ final class ReportPdfService
     }
 
     /**
+     * @param  array<string, mixed>  $window
      * @return array<string, mixed>
      */
-    public function build(string $month): array
+    public function build(array $window): array
     {
-        $salaryMonth = SalaryMonthService::for($this->user);
-        $commitmentService = CommitmentService::for($this->user);
-
-        $period = $salaryMonth->period($month);
-        [$start, $end] = $salaryMonth->rangeFor($month);
-        $summary = $salaryMonth->summaryFor($month);
-
-        $previousKey = $salaryMonth->periodFor($period['startsOn']->subDay())['key'];
-        $previousSummary = $salaryMonth->summaryFor($previousKey);
-
-        $closedPeriod = $this->user->salaryPeriods()
-            ->where('period_key', $month)
-            ->whereNotNull('closed_at')
-            ->first();
+        $start = $window['start'];
+        $end = $window['end'];
+        $summary = $this->summarize($window);
+        [$previousSummary, $decision] = $this->comparison($window, $summary);
 
         $categoryTotals = $this->user->expenses()
             ->selectRaw('category_id, SUM(amount) as amount')
@@ -127,24 +186,7 @@ final class ReportPdfService
             ->values()
             ->all();
 
-        $commitments = $this->user->commitments()->active()->orderBy('id')->get()
-            ->filter(fn (Commitment $commitment): bool => $commitmentService->hasOccurrence($commitment, $period))
-            ->map(function (Commitment $commitment) use ($commitmentService, $period): array {
-                $occurrence = $commitmentService->occurrence($commitment, $period);
-
-                return [
-                    'name' => $commitment->name,
-                    'due_date' => $occurrence['due_date'],
-                    'amount' => $occurrence['amount'],
-                    'is_paid' => $occurrence['is_paid'],
-                    'status' => match ($occurrence['status']) {
-                        CommitmentService::STATUS_PAID => 'مدفوع',
-                        CommitmentService::STATUS_OVERDUE => 'متأخّر',
-                        default => 'محجوز',
-                    },
-                ];
-            })
-            ->values();
+        $commitments = collect($this->commitmentRows($window));
 
         $transactions = $this->user->expenses()->with('category')
             ->whereBetween('expense_date', [$start, $end])
@@ -173,10 +215,10 @@ final class ReportPdfService
         return [
             'generatedAt' => now()->format('Y-m-d'),
             'user' => $this->user,
-            'period' => $period,
+            'period' => ['label' => $window['label'], 'range' => $window['range']],
             'summary' => $summary,
             'previousSummary' => $previousSummary,
-            'decision' => $this->decisionLabel($closedPeriod?->surplus_action, $summary['surplus']),
+            'decision' => $decision,
             'categories' => $categories,
             'commitments' => [
                 'paid' => (int) $commitments->where('is_paid', true)->sum('amount'),
@@ -185,6 +227,134 @@ final class ReportPdfService
             ],
             'transactions' => $transactions,
         ];
+    }
+
+    /**
+     * مجاميع النافذة.
+     *
+     * نافذة فترة الراتب تقرأ من {@see SalaryMonthService::summaryFor()} حرفياً
+     * حتى تطابق أرقامُ الـPDF أرقامَ الإقفال ولا يختلف مصدران على رقم واحد.
+     * المدى المتدحرج يُحسب بالتواريخ لأنه لا مفتاح فترة له.
+     *
+     * @param  array<string, mixed>  $window
+     * @return array<string, mixed>
+     */
+    private function summarize(array $window): array
+    {
+        if ($window['key'] !== null) {
+            return SalaryMonthService::for($this->user)->summaryFor($window['key']);
+        }
+
+        $range = [$window['start'], $window['end']];
+        $income = (int) $this->user->incomes()->whereBetween('income_date', $range)->sum('amount');
+        $expenses = (int) $this->user->expenses()->whereBetween('expense_date', $range)->sum('amount');
+        $savings = (int) $this->user->savingsDeposits()->whereBetween('deposited_at', $range)->sum('amount');
+
+        return [
+            'key' => null,
+            'label' => $window['label'],
+            'range' => $window['range'],
+            'income' => $income,
+            'expenses' => $expenses,
+            'commitments' => (int) $this->user->commitmentPayments()
+                ->whereBetween('paid_at', $range)
+                ->sum('commitment_payments.amount'),
+            'savings' => $savings,
+            'surplus' => $income - $expenses - $savings,
+        ];
+    }
+
+    /**
+     * ما تُقارَن به النافذة، وقرار الفائض إن كانت فترةً قابلة للإقفال.
+     *
+     * @param  array<string, mixed>  $window
+     * @param  array<string, mixed>  $summary
+     * @return array{0: array<string, mixed>, 1: ?string}
+     */
+    private function comparison(array $window, array $summary): array
+    {
+        if ($window['key'] !== null) {
+            $salaryMonth = SalaryMonthService::for($this->user);
+            $previousKey = $salaryMonth->periodFor($window['period']['startsOn']->subDay())['key'];
+
+            $closed = $this->user->salaryPeriods()
+                ->where('period_key', $window['key'])
+                ->whereNotNull('closed_at')
+                ->first();
+
+            return [
+                $salaryMonth->summaryFor($previousKey),
+                $this->decisionLabel($closed?->surplus_action, $summary['surplus']),
+            ];
+        }
+
+        // المدى المكافئ الذي يسبقه مباشرة — 30 يوماً تُقارَن بالثلاثين قبلها.
+        $days = (int) $window['days'];
+        $previousEnd = $window['start']->subDay()->endOfDay();
+        $previousStart = $previousEnd->subDays($days - 1)->startOfDay();
+
+        $previous = $this->summarize([
+            'key' => null,
+            'days' => $days,
+            'label' => 'الـ'.$days.' يوم السابقة',
+            'range' => self::dayLabel($previousStart).' ← '.self::dayLabel($previousEnd),
+            'start' => $previousStart,
+            'end' => $previousEnd,
+        ]);
+
+        // المدى المتدحرج لا يُقفَل، فلا قرار فائض له — والقسم كلّه يسقط.
+        return [$previous, null];
+    }
+
+    /**
+     * صفوف الالتزامات داخل النافذة — من مولّد الظهورات الموحّد.
+     *
+     * @param  array<string, mixed>  $window
+     * @return list<array<string, mixed>>
+     */
+    private function commitmentRows(array $window): array
+    {
+        $service = CommitmentService::for($this->user);
+        $salaryMonth = SalaryMonthService::for($this->user);
+        $from = $window['start']->format('Y-m-d');
+        $to = $window['end']->format('Y-m-d');
+
+        // فترات الراتب التي يتقاطع معها المدى — واحدة للشهر، وقد تكون ثلاثاً
+        // لستّين يوماً. المرور عليها كلّها هو ما يجعل كل استحقاق داخل المدى
+        // يظهر فيه.
+        $periods = [];
+        $period = $salaryMonth->periodFor($window['start']);
+
+        while ($period['startsOn']->lessThanOrEqualTo($window['end'])) {
+            $periods[] = $period;
+            $period = $salaryMonth->periodFor($period['nextSalary']);
+        }
+
+        $rows = [];
+
+        foreach ($this->user->commitments()->active()->orderBy('id')->get() as $commitment) {
+            foreach ($service->occurrences($commitment, $periods) as $occurrence) {
+                if ($occurrence['due_date'] < $from || $occurrence['due_date'] > $to) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'name' => $commitment->name,
+                    'due_date' => $occurrence['due_date'],
+                    'amount' => $occurrence['amount'],
+                    'is_paid' => $occurrence['is_paid'],
+                    'status' => match ($occurrence['status']) {
+                        CommitmentService::STATUS_PAID => 'مدفوع',
+                        CommitmentService::STATUS_OVERDUE => 'متأخّر',
+                        default => 'محجوز',
+                    },
+                ];
+            }
+        }
+
+        usort($rows, fn (array $a, array $b): int => strcmp($a['due_date'], $b['due_date']));
+
+        return $rows;
     }
 
     private function decisionLabel(?string $action, int $surplus): string

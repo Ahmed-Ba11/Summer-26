@@ -148,7 +148,7 @@ class BackendCompletionTest extends TestCase
             ->assertInvalid('message');
     }
 
-    public function test_reports_have_frontend_summary_contract_has_data_and_validated_csv_export(): void
+    public function test_reports_have_frontend_summary_contract_has_data_and_validated_pdf_export(): void
     {
         $user = User::factory()->create();
         $category = $user->categories()->firstOrFail();
@@ -182,19 +182,72 @@ class BackendCompletionTest extends TestCase
             ->assertJsonPath('props.summary.net_savings', 7500)
             ->assertJsonPath('props.summary.total_income', 10000);
 
-        $export = $this->actingAs($user)
-            ->get(route('reports.export', ['month' => $month]));
-
-        $export->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
-        $this->assertStringContainsString('amount_halalas', $export->streamedContent());
-        $this->assertStringContainsString('2500', $export->streamedContent());
+        // التصدير PDF وحده — لا CSV بعد اليوم
+        $this->actingAs($user)
+            ->get(route('reports.export-pdf', ['month' => $month]))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
 
         $this->actingAs($user)
             ->get(route('reports', ['month' => '2026-99']))
             ->assertInvalid('month');
+
+        $this->actingAs($user)
+            ->get(route('reports', ['range' => '90d']))
+            ->assertInvalid('range');
     }
 
-    public function test_reports_do_not_export_another_users_transactions_and_empty_reports_have_false_has_data(): void
+    public function test_reports_support_explicit_day_ranges(): void
+    {
+        $user = User::factory()->create();
+        $category = $user->categories()->firstOrFail();
+
+        // داخل آخر 15 يوماً، وخارجها
+        $user->expenses()->create([
+            'category_id' => $category->id,
+            'amount' => 4000,
+            'description' => 'قريب',
+            'expense_date' => now()->subDays(3)->toDateString(),
+        ]);
+        $user->expenses()->create([
+            'category_id' => $category->id,
+            'amount' => 7000,
+            'description' => 'بعيد',
+            'expense_date' => now()->subDays(40)->toDateString(),
+        ]);
+
+        $response = $this->actingAs($user)
+            ->withoutMiddleware(HandleInertiaRequests::class)
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                'X-Requested-With' => 'XMLHttpRequest',
+                'X-Inertia-Version' => (string) Inertia::getVersion(),
+            ])
+            ->get(route('reports', ['range' => '15d']));
+
+        $response->assertOk()
+            ->assertJsonPath('props.range', '15d')
+            ->assertJsonPath('props.periodLabel', 'آخر 15 يوم')
+            ->assertJsonPath('props.summary.total_expenses', 4000);
+
+        // ستّون يوماً تبتلع المصروفين معاً
+        $this->actingAs($user)
+            ->withoutMiddleware(HandleInertiaRequests::class)
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                'X-Requested-With' => 'XMLHttpRequest',
+                'X-Inertia-Version' => (string) Inertia::getVersion(),
+            ])
+            ->get(route('reports', ['range' => '60d']))
+            ->assertJsonPath('props.summary.total_expenses', 11000);
+
+        $this->actingAs($user)
+            ->get(route('reports.export-pdf', ['range' => '30d']))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+    }
+
+    public function test_empty_reports_have_false_has_data(): void
     {
         $user = User::factory()->create();
         $otherUser = User::factory()->create();
@@ -214,10 +267,6 @@ class BackendCompletionTest extends TestCase
             ->get(route('reports'));
 
         $response->assertJsonPath('props.hasData', false);
-
-        $export = $this->actingAs($user)->get(route('reports.export'));
-        $export->assertOk();
-        $this->assertStringNotContainsString('9999', $export->streamedContent());
     }
 
     public function test_recurring_crud_validates_and_enforces_ownership(): void

@@ -9,6 +9,7 @@
      * لاصق في الأعلى (sticky) فيبقى العنوان ظاهراً أثناء التمرير.
      */
     import { Link } from '@inertiajs/svelte';
+    import ChartNoAxesColumn from 'lucide-svelte/icons/chart-no-axes-column';
     import AiAssistantIcon from '@/components/icons/AiAssistantIcon.svelte';
     import ThemeToggle from '@/components/ThemeToggle.svelte';
 
@@ -36,7 +37,16 @@
         {/if}
     </div>
 
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex shrink-0 items-center gap-1">
+        <!-- التقارير — أيقونة ثابتة، لا وجهة تُطلب من الإعدادات -->
+        <Link
+            href="/reports"
+            aria-label="التقارير"
+            class="grid size-11 shrink-0 place-items-center rounded-xl text-muted-foreground no-underline transition-colors hover:bg-secondary hover:text-foreground"
+        >
+            <ChartNoAxesColumn class="size-[19px]" />
+        </Link>
+
         <!-- اختصار المظهر — في رأس كل صفحة لا مدفوناً في الإعدادات -->
         <ThemeToggle />
 

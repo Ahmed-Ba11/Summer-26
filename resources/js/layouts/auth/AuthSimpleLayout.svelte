@@ -1,7 +1,14 @@
 <script lang="ts">
+    /**
+     * هيكل صفحات الدخول.
+     *
+     * كان شعار Laravel الافتراضي يتصدّر الصفحة — أول ما يراه العائد إلى
+     * حسابه شعارُ إطار عمل لا شعارُ تطبيقه. الأيقونة الآن أيقونة «موفّر»
+     * نفسها التي في شاشة الترحيب والرأس، بنفس نصف قطر البلاطة، فتتّصل
+     * الصفحة ببقيّة التطبيق بدل أن تبدو قادمة من مكان آخر.
+     */
     import { Link } from '@inertiajs/svelte';
     import type { Snippet } from 'svelte';
-    import AppLogoIcon from '@/components/AppLogoIcon.svelte';
     import { home } from '@/routes';
 
     let {
@@ -16,29 +23,40 @@
 </script>
 
 <div
-    class="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10"
+    class="flex min-h-svh flex-col items-center justify-center bg-background px-5 py-10"
+    style="padding-top: calc(2.5rem + env(safe-area-inset-top)); padding-bottom: calc(2.5rem + env(safe-area-inset-bottom))"
 >
     <div class="w-full max-w-sm">
-        <div class="flex flex-col gap-8">
-            <div class="flex flex-col items-center gap-4">
+        <div class="flex flex-col gap-7">
+            <div class="flex flex-col items-center gap-3 text-center">
                 <Link
                     href={home()}
-                    class="flex flex-col items-center gap-2 font-medium"
+                    aria-label="موفّر"
+                    class="no-underline transition-transform hover:scale-[1.03]"
                 >
-                    <div
-                        class="mb-1 flex h-9 w-9 items-center justify-center rounded-md"
-                    >
-                        <AppLogoIcon
-                            class="size-9 fill-current text-(--foreground) dark:text-white"
-                        />
-                    </div>
-                    <span class="sr-only">{title}</span>
+                    <img
+                        src="/icon.svg"
+                        alt=""
+                        width="64"
+                        height="64"
+                        class="size-16 rounded-[16px]"
+                    />
                 </Link>
-                <div class="space-y-2 text-center">
-                    <h1 class="text-xl font-medium">{title}</h1>
-                    <p class="text-center text-sm text-muted-foreground">
-                        {description}
-                    </p>
+
+                <div class="space-y-1.5">
+                    <h1
+                        class="text-[22px] leading-tight font-bold tracking-tight"
+                        style="font-family: var(--font-display)"
+                    >
+                        {title}
+                    </h1>
+                    {#if description}
+                        <p
+                            class="text-[13px] leading-relaxed text-muted-foreground"
+                        >
+                            {description}
+                        </p>
+                    {/if}
                 </div>
             </div>
             {@render children?.()}

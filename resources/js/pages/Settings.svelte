@@ -12,6 +12,7 @@
     import { Link, router } from '@inertiajs/svelte';
     import Bell from 'lucide-svelte/icons/bell';
     import CalendarDays from 'lucide-svelte/icons/calendar-days';
+    import ChartNoAxesColumn from 'lucide-svelte/icons/chart-no-axes-column';
     import ChevronLeft from 'lucide-svelte/icons/chevron-left';
     import Download from 'lucide-svelte/icons/download';
     import Fingerprint from 'lucide-svelte/icons/fingerprint';
@@ -118,10 +119,12 @@
         { value: 'en', label: 'English' },
     ];
 
+    // الكلمة الكاملة لا الحرف: «ص» تحتمل صغير وصامت وصفحة، والكلمة لا تحتمل
+    // إلا معناها. ثلاثة أزرار تتّسع للكلمة، فلا عذر للاختصار.
     const FONT_SCALES = [
-        { value: 'sm', label: 'ص' },
-        { value: 'md', label: 'م' },
-        { value: 'lg', label: 'ك' },
+        { value: 'sm', label: 'صغير' },
+        { value: 'md', label: 'متوسط' },
+        { value: 'lg', label: 'كبير' },
     ];
 
     function pickTheme(value: Appearance) {
@@ -545,31 +548,21 @@
             <h2 class="text-[14px] font-semibold">بياناتك</h2>
 
             <div class="mt-2.5 flex flex-col">
+                <!--
+                    التقارير ليست إعداداً — مكانها صفحتها.
+                    كان هنا صفّا تصدير (CSV وPDF)، فصار المستخدم يمرّ
+                    بالإعدادات ليصل إلى تقاريره. الصفّ الآن يقود إلى الصفحة
+                    نفسها حيث المدد والتصدير معاً.
+                -->
                 <a
-                    href="/reports/export?month={salaryMonth.key}"
+                    href="/reports"
                     class="flex min-h-11 items-center gap-2.5 border-b border-border text-[13.5px] no-underline"
                 >
-                    <Download
+                    <ChartNoAxesColumn
                         class="size-[18px] shrink-0 text-muted-foreground"
                         stroke-width="1.9"
                     />
-                    <span class="min-w-0 flex-1">تقرير {salaryMonth.label} — CSV</span
-                    >
-                    <ChevronLeft
-                        class="size-4 shrink-0 text-muted-foreground"
-                    />
-                </a>
-
-                <a
-                    href="/reports/export-pdf?month={salaryMonth.key}"
-                    class="flex min-h-11 items-center gap-2.5 border-b border-border text-[13.5px] no-underline"
-                >
-                    <Download
-                        class="size-[18px] shrink-0 text-muted-foreground"
-                        stroke-width="1.9"
-                    />
-                    <span class="min-w-0 flex-1">تقرير {salaryMonth.label} — PDF</span
-                    >
+                    <span class="min-w-0 flex-1">تقاريرك — عرض وتصدير PDF</span>
                     <ChevronLeft
                         class="size-4 shrink-0 text-muted-foreground"
                     />

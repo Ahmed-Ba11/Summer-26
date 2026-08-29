@@ -22,6 +22,7 @@
      * كل هدف لمس لا يقل عن 44×44px.
      */
     import { Link, page } from '@inertiajs/svelte';
+    import ArrowLeftIcon from 'lucide-svelte/icons/arrow-left';
     import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
     import ChartNoAxesColumn from 'lucide-svelte/icons/chart-no-axes-column';
     import Ellipsis from 'lucide-svelte/icons/ellipsis';
@@ -71,6 +72,15 @@
         { title: 'الالتزامات', href: '/commitments', icon: ReceiptText, badge: () => stats.dueCommitments },
     ];
 
+    /**
+     * التقارير — وجهة أولى لا بنداً في قائمة.
+     *
+     * كانت مدفونة بين «المساعد» و«الإعدادات»، ومنافذ التصدير في الإعدادات،
+     * فصار المستخدم يمرّ بالإعدادات ليصل إلى تقاريره. الآن: صفّ بارز أعلى
+     * لوح «المزيد»، وأيقونة ثابتة في رأس كل صفحة على الجوال.
+     */
+    const REPORTS = { title: 'التقارير', href: '/reports', icon: ChartNoAxesColumn };
+
     /** الوجهات الأقل تكراراً — داخل «المزيد» على الجوال، وفي الشريط على الديسكتوب. */
     const SECONDARY = [
         { group: 'فلوسي', items: [
@@ -78,7 +88,6 @@
             { title: 'الادخار', href: '/savings', icon: Vault, stat: () => formatPercent(stats.savingsPct) },
         ]},
         { group: 'أدوات', items: [
-            { title: 'التقارير', href: '/reports', icon: ChartNoAxesColumn },
             { title: 'المساعد الذكي', href: '/assistant', icon: AiAssistantIcon },
             { title: 'الإعدادات', href: '/settings', icon: Settings },
         ]},
@@ -89,7 +98,7 @@
         { group: 'نظرة عامة', items: [PRIMARY[0]] },
         { group: 'فلوسي', items: [SECONDARY[0].items[0], PRIMARY[1]] },
         { group: 'التزاماتي', items: [PRIMARY[2], SECONDARY[0].items[1]] },
-        { group: 'أدوات', items: [SECONDARY[1].items[0]] },
+        { group: 'أدوات', items: [REPORTS] },
     ];
 
     function isActive(href: string): boolean {
@@ -259,6 +268,28 @@ moreOpen = false;
             style="padding-bottom: calc(76px + env(safe-area-inset-bottom))"
             role="dialog" aria-modal="true" aria-label="وجهات إضافية">
             <div class="mx-auto mt-1.5 mb-3 h-1 w-9 rounded-full bg-input"></div>
+
+            <!-- التقارير أولاً وبارزة — لا تُطلب من الإعدادات -->
+            <Link
+                href={REPORTS.href}
+                onclick={() => (moreOpen = false)}
+                aria-current={isActive(REPORTS.href) ? 'page' : undefined}
+                class="mb-1 flex min-h-[52px] items-center gap-3 rounded-2xl border px-3 text-[14px] no-underline transition-colors {isActive(
+                    REPORTS.href,
+                )
+                    ? 'border-primary bg-accent font-semibold text-accent-foreground'
+                    : 'border-border bg-secondary/60 font-medium text-foreground/90'}"
+            >
+                <span class="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary">
+                    <ChartNoAxesColumn class="size-[19px]" />
+                </span>
+                <span class="min-w-0 flex-1">
+                    <b class="block font-semibold">{REPORTS.title}</b>
+                    <span class="block text-[11px] text-muted-foreground">وين راح راتبك · تصدير PDF</span>
+                </span>
+                <ArrowLeftIcon class="size-4 shrink-0 text-primary" />
+            </Link>
+
             {#each SECONDARY as g (g.group)}
                 <p class="px-3 pt-2 pb-1 text-[11px] text-muted-foreground">{g.group}</p>
                 {#each g.items as item (item.href)}
