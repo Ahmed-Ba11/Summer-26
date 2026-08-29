@@ -157,9 +157,11 @@
         {/if}
 
         {#if avgDaily > 0}
-            <p class="mt-2 inline-flex items-center gap-1.5 text-[11px] md:hidden {onTrack ? 'text-success-text' : 'text-destructive'}">
-                {#if onTrack}<Check class="size-3" />{:else}<TriangleAlert class="size-3" />{/if}
+            <p class="mt-2 inline-flex items-center gap-1.5 text-[11px] text-foreground/80 md:hidden">
                 متوسط صرفك {formatAmount(avgDaily)} ر.س يومياً
+                <span class="inline-flex items-center gap-0.5 {onTrack ? 'text-success-text' : 'text-destructive'}">
+                    {#if onTrack}<Check class="size-3" />{:else}<TriangleAlert class="size-3" />{/if}
+                </span>
             </p>
         {/if}
     </div>

@@ -21,12 +21,13 @@
      *
      * كل هدف لمس لا يقل عن 44×44px.
      */
-    import { Link, page } from '@inertiajs/svelte';
+    import { Link, page, router } from '@inertiajs/svelte';
     import ArrowLeftIcon from 'lucide-svelte/icons/arrow-left';
     import ArrowRightLeft from 'lucide-svelte/icons/arrow-right-left';
     import ChartNoAxesColumn from 'lucide-svelte/icons/chart-no-axes-column';
     import Ellipsis from 'lucide-svelte/icons/ellipsis';
     import LayoutGrid from 'lucide-svelte/icons/layout-grid';
+    import LogOut from 'lucide-svelte/icons/log-out';
     import PanelRightOpen from 'lucide-svelte/icons/panel-right-open';
     import Plus from 'lucide-svelte/icons/plus';
     import ReceiptText from 'lucide-svelte/icons/receipt-text';
@@ -36,6 +37,11 @@
     import AiAssistantIcon from '@/components/icons/AiAssistantIcon.svelte';
     import { formatAmount, formatPercent } from '@/lib/format';
     import { longPress } from '@/lib/long-press';
+    import { logout } from '@/routes';
+
+    function handleLogout() {
+        router.flushAll();
+    }
 
     interface NavStats {
         remaining: number;
@@ -148,7 +154,7 @@ moreOpen = false;
             </div>
             <button type="button" onclick={toggle} aria-label="طيّ الشريط" aria-expanded="true"
                 class="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
-                <PanelRightOpen class="size-4" />
+                <PanelRightOpen class="size-5" />
             </button>
         {/if}
     </div>
@@ -202,7 +208,7 @@ moreOpen = false;
                     {#if active}
                         <span class="absolute top-2.5 bottom-2.5 w-[3px] rounded-full bg-primary" style="inset-inline-end:0"></span>
                     {/if}
-                    <item.icon class={expanded ? 'size-[17px] shrink-0' : 'size-5'} />
+                    <item.icon class={expanded ? 'size-[19px] shrink-0' : 'size-6'} />
                     {#if expanded}
                         <span class="min-w-0 flex-1 truncate">{item.title}</span>
                         {#if badge > 0}
@@ -233,7 +239,7 @@ moreOpen = false;
         aria-label="المساعد الذكي">
         <span class="grid shrink-0 place-items-center text-white {expanded ? 'size-9 rounded-xl' : 'size-[50px] rounded-[17px]'}"
             style="background:linear-gradient(145deg,#2c4a6e,#1baf7a);box-shadow:0 4px 14px rgba(27,175,122,.28)">
-            <AiAssistantIcon class={expanded ? 'size-[18px]' : 'size-6'} />
+            <AiAssistantIcon class={expanded ? 'size-5' : 'size-7'} />
         </span>
         {#if expanded}
             <span class="min-w-0">
@@ -243,8 +249,8 @@ moreOpen = false;
         {/if}
     </Link>
 
-    <div class="w-full {expanded ? 'border-t border-sidebar-border pt-2.5' : 'flex justify-center'}">
-        <Link href="/settings" class="flex items-center gap-2.5 rounded-xl no-underline {expanded ? 'w-full px-2 py-1.5 hover:bg-secondary' : ''}">
+    <div class="w-full {expanded ? 'flex items-center gap-1 border-t border-sidebar-border pt-2.5' : 'flex flex-col items-center gap-1.5'}">
+        <Link href="/settings" class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl no-underline {expanded ? 'px-2 py-1.5 hover:bg-secondary' : ''}">
             <span class="grid size-9 shrink-0 place-items-center rounded-full border border-sidebar-border bg-secondary text-[12.5px] font-semibold text-foreground/75">
                 {user?.name?.[0] ?? 'م'}
             </span>
@@ -254,6 +260,11 @@ moreOpen = false;
                     <span class="block text-[11px] text-muted-foreground">الإعدادات</span>
                 </span>
             {/if}
+        </Link>
+        <Link href={logout()} as="button" onclick={handleLogout}
+            aria-label="تسجيل الخروج" title="تسجيل الخروج"
+            class="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-destructive">
+            <LogOut class="size-5" />
         </Link>
     </div>
 </aside>
@@ -306,6 +317,13 @@ moreOpen = false;
                     </Link>
                 {/each}
             {/each}
+
+            <p class="px-3 pt-2 pb-1 text-[11px] text-muted-foreground">الحساب</p>
+            <Link href={logout()} as="button" onclick={handleLogout}
+                class="flex min-h-[48px] w-full items-center gap-3 rounded-2xl px-3 text-[13.5px] text-destructive no-underline transition-colors hover:bg-destructive/10">
+                <LogOut class="size-[18px] shrink-0" />
+                <span class="flex-1 text-start">تسجيل الخروج</span>
+            </Link>
         </div>
     </div>
 {/if}
