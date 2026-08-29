@@ -42,6 +42,61 @@ final class SavingsLedger
         return $this->move($goal, -abs($amount), $date);
     }
 
+    /**
+     * تعديل مبلغ حركة قائمة — الإيداع يبقى إيداعاً والسحب سحباً، وإنما
+     * تتغيّر قيمته. الرصيد يُعاد حسابه من الحركات لا يُزاد بالفرق، فلا
+     * يتراكم انحراف مع كل تصحيح.
+     */
+    public function amend(SavingsDeposit $entry, int $amount): SavingsDeposit
+    {
+        return DB::transaction(function () use ($entry, $amount): SavingsDeposit {
+            $entry->update([
+                'amount' => $entry->amount < 0 ? -abs($amount) : abs($amount),
+            ]);
+
+            $this->resync((int) $entry->savings_goal_id);
+
+            return $entry->refresh();
+        });
+    }
+
+    /** حذف حركة — الرصيد يعود كأنها لم تكن. */
+    public function remove(SavingsDeposit $entry): void
+    {
+        DB::transaction(function () use ($entry): void {
+            $goalId = (int) $entry->savings_goal_id;
+            $entry->delete();
+
+            $this->resync($goalId);
+        });
+    }
+
+    /**
+     * الرصيد = مجموع حركات الهدف.
+     *
+     * `move()` تزيد الرصيد بالفرق لأنها تضيف حركة جديدة، أمّا التعديل
+     * والحذف فيغيّران التاريخ نفسه — فإعادة الجمع هي الطريقة الوحيدة
+     * التي تبقي `current_amount` مطابقاً لكشف الحركات.
+     */
+    private function resync(int $goalId): void
+    {
+        $goal = SavingsGoal::query()
+            ->where('user_id', $this->user->id)
+            ->whereKey($goalId)
+            ->first();
+
+        if ($goal === null) {
+            return;
+        }
+
+        $balance = max(0, (int) $goal->deposits()->sum('amount'));
+
+        $goal->update([
+            'current_amount' => $balance,
+            'is_completed' => $goal->hasReachedTarget($balance),
+        ]);
+    }
+
     /** صافي ما أُودع في فترة راتب واحدة (الإيداعات ناقص السحوبات). */
     public function netForPeriod(?string $periodKey = null): int
     {

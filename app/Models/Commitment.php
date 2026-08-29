@@ -22,6 +22,9 @@ class Commitment extends Model
         'payment_method',
         'due_type',
         'due_day',
+        'recurrence',
+        'due_on',
+        'ends_on',
         'notify_when',
         'reserve_in_budget',
         'is_active',
@@ -37,7 +40,8 @@ class Commitment extends Model
             'months_paid' => 'integer',
             'reserve_in_budget' => 'boolean',
             'is_active' => 'boolean',
-            'due_date' => 'date',
+            'due_on' => 'date',
+            'ends_on' => 'date',
         ];
     }
 

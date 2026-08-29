@@ -16,6 +16,10 @@
     import Vault from 'lucide-svelte/icons/vault';
     import Check from 'lucide-svelte/icons/check';
     import CalendarDays from 'lucide-svelte/icons/calendar-days';
+    import ChevronDown from 'lucide-svelte/icons/chevron-down';
+    import Pencil from 'lucide-svelte/icons/pencil';
+    import ArrowDownLeft from 'lucide-svelte/icons/arrow-down-left';
+    import ArrowUpRight from 'lucide-svelte/icons/arrow-up-right';
     import AppHead from '@/components/AppHead.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
@@ -49,6 +53,18 @@
         store as storeSavings,
         update as updateSavings,
     } from '@/routes/savings';
+    import {
+        destroy as destroyDeposit,
+        update as updateDeposit,
+    } from '@/routes/savings/deposits';
+
+    /** حركة على رصيد هدف: موجبة إيداع، وسالبة سحب لتمويل مصروف. */
+    interface DepositItem {
+        id: number;
+        amount: number;
+        deposited_at: string | null;
+        period_key: string;
+    }
 
     interface GoalItem {
         id: number;
@@ -59,6 +75,7 @@
         target_date: string | null;
         is_completed: boolean;
         is_closed: boolean;
+        deposits?: DepositItem[];
     }
 
     let {
@@ -404,6 +421,76 @@
         );
     }
 
+    // ── تعديل حركة قائمة وحذفها ───────────────────────────────────────
+    /**
+     * الإيداع الخاطئ كان يبقى خاطئاً: لا تعديل ولا حذف، والمخرج الوحيد
+     * حذف الهدف كلّه. المبلغ يمرّ من `AmountSheet` كبقية مبالغ التطبيق.
+     *
+     * السحوبات (السالبة) تُعرض ولا تُعدَّل: هي أثر تمويل مصروف في مكان
+     * آخر، وتعديلها هنا وحدها يفكّ ارتباطها بذلك المصروف.
+     */
+    let openLedgerFor = $state<number | null>(null);
+    let editingDeposit = $state<DepositItem | null>(null);
+    let editDepositAmount = $state(0);
+    let editDepositOpen = $state(false);
+    let deleteDepositId = $state<number | null>(null);
+    let deleteDepositOpen = $state(false);
+
+    function toggleLedger(goalId: number) {
+        openLedgerFor = openLedgerFor === goalId ? null : goalId;
+    }
+
+    function openDepositEdit(deposit: DepositItem) {
+        editingDeposit = deposit;
+        editDepositAmount = Math.abs(deposit.amount);
+        editDepositOpen = true;
+    }
+
+    function saveDepositEdit(halalas: number) {
+        const deposit = editingDeposit;
+
+        if (!deposit || halalas <= 0) {
+            return;
+        }
+
+        router.put(
+            updateDeposit(deposit.id),
+            { amount: halalas / 100 },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    editDepositOpen = false;
+                    editingDeposit = null;
+                    toast.success(`صار الإيداع ${formatAmount(halalas)} ر.س`);
+                },
+                onError: (errors) => {
+                    toast.error(
+                        errorText(errors as ValidationErrors, 'amount') ||
+                            'ما قدرنا نحفظ التعديل',
+                    );
+                },
+            },
+        );
+    }
+
+    function confirmDeleteDeposit(id: number) {
+        deleteDepositId = id;
+        deleteDepositOpen = true;
+    }
+
+    function executeDeleteDeposit() {
+        if (!deleteDepositId) return;
+
+        router.delete(destroyDeposit(deleteDepositId), {
+            preserveScroll: true,
+            onSuccess: () => {
+                deleteDepositId = null;
+                deleteDepositOpen = false;
+                toast.success('حُذف الإيداع ورجع الرصيد');
+            },
+        });
+    }
+
     // ── الحذف والإقفال ────────────────────────────────────────────────
     let deleteId = $state<number | null>(null);
     let deleteOpen = $state(false);
@@ -526,6 +613,7 @@
                         ? Math.round((goal.current_amount / goal.target_amount) * 100)
                         : 0}
                 {@const remaining = goal.target_amount - goal.current_amount}
+                {@const ledger = goal.deposits ?? []}
                 <article class="flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-xs">
                     <div class="flex items-center gap-3">
                         <CategoryIcon
@@ -608,6 +696,87 @@
                             </p>
                         </div>
                     </div>
+
+                    <!-- كشف الحركات — مطويّ حتى يُطلب، فالبطاقة تبقى قصيرة -->
+                    {#if ledger.length}
+                        {@const isOpen = openLedgerFor === goal.id}
+                        <div class="rounded-xl border border-border">
+                            <button
+                                type="button"
+                                onclick={() => toggleLedger(goal.id)}
+                                aria-expanded={isOpen}
+                                class="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-[12.5px] font-medium text-foreground/85"
+                            >
+                                <span>
+                                    الحركات
+                                    <span class="text-muted-foreground tabular-nums">
+                                        ({ledger.length})
+                                    </span>
+                                </span>
+                                <ChevronDown
+                                    class="size-4 shrink-0 text-muted-foreground transition-transform {isOpen
+                                        ? 'rotate-180'
+                                        : ''}"
+                                />
+                            </button>
+
+                            {#if isOpen}
+                                <ul class="border-t border-border">
+                                    {#each ledger as entry (entry.id)}
+                                        {@const isWithdrawal = entry.amount < 0}
+                                        <li
+                                            class="flex items-center gap-2 border-b border-border px-3 py-1.5 last:border-b-0"
+                                        >
+                                            <span
+                                                class="grid size-7 shrink-0 place-items-center rounded-lg {isWithdrawal
+                                                    ? 'bg-secondary text-muted-foreground'
+                                                    : 'bg-success/10 text-success-text'}"
+                                            >
+                                                {#if isWithdrawal}
+                                                    <ArrowUpRight class="size-3.5" />
+                                                {:else}
+                                                    <ArrowDownLeft class="size-3.5" />
+                                                {/if}
+                                            </span>
+
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-[13px] font-semibold tabular-nums">
+                                                    {formatAmount(Math.abs(entry.amount))} ر.س
+                                                </p>
+                                                <p class="text-[11px] text-muted-foreground tabular-nums">
+                                                    {entry.deposited_at
+                                                        ? formatDate(entry.deposited_at)
+                                                        : ''}
+                                                    {#if isWithdrawal}
+                                                        · سحب لتمويل مصروف
+                                                    {/if}
+                                                </p>
+                                            </div>
+
+                                            {#if !isWithdrawal}
+                                                <button
+                                                    type="button"
+                                                    onclick={() => openDepositEdit(entry)}
+                                                    aria-label="تعديل مبلغ الإيداع"
+                                                    class="grid size-11 shrink-0 place-items-center rounded-xl border border-input text-foreground/85 transition-transform active:scale-[.98]"
+                                                >
+                                                    <Pencil class="size-4" stroke-width="1.9" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onclick={() => confirmDeleteDeposit(entry.id)}
+                                                    aria-label="حذف الإيداع"
+                                                    class="grid size-11 shrink-0 place-items-center rounded-xl border border-input text-destructive transition-transform active:scale-[.98]"
+                                                >
+                                                    <Trash2 class="size-4" stroke-width="1.9" />
+                                                </button>
+                                            {/if}
+                                        </li>
+                                    {/each}
+                                </ul>
+                            {/if}
+                        </div>
+                    {/if}
 
                     <div class="flex items-center gap-2">
                         {#if !goal.is_closed}
@@ -851,6 +1020,26 @@
         </button>
     {/snippet}
 </SheetShell>
+
+<!-- تعديل مبلغ إيداع — نفس لوح المبلغ المستعمل في كل التطبيق -->
+<AmountSheet
+    bind:open={editDepositOpen}
+    bind:value={editDepositAmount}
+    title="تعديل مبلغ الإيداع"
+    subtitle={editingDeposit?.deposited_at
+        ? `أُودع ${formatFullDate(editingDeposit.deposited_at)}`
+        : ''}
+    quickAdd={[100, 500, 1000]}
+    saveLabel="حفظ التعديل"
+    onSave={saveDepositEdit}
+/>
+
+<ConfirmSheet
+    bind:open={deleteDepositOpen}
+    title="حذف الإيداع"
+    message="سيُحذف هذا الإيداع ويرجع رصيد الهدف كما كان قبله."
+    onConfirm={executeDeleteDeposit}
+/>
 
 <ConfirmSheet
     bind:open={deleteOpen}

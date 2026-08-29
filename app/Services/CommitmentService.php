@@ -75,18 +75,51 @@ final class CommitmentService
     /**
      * هل لهذا الالتزام ظهور في هذه الفترة أصلاً؟
      *
-     * الظهور الذي مضى قبل أن يعرف التطبيق بالالتزام لم يكن مطلوباً من
-     * المستخدم، فلا يُولَّد ولا يُطالَب بسداده. هذا الشرط هو الفارق بين
-     * «استحقاق فات موعده» و«استحقاق لم يوجد قط».
+     * ثلاثة شروط، وهي وحدها الفارق بين «استحقاق فات موعده» و«استحقاق لم
+     * يوجد قط»:
+     *
+     *   1. الظهور الذي مضى قبل أن يعرف التطبيق بالالتزام لم يكن مطلوباً
+     *      من المستخدم، فلا يُولَّد ولا يُطالَب بسداده.
+     *   2. غير المتكرّر (`once`) له تاريخ واحد لا غير — اشتراك شهر واحد
+     *      ثم يُلغى لا يظهر في كل فترة راتب بعده.
+     *   3. المتكرّر الموقوف من تاريخ (`ends_on`) لا ظهور له من ذلك
+     *      التاريخ فصاعداً، وتبقى أشهره السابقة في السجل كما هي.
      */
     public function hasOccurrence(Commitment $commitment, array $period): bool
     {
-        if ($commitment->created_at === null) {
-            return true;
+        if ($commitment->recurrence === 'once') {
+            if ($commitment->due_on === null) {
+                return false;
+            }
+
+            $due = CarbonImmutable::parse($commitment->due_on)->startOfDay();
+
+            return $due->greaterThanOrEqualTo($period['startsOn']->startOfDay())
+                && $due->lessThanOrEqualTo($period['endsOn']->endOfDay());
         }
 
-        return CarbonImmutable::parse($commitment->created_at)->startOfDay()
-            ->lessThanOrEqualTo($period['endsOn']);
+        if ($commitment->created_at !== null
+            && CarbonImmutable::parse($commitment->created_at)->startOfDay()
+                ->greaterThan($period['endsOn'])) {
+            return false;
+        }
+
+        if ($commitment->ends_on !== null
+            && $this->dueDateFor($commitment, $period)->startOfDay()
+                ->greaterThanOrEqualTo(CarbonImmutable::parse($commitment->ends_on)->startOfDay())) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /** التزام متكرّر أُوقف، وما عاد له ظهور بعد اليوم. */
+    public function isStopped(Commitment $commitment): bool
+    {
+        return $commitment->recurrence !== 'once'
+            && $commitment->ends_on !== null
+            && CarbonImmutable::parse($commitment->ends_on)->startOfDay()
+                ->lessThanOrEqualTo(CarbonImmutable::today());
     }
 
     /** حالة ظهور واحد: مسدَّد · متأخّر · قادم. */
@@ -351,6 +384,11 @@ final class CommitmentService
                     // يفتح بقيم افتراضية فيدوس يوم الاستحقاق والتنبيه عند الحفظ.
                     'due_day' => $c->due_day !== null ? (int) $c->due_day : null,
                     'notify_when' => $c->notify_when,
+                    // التكرار وحدّ الإيقاف — الواجهة تعرضهما وتعيدهما عند التعديل.
+                    'recurrence' => $c->recurrence ?? 'monthly',
+                    'due_on' => $c->due_on?->format('Y-m-d'),
+                    'ends_on' => $c->ends_on?->format('Y-m-d'),
+                    'is_stopped' => $this->isStopped($c),
                     'due_date' => $occurrence['due_date'],
                     'reserve_in_budget' => $c->reserve_in_budget,
                     // الحالة تُحسب في الخادم من `commitment_payments` — الواجهة
@@ -497,6 +535,11 @@ final class CommitmentService
     /** تاريخ استحقاق الالتزام ضمن فترة راتب معيّنة. */
     public function dueDateFor(Commitment $c, array $period): CarbonImmutable
     {
+        // غير المتكرّر لا يتحرّك مع الفترات — تاريخه هو تاريخه.
+        if ($c->recurrence === 'once' && $c->due_on !== null) {
+            return CarbonImmutable::parse($c->due_on)->startOfDay();
+        }
+
         $dueDate = match ($c->due_type) {
             'salary_day' => $period['salaryDate']->copy(),
             'month_day' => $this->dayWithinWindow((int) ($c->due_day ?? 1), $period),

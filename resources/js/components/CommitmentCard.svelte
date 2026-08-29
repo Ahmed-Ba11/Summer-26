@@ -20,9 +20,14 @@
     import TrendingUp from 'lucide-svelte/icons/trending-up';
     import TriangleAlert from 'lucide-svelte/icons/triangle-alert';
     import Undo2 from 'lucide-svelte/icons/undo-2';
+    import CircleStop from 'lucide-svelte/icons/circle-stop';
     import Zap from 'lucide-svelte/icons/zap';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
-    import { formatAmount, formatRelativeDays } from '@/lib/format';
+    import {
+        formatAmount,
+        formatFullDate,
+        formatRelativeDays,
+    } from '@/lib/format';
     import {
         type Commitment,
         finishLabel,
@@ -66,14 +71,22 @@
     });
 
     /** «قريب» تمييز بصري داخل «قادم» لا حالة رابعة. */
-    const dueSoon = $derived(isDueSoon(c));
+    const dueSoon = $derived(isDueSoon(c) && !c.is_stopped);
+
+    /**
+     * الموقوف لا يُطالَب بشيء — لا زر دفع ولا لون تأخير. سجلّه السابق
+     * يبقى، فالبطاقة تبقى ظاهرة وتقول متى أُوقف بدل أن تختفي.
+     */
+    const stopped = $derived(c.is_stopped);
 
     const borderClass = $derived(
-        state === 'overdue'
-            ? 'border-destructive/40'
-            : dueSoon
-              ? 'border-warning/45'
-              : 'border-border',
+        stopped
+            ? 'border-border'
+            : state === 'overdue'
+              ? 'border-destructive/40'
+              : dueSoon
+                ? 'border-warning/45'
+                : 'border-border',
     );
 </script>
 
@@ -113,17 +126,29 @@
                         متغيّرة
                     </span>
                 {/if}
+
+                {#if c.recurrence === 'once'}
+                    <span
+                        class="shrink-0 rounded-full bg-secondary px-1.5 py-px text-[11px] font-semibold text-muted-foreground"
+                    >
+                        مرة واحدة
+                    </span>
+                {/if}
             </div>
 
             <div class="mt-0.5 flex items-center justify-between gap-2">
                 <p
-                    class="min-w-0 truncate text-[11px] {state === 'overdue'
-                        ? 'font-medium text-destructive'
-                        : dueSoon
-                          ? 'font-medium text-warning-text'
-                          : 'text-muted-foreground'}"
+                    class="min-w-0 truncate text-[11px] {stopped
+                        ? 'text-muted-foreground'
+                        : state === 'overdue'
+                          ? 'font-medium text-destructive'
+                          : dueSoon
+                            ? 'font-medium text-warning-text'
+                            : 'text-muted-foreground'}"
                 >
-                    {#if state === 'paid'}
+                    {#if stopped}
+                        أُوقف من {formatFullDate(c.ends_on ?? '')}
+                    {:else if state === 'paid'}
                         {c.payment_method === 'auto' && c.paid_at
                             ? 'انخصم تلقائياً'
                             : 'دُفع'}
@@ -137,7 +162,13 @@
                 </p>
 
                 <!-- شارة الحالة -->
-                {#if state === 'paid'}
+                {#if stopped}
+                    <span
+                        class="inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-1.5 py-px text-[11px] font-semibold text-muted-foreground"
+                    >
+                        <CircleStop class="size-2.5" /> موقوف
+                    </span>
+                {:else if state === 'paid'}
                     <span
                         class="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-1.5 py-px text-[11px] font-semibold text-success-text"
                     >
@@ -248,7 +279,17 @@
     {/if}
 
     <!-- الإجراءات — ارتفاع موحّد 44px، ولا زر بأيقونة مجرّدة -->
-    {#if state !== 'paid'}
+    {#if stopped}
+        <div class="mt-2.5 flex gap-2 border-t border-border pt-2.5">
+            <button
+                type="button"
+                onclick={() => onEdit?.(c)}
+                class="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-input px-3.5 text-[13px] text-foreground/85 transition-colors hover:bg-secondary"
+            >
+                <Pencil class="size-4" /> تعديل أو إلغاء الإيقاف
+            </button>
+        </div>
+    {:else if state !== 'paid'}
         <div class="mt-2.5 flex gap-2 border-t border-border pt-2.5">
             <button
                 type="button"

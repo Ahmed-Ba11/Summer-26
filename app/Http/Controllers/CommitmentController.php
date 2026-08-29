@@ -82,6 +82,14 @@ class CommitmentController extends Controller
         $this->authorizeOwnership($commitment, $user->id);
 
         $service = CommitmentService::for($user);
+
+        // الموقوف لا ظهور له بعد تاريخ إيقافه، فلا شيء يُسدَّد.
+        if ($service->isStopped($commitment)) {
+            throw ValidationException::withMessages([
+                'amount' => 'هذا الالتزام موقوف — ألغِ الإيقاف أولاً إن عاد يُطالَب به.',
+            ]);
+        }
+
         // الظهور المستحقّ فعلاً — من مولّد الظهورات نفسه الذي يقرأ منه
         // التقويم، فالسداد يقع على ما يراه المستخدم لا على ظهور آخر.
         $occurrence = $service->payableOccurrence($commitment);
@@ -200,6 +208,10 @@ class CommitmentController extends Controller
             'payment_method' => ['required', 'in:auto,manual'],
             'due_type' => ['required', 'in:salary_day,month_day'],
             'due_day' => ['nullable', 'integer', 'between:1,31'],
+            // «يتكرّر كل شهر» أو «مرة واحدة بتاريخ محدّد» — ليس كل التزام شهرياً.
+            'recurrence' => ['required', 'in:monthly,once'],
+            'due_on' => ['nullable', 'date'],
+            'ends_on' => ['nullable', 'date'],
             'notify_when' => ['required', 'in:before_3,on_due,none'],
             'reserve_in_budget' => ['boolean'],
         ];
@@ -214,6 +226,7 @@ class CommitmentController extends Controller
             'months_count' => $request->input('months_count') ?? 0,
             'is_variable' => $request->boolean('is_variable'),
             'notify_when' => $request->input('notify_when', 'before_3'),
+            'recurrence' => $request->input('recurrence', 'monthly'),
             'reserve_in_budget' => $request->has('reserve_in_budget') ? $request->boolean('reserve_in_budget') : true,
         ]);
 
@@ -270,6 +283,25 @@ class CommitmentController extends Controller
     /** @param array<string, mixed> $validated */
     private function validateDueType(array $validated, $user): void
     {
+        // القسط سلسلة أشهر بحكم تعريفه — لا معنى لجعله «مرة واحدة».
+        if (($validated['recurrence'] ?? 'monthly') === 'once'
+            && $validated['kind'] === 'installment') {
+            throw ValidationException::withMessages([
+                'recurrence' => 'القسط يتكرّر شهرياً — استعمل «فاتورة» للمبلغ مرة واحدة.',
+            ]);
+        }
+
+        // غير المتكرّر لا يوم استحقاق شهرياً له — تاريخ واحد لا غير.
+        if (($validated['recurrence'] ?? 'monthly') === 'once') {
+            if (empty($validated['due_on'])) {
+                throw ValidationException::withMessages([
+                    'due_on' => 'اختر تاريخ الاستحقاق.',
+                ]);
+            }
+
+            return;
+        }
+
         $type = $validated['due_type'];
 
         if ($type === 'month_day') {
@@ -296,6 +328,7 @@ class CommitmentController extends Controller
     {
         $kind = $validated['kind'];
         $isInstallment = $kind === 'installment';
+        $isOnce = ($validated['recurrence'] ?? 'monthly') === 'once';
 
         $monthly = (int) $validated['amount'];
 
@@ -319,7 +352,13 @@ class CommitmentController extends Controller
             'months_paid' => 0,
             'payment_method' => $validated['payment_method'],
             'due_type' => $validated['due_type'],
-            'due_day' => $validated['due_type'] === 'month_day' ? (int) $validated['due_day'] : null,
+            'due_day' => $isOnce || $validated['due_type'] !== 'month_day'
+                ? null
+                : (int) $validated['due_day'],
+            // غير المتكرّر: تاريخ واحد ولا إيقاف. المتكرّر: عكسه تماماً.
+            'recurrence' => $isOnce ? 'once' : 'monthly',
+            'due_on' => $isOnce ? ($validated['due_on'] ?? null) : null,
+            'ends_on' => $isOnce ? null : (($validated['ends_on'] ?? null) ?: null),
             'notify_when' => $validated['notify_when'],
             'reserve_in_budget' => (bool) $validated['reserve_in_budget'],
             'is_active' => true,

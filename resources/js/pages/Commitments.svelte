@@ -88,9 +88,12 @@
             ? commitments.filter((c) => c.kind === filter)
             : commitments;
         const rank = { overdue: 0, upcoming: 1, paid: 2 } as const;
+        // الموقوف آخر الجميع: ما عاد يُطالَب بشيء، وبقاؤه في الأعلى يزاحم
+        // ما يستحق فعلاً.
+        const rankOf = (c: Commitment) => (c.is_stopped ? 3 : rank[stateOf(c)]);
         return [...list].sort((a, b) => {
-            const ra = rank[stateOf(a)];
-            const rb = rank[stateOf(b)];
+            const ra = rankOf(a);
+            const rb = rankOf(b);
             return ra !== rb
                 ? ra - rb
                 : daysUntil(a.due_date) - daysUntil(b.due_date);
@@ -100,7 +103,9 @@
     function summaryFor(kind: CommitmentKind) {
         const list = commitments.filter((c) => c.kind === kind);
         const t = totalsOf(list);
-        const unpaid = list.filter((c) => !c.is_paid_this_month);
+        const unpaid = list.filter(
+            (c) => !c.is_paid_this_month && !c.is_stopped,
+        );
 
         let note = 'ما أضفت شي';
         if (list.length) {
@@ -164,6 +169,13 @@
      * فأول سؤال بعد تسجيل التزام هو متى يُسحب المبلغ.
      */
     function dueNote(payload: Record<string, unknown>): string {
+        // غير المتكرّر تاريخه معلوم صراحةً — لا حاجة لاشتقاق «الظهور القادم».
+        if (payload.recurrence === 'once') {
+            const on = String(payload.due_on ?? '');
+
+            return on ? ` — تستحق ${formatRelativeDays(on)}` : '';
+        }
+
         const day = Number(payload.due_day ?? 0);
 
         if (!day) {

@@ -17,6 +17,7 @@ use App\Models\Commitment;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Installment;
+use App\Models\SavingsDeposit;
 use App\Models\SavingsGoal;
 use App\Services\BudgetGuard;
 use App\Services\CommitmentService;
@@ -583,16 +584,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $salaryMonth = SalaryMonthService::for($user);
         $period = $salaryMonth->current();
 
-        $goals = $user->savingsGoals()->latest()->get()->map(fn (SavingsGoal $g) => [
-            'id' => $g->id,
-            'name' => $g->name,
-            'icon' => $g->icon,
-            'target_amount' => (int) $g->target_amount,
-            'current_amount' => (int) $g->current_amount,
-            'target_date' => $g->target_date?->format('Y-m-d'),
-            'is_completed' => (bool) $g->is_completed,
-            'is_closed' => (bool) $g->is_closed,
-        ]);
+        // الحركات تُرسل مع كل هدف: بدونها لا سبيل لتصحيح إيداع أُدخل خطأً
+        // إلا حذف الهدف كلّه.
+        $goals = $user->savingsGoals()
+            ->with(['deposits' => fn ($q) => $q->orderByDesc('deposited_at')->orderByDesc('id')])
+            ->latest()
+            ->get()
+            ->map(fn (SavingsGoal $g) => [
+                'id' => $g->id,
+                'name' => $g->name,
+                'icon' => $g->icon,
+                'target_amount' => (int) $g->target_amount,
+                'current_amount' => (int) $g->current_amount,
+                'target_date' => $g->target_date?->format('Y-m-d'),
+                'is_completed' => (bool) $g->is_completed,
+                'is_closed' => (bool) $g->is_closed,
+                'deposits' => $g->deposits->map(fn (SavingsDeposit $d) => [
+                    'id' => $d->id,
+                    // موجب = إيداع · سالب = سحب لتمويل مصروف من هذا الهدف
+                    'amount' => (int) $d->amount,
+                    'deposited_at' => $d->deposited_at?->format('Y-m-d'),
+                    'period_key' => $d->period_key,
+                ])->values(),
+            ]);
 
         $totalSaved = (int) $user->savingsGoals()->sum('current_amount');
         $monthlyIncome = $salaryMonth->incomeFor($period['key']);
@@ -644,6 +658,40 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         return redirect()->back();
     })->name('savings.store');
+
+    /**
+     * تعديل مبلغ حركة ادخار.
+     *
+     * إيداع أُدخل بمبلغ خاطئ كان يبقى خاطئاً إلى الأبد — لا تعديل ولا حذف،
+     * والمخرج الوحيد حذف الهدف كلّه. التصحيح مسموح ولو أُقفل الهدف، لأنه
+     * تصويب لواقعة ماضية لا إضافة جديدة عليه.
+     */
+    Route::put('/savings/deposits/{deposit}', function (Request $request, SavingsDeposit $deposit) {
+        if ($deposit->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01|decimal:0,2',
+        ]);
+
+        SavingsLedger::for($request->user())->amend(
+            $deposit,
+            Money::toHalalas($validated['amount']),
+        );
+
+        return redirect()->back();
+    })->name('savings.deposits.update');
+
+    Route::delete('/savings/deposits/{deposit}', function (Request $request, SavingsDeposit $deposit) {
+        if ($deposit->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        SavingsLedger::for($request->user())->remove($deposit);
+
+        return redirect()->back();
+    })->name('savings.deposits.destroy');
 
     Route::put('/savings/{goal}', function (Request $request, SavingsGoal $goal) {
         if ($goal->user_id !== auth()->id()) {

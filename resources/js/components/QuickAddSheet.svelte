@@ -81,6 +81,14 @@
     let description = $state('');
     let confirmed = $state(false);
     let submitting = $state(false);
+    /**
+     * محاولة حفظ بلا فئة — أسوأ خطأ في التطبيق كان هنا: الطلب يُرسَل،
+     * الخادم يردّه بخطأ تحقّق، ولا `onError` يلتقطه ولا شيء يظهر. المستخدم
+     * يظنّ أنه سجّل مصروفه وهو لم يُسجَّل. صار التحقّق قبل الإرسال.
+     */
+    let categoryError = $state(false);
+    /** خطأ ردّه الخادم — لا يُبتلع بعد اليوم. */
+    let serverError = $state('');
     /** 1 = الإدخال · 2 = «من وين جاء المبلغ؟» */
     let step = $state<1 | 2>(1);
     let showDetails = $state(false);
@@ -98,6 +106,19 @@
 
     const amount = $derived(Math.round((parseFloat(raw) || 0) * 100));
     const selected = $derived(categories.find((c) => c.id === categoryId) ?? null);
+
+    /** المصروف بلا فئة لا يُقبل في الخادم — فلا يُرسَل أصلاً. */
+    const categoryMissing = $derived(mode === 'expense' && categoryId === null);
+    /**
+     * الفئة وحدها هي ما ينقص؟ نُبقي الزر حيّاً ليقول السبب عند الضغط.
+     * زر ميت بلا تفسير هو نفسه الصمت الذي نصلحه هنا.
+     */
+    const onlyCategoryMissing = $derived(categoryMissing && amount > 0);
+
+    // الخطأ يزول لحظة تصحيحه، لا عند المحاولة التالية.
+    $effect(() => {
+        if (!categoryMissing) categoryError = false;
+    });
 
     /** فئة «أخرى» تُلزم بوصف — وإلا صار السجل بلا معنى بعد أسبوع. */
     const isOther = $derived(selected?.name === 'أخرى' || selected?.icon === 'ellipsis');
@@ -220,6 +241,8 @@
         raw = '';
         description = '';
         confirmed = false;
+        categoryError = false;
+        serverError = '';
         step = 1;
         showDetails = false;
         categoryId = lastCategoryId;
@@ -236,13 +259,34 @@
         reset();
     }
 
+    /**
+     * بوّابة واحدة لكل انتقال إلى الأمام (الحفظ أو «التالي»): بلا فئة لا
+     * نتقدّم، ويظهر الخطأ تحت شبكة الفئات ويبقى اللوح مفتوحاً.
+     */
+    function guardCategory(): boolean {
+        if (!categoryMissing) return true;
+
+        categoryError = true;
+        serverError = '';
+
+        return false;
+    }
+
+    function next() {
+        if (!guardCategory() || !canProceed) return;
+
+        step = 2;
+    }
+
     function submit() {
+        if (!guardCategory()) return;
         if (!canSave) return;
         if (mustConfirm) {
             confirmed = true;
             return;
         }
 
+        serverError = '';
         submitting = true;
         const url = mode === 'income' ? '/income' : '/expenses';
 
@@ -262,6 +306,17 @@
             {
                 preserveScroll: true,
                 onSuccess: close,
+                // بلا هذا كان الخطأ يُبتلع واللوح يبقى مفتوحاً بلا سبب ظاهر.
+                onError: (errors) => {
+                    const first = Object.values(
+                        errors as Record<string, string | string[]>,
+                    )[0];
+                    serverError = Array.isArray(first)
+                        ? (first[0] ?? 'ما قدرنا نحفظ — راجع الحقول')
+                        : (first ?? 'ما قدرنا نحفظ — راجع الحقول');
+                    categoryError = 'category_id' in (errors ?? {});
+                    step = 1;
+                },
                 onFinish: () => {
                     submitting = false;
                 },
@@ -272,9 +327,8 @@
     function onKeydown(e: KeyboardEvent) {
         if (!open || step !== 1) return;
         if (e.key === 'Enter') {
-            if (shortfall > 0 && canProceed) return (step = 2);
-            if (canSave) return submit();
-            return;
+            if (shortfall > 0) return next();
+            return submit();
         }
         if (/^[0-9]$/.test(e.key)) return press(e.key);
         if (e.key === '.') return press('.');
@@ -387,7 +441,14 @@
 
         <!-- الفئات -->
         {#if mode === 'expense'}
-            <div class="grid grid-cols-4 gap-1.5">
+            <div
+                class="grid grid-cols-4 gap-1.5 {categoryError
+                    ? 'rounded-2xl outline-2 outline-offset-4 outline-destructive'
+                    : ''}"
+                role="group"
+                aria-label="فئة المصروف"
+                aria-invalid={categoryError}
+            >
                 {#each categories as c (c.id)}
                     <button
                         type="button"
@@ -405,6 +466,27 @@
                     </button>
                 {/each}
             </div>
+
+            {#if categoryError}
+                <p
+                    class="-mt-1 flex items-start gap-2 text-[11.5px] font-semibold text-destructive"
+                    role="alert"
+                >
+                    <TriangleAlert class="mt-px size-4 shrink-0" />
+                    اختر فئة للمصروف — أو «أخرى» إن ما كانت من الفئات.
+                </p>
+            {/if}
+        {/if}
+
+        <!-- خطأ ردّه الخادم -->
+        {#if serverError}
+            <p
+                class="flex items-start gap-2 rounded-2xl border border-destructive/35 bg-destructive/8 px-3 py-2 text-[11.5px] font-medium text-destructive"
+                role="alert"
+            >
+                <TriangleAlert class="mt-px size-4 shrink-0" />
+                {serverError}
+            </p>
         {/if}
 
         <!-- الوصف -->
@@ -523,8 +605,8 @@
         {:else if shortfall > 0}
             <button
                 type="button"
-                disabled={!canProceed}
-                onclick={() => (step = 2)}
+                disabled={!canProceed && !onlyCategoryMissing}
+                onclick={next}
                 class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-[14.5px] font-semibold text-primary-foreground transition-transform active:scale-[.99] disabled:bg-input disabled:text-muted-foreground"
             >
                 التالي
@@ -539,9 +621,13 @@
                 <Ellipsis class="size-[18px]" stroke-width="1.9" />
             </button>
         {:else}
+            <!--
+                الزر يبقى قابلاً للضغط حين تنقص الفئة: زر ميت بلا تفسير هو
+                نفسه الصمت الذي نصلحه هنا.
+            -->
             <button
                 type="button"
-                disabled={!canSave}
+                disabled={!canSave && !onlyCategoryMissing}
                 onclick={submit}
                 class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl text-[14.5px] font-semibold transition-transform active:scale-[.99] {mustConfirm
                     ? 'bg-destructive text-white'

@@ -14,6 +14,13 @@ export type PaymentMethod = 'auto' | 'manual';
  */
 export type DueType = 'salary_day' | 'month_day';
 
+/**
+ * ليس كل التزام شهرياً.
+ *   monthly → ظهور في كل فترة راتب من تاريخ الإنشاء (وحتى `ends_on` إن وُجد)
+ *   once    → ظهور واحد في الفترة التي يقع فيها `due_on` — اشتراك شهر ثم يُلغى
+ */
+export type Recurrence = 'monthly' | 'once';
+
 /** تنبيه واحد لا أكثر — تعدّد التنبيهات لنفس الالتزام إزعاج لا فائدة. */
 export type NotifyWhen = 'before_3' | 'on_due' | 'none';
 
@@ -42,6 +49,13 @@ export interface Commitment {
     /** يوم الشهر — `null` حين يتبع الاستحقاق يوم الراتب */
     due_day: number | null;
     notify_when: NotifyWhen;
+    recurrence: Recurrence;
+    /** تاريخ الاستحقاق الوحيد لغير المتكرّر — ISO */
+    due_on: string | null;
+    /** أُوقف المتكرّر من هذا التاريخ — لا ظهور بعده، والسابق يبقى. ISO */
+    ends_on: string | null;
+    /** متكرّر أُوقف ومضى تاريخ إيقافه */
+    is_stopped: boolean;
     /** التاريخ المحسوب لاستحقاق هذا الظهور — ISO */
     due_date: string;
     reserve_in_budget: boolean;
@@ -115,7 +129,9 @@ export function stateOf(c: Commitment): CommitmentState {
  * الحالة تبقى `upcoming`؛ هذا لون الحدّ فقط.
  */
 export function isDueSoon(c: Commitment): boolean {
-    return c.status === 'upcoming' && daysUntil(c.due_date) <= 3;
+    return (
+        !c.is_stopped && c.status === 'upcoming' && daysUntil(c.due_date) <= 3
+    );
 }
 
 /**
@@ -145,6 +161,10 @@ export function totalsOf(list: Commitment[]): CommitmentTotals {
     let overdueCount = 0;
 
     for (const c of list) {
+        // الموقوف لا ظهور له في هذه الفترة — لا يُحجز ولا يُعدّ متأخّراً،
+        // تماماً كما يستبعده `CommitmentService::obligationsForPeriod`.
+        if (c.is_stopped) continue;
+
         const amt = expectedAmount(c);
         if (c.is_paid_this_month) {
             paid += c.amount ?? amt;

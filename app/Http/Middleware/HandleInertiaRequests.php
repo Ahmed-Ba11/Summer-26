@@ -172,7 +172,8 @@ class HandleInertiaRequests extends Middleware
                 );
                 $unpaid = array_values(array_filter(
                     $commitments,
-                    fn (array $c): bool => ! $c['is_paid_this_month'],
+                    // الموقوف ما عاد يُطالَب بشيء — لا يُعرض للسداد السريع.
+                    fn (array $c): bool => ! $c['is_paid_this_month'] && ! $c['is_stopped'],
                 ));
                 usort($unpaid, fn (array $a, array $b): int => strcmp($a['due_date'], $b['due_date']));
 
