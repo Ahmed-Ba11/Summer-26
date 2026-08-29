@@ -282,13 +282,16 @@ class DashboardController extends Controller
     }
 
     /**
-     * شبكة فترة الراتب الحالية — للتقويم المصغّر في اللوحة.
+     * أيام فترة الراتب الحالية واستحقاقاتها — لشريط الأيام في اللوحة.
      *
-     * يختلف عن {@see calendarEvents()} في أمرين مقصودين:
-     *  1. الفترة **كاملة** لا أفق أربعة عشر يوماً — الشبكة ترسم الفترة كلّها،
-     *     فيوم استحقاق بعد ثلاثة أسابيع خانةٌ في الشبكة لا حدث يُطوى.
+     * يختلف عن {@see calendarEvents()} في ثلاثة أمور مقصودة:
+     *  1. الفترة **كاملة** لا أفق أربعة عشر يوماً — الشريط يمسح الفترة كلّها
+     *     ويقف عند اليوم، فاستحقاق بعد ثلاثة أسابيع يومٌ في الشريط لا حدث
+     *     يُطوى.
      *  2. المسدَّد **يُعلَّم ولا يُحذف** — «دفعتُه» معلومة يريدها المستخدم في
-     *     الشبكة، وحذفها يجعل يوم الاستحقاق يبدو فارغاً.
+     *     يوم الاستحقاق، وحذفها يجعل اليوم يبدو فارغاً.
+     *  3. لكل ظهور معرّفه وحالته ومسار تعديله — لأن لوح اليوم يسدّد ويعدّل
+     *     من مكانه بلا انتقال إلى صفحة أخرى.
      *
      * الظهورات من المولّد الموحّد نفسه، فلا تتناقض مع صفحة الالتزامات.
      *
@@ -297,6 +300,7 @@ class DashboardController extends Controller
     private function periodCalendar(User $user): array
     {
         $service = CommitmentService::for($user);
+        $salaryMonth = SalaryMonthService::for($user);
         $period = $service->currentPeriod();
         $start = $period['salaryDate'];
         $end = $period['nextSalary']->subDay();
@@ -305,30 +309,49 @@ class DashboardController extends Controller
         foreach ($user->commitments()->active()->get() as $commitment) {
             foreach ($service->occurrences($commitment, [$period]) as $occurrence) {
                 $events[] = [
+                    'id' => $commitment->id,
                     'date' => $occurrence['due_date'],
                     'kind' => $commitment->kind,
                     'label' => $commitment->name,
                     'amount' => $occurrence['amount'],
                     'status' => $occurrence['status'],
+                    'isPaid' => $occurrence['is_paid'],
+                    'canPay' => ! $occurrence['is_paid'],
+                    // الشهر الذي يخصّه السداد — لا شهر التقويم
+                    'periodLabel' => $salaryMonth->labelFor($occurrence['period_key']),
+                    'editUrl' => '/commitments?edit='.$commitment->id,
                 ];
             }
         }
 
         /*
-         * يوم الراتب المعلَّم هو **أول أيام الفترة** لا الراتب القادم:
-         * الراتب القادم يقع خارج الشبكة أصلاً (أول أيام الفترة التالية)،
-         * فتعليمه لا يُرسم شيئاً. وأول الفترة معلومة يحتاجها المستخدم لأن
-         * شهره لا يبدأ يوم 1، فالعلامة تقول «من هنا بدأ هذا الراتب».
+         * الراتب حدث في أول أيام الفترة لا في آخرها: الفترة تبدأ يوم نزوله
+         * بالتعريف، والراتب القادم أول أيام الفترة **التالية** فيقع خارج
+         * الشريط. وعرضه باسمه في أول خانة يقول للمستخدم من أين بدأ شهره —
+         * وشهره لا يبدأ يوم 1.
          */
         $salaryAmount = (int) $user->incomes()->where('is_recurring', true)->sum('amount');
+
+        if ($salaryAmount > 0) {
+            $events[] = [
+                'id' => null,
+                'date' => $start->format('Y-m-d'),
+                'kind' => 'salary',
+                'label' => 'الراتب',
+                'amount' => $salaryAmount,
+                'status' => 'paid',
+                'isPaid' => true,
+                'canPay' => false,
+                'periodLabel' => $period['label'],
+                'editUrl' => null,
+            ];
+        }
 
         usort($events, fn (array $a, array $b): int => strcmp($a['date'], $b['date']));
 
         return [
             'start' => $start->format('Y-m-d'),
             'end' => $end->format('Y-m-d'),
-            'salaryDate' => $salaryAmount > 0 ? $start->format('Y-m-d') : null,
-            'salaryAmount' => $salaryAmount,
             'label' => $period['label'],
             'range' => $period['range'],
             'events' => $events,

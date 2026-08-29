@@ -32,12 +32,12 @@ import Vault from 'lucide-svelte/icons/vault';
     import AppHead from '@/components/AppHead.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
-    import PeriodMiniCalendar from '@/components/PeriodMiniCalendar.svelte';
     import SalaryCloseSheet from '@/components/SalaryCloseSheet.svelte';
     import MoneyStoryCard from '@/components/MoneyStoryCard.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
     import StatTile from '@/components/StatTile.svelte';
     import Button from '@/components/ui/button/Button.svelte';
+    import UpcomingStrip from '@/components/UpcomingStrip.svelte';
     import { formatAmount, formatDate, formatPercent } from '@/lib/format';
 
     interface Stats {
@@ -55,22 +55,26 @@ import Vault from 'lucide-svelte/icons/vault';
         savingsTarget: number;
     }
 
-    interface CalEvent {
+    interface DueEvent {
+        id: number | null;
         date: string;
         kind: 'salary' | 'bill' | 'rent' | 'installment' | 'subscription' | 'savings';
         label: string;
         amount: number;
+        status?: 'paid' | 'overdue' | 'upcoming';
+        isPaid?: boolean;
+        canPay?: boolean;
+        periodLabel?: string;
+        editUrl?: string | null;
     }
 
-    /** شبكة فترة الراتب الحالية — مصدر التقويم المصغّر. */
+    /** أيام فترة الراتب الحالية واستحقاقاتها — مصدر شريط التقويم. */
     interface PeriodCalendar {
         start: string;
         end: string;
-        salaryDate: string | null;
-        salaryAmount: number;
         label: string;
         range: string;
-        events: (CalEvent & { status?: 'paid' | 'overdue' | 'upcoming' })[];
+        events: DueEvent[];
     }
 
     /** شهر الراتب المعروض — يبدأ يوم نزول الراتب لا يوم 1. */
@@ -159,12 +163,19 @@ import Vault from 'lucide-svelte/icons/vault';
     );
 
     /**
-     * التحية — الاسم هو البطل بصرياً لا كلمة «أهلًا».
+     * التحية — الاسم الأول وحده، وهو البطل بصرياً لا كلمة «أهلًا».
      *
-     * التحية كلمة واحدة تتكرّر كل يوم، والاسم هو ما يجعل اللوحة لوحةَ
-     * صاحبها. لذلك الاسم بخط العرض (ثمانية) وبضعف حجم التحية.
+     * التحية كلمة تتكرّر كل يوم، والاسم هو ما يجعل اللوحة لوحةَ صاحبها.
+     * لذلك الاسم بخط العرض (ثمانية) وبضعف حجم التحية.
+     *
+     * والأول وحده لا الاسم الرباعي: «أهلًا محمد عبدالله سعد القحطاني»
+     * يلتفّ سطرين ويقرأ كترويسة مستند رسمي لا كتحية. والاسم يُعرض كما
+     * سجّله صاحبه — الإنجليزي إنجليزياً بلا ترجمة، و`dir="auto"` يتكفّل
+     * باتّجاهه داخل سطر عربي.
      */
-    const userName = $derived(page.props.auth?.user?.name ?? '');
+    const firstName = $derived(
+        (page.props.auth?.user?.name ?? '').trim().split(/\s+/)[0] ?? '',
+    );
 
     let monthOpen = $state(false);
 
@@ -185,12 +196,15 @@ import Vault from 'lucide-svelte/icons/vault';
     <!-- رأس الصفحة — التحية ثم الاسم -->
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div class="min-w-0">
-            <p class="text-[12px] leading-none text-muted-foreground">أهلًا</p>
-            <h1
-                class="mt-1.5 truncate text-[27px] leading-none font-bold tracking-tight md:text-[33px]"
-                style="font-family: var(--font-display)"
-            >
-                {userName}
+            <h1 class="flex min-w-0 items-baseline gap-2">
+                <span class="shrink-0 text-[14px] text-muted-foreground">أهلًا</span>
+                <span
+                    dir="auto"
+                    class="min-w-0 truncate text-[26px] leading-none font-bold tracking-tight md:text-[31px]"
+                    style="font-family: var(--font-display)"
+                >
+                    {firstName}
+                </span>
             </h1>
             <p class="mt-1.5 hidden text-[13px] text-muted-foreground md:block">
                 {pageTitle} · {periodLine}
@@ -261,8 +275,8 @@ import Vault from 'lucide-svelte/icons/vault';
             avgDaily={stats.avgDaily}
         />
 
-        <!-- ٢ · التقويم المصغّر — شبكة أيام الفترة، لا قائمة أحداث -->
-        <PeriodMiniCalendar data={periodCalendar} />
+        <!-- ٢ · شريط الأيام — الاسم تحت الرقم، والضغط يفتح لوح اليوم -->
+        <UpcomingStrip data={periodCalendar} />
 
         <!-- ٣ · بطاقات مختصرة -->
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\CommitmentPayment;
 use App\Models\User;
 use App\Services\CommitmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -282,6 +281,92 @@ class CommitmentsTest extends TestCase
                 ->where('calendarEvents.0.kind', 'bill')
                 ->where('calendarEvents.0.label', 'فاتورة الشهر')
                 ->where('calendarEvents.0.amount', 15_000));
+    }
+
+    public function test_dashboard_strip_carries_the_whole_period_with_actionable_occurrences(): void
+    {
+        // يوم 12 داخل فترة راتب أغسطس (27 أغسطس ← 26 سبتمبر) لكنه خارج
+        // أفق الأربعة عشر يوماً — الشريط يمسح الفترة كاملة فيلتقطه.
+        $this->travelTo('2026-08-28');
+        $user = $this->userWithIncome();
+        $commitment = $user->commitments()->create([
+            'kind' => 'bill',
+            'name' => 'فاتورة الكهرباء',
+            'amount' => 15_000,
+            'payment_method' => 'manual',
+            'due_type' => 'month_day',
+            'due_day' => 12,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('periodCalendar.start', '2026-08-27')
+                ->where('periodCalendar.end', '2026-09-26')
+                ->has('periodCalendar.events', 1)
+                ->where('periodCalendar.events.0.kind', 'bill')
+                ->where('periodCalendar.events.0.date', '2026-09-12')
+                ->where('periodCalendar.events.0.label', 'فاتورة الكهرباء')
+                ->where('periodCalendar.events.0.amount', 15_000)
+                // ما يحتاجه لوح اليوم ليسدّد ويعدّل بلا انتقال إلى صفحة
+                ->where('periodCalendar.events.0.id', $commitment->id)
+                ->where('periodCalendar.events.0.canPay', true)
+                ->where('periodCalendar.events.0.isPaid', false)
+                ->where('periodCalendar.events.0.periodLabel', 'راتب أغسطس')
+                ->where('periodCalendar.events.0.editUrl', '/commitments?edit='.$commitment->id)
+                // أفق الأربعة عشر يوماً لا يبلغ يوم 12 — والشريط يبلغه
+                ->has('calendarEvents', 0));
+    }
+
+    public function test_dashboard_strip_opens_the_period_with_the_salary_day(): void
+    {
+        $this->travelTo('2026-08-28');
+        $user = User::factory()->create(['salary_day' => 27]);
+        $user->incomes()->create([
+            'amount' => 100_000,
+            'source' => 'راتب',
+            'income_date' => '2026-08-27',
+            'is_recurring' => true,
+        ]);
+
+        // الراتب حدثٌ في أول أيام الفترة لا في آخرها: الراتب القادم أول
+        // أيام الفترة التالية فيقع خارج الشريط أصلاً.
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('periodCalendar.events.0.kind', 'salary')
+                ->where('periodCalendar.events.0.date', '2026-08-27')
+                ->where('periodCalendar.events.0.label', 'الراتب')
+                ->where('periodCalendar.events.0.amount', 100_000)
+                ->where('periodCalendar.events.0.canPay', false));
+    }
+
+    public function test_dashboard_strip_marks_a_paid_occurrence_instead_of_dropping_it(): void
+    {
+        $this->travelTo('2026-09-01');
+        $user = $this->userWithIncome();
+        $commitment = $user->commitments()->create([
+            'kind' => 'bill',
+            'name' => 'نت',
+            'amount' => 15_000,
+            'payment_method' => 'manual',
+            'due_type' => 'month_day',
+            'due_day' => 12,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user)->post(route('commitments.pay', $commitment), ['amount' => 15_000]);
+
+        // المسدَّد يبقى في الشريط معلَّماً — حذفه يجعل يوم الاستحقاق فارغاً
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('periodCalendar.events.0.label', 'نت')
+                ->where('periodCalendar.events.0.isPaid', true)
+                ->where('periodCalendar.events.0.canPay', false)
+                // أفق الأربعة عشر يوماً يستبعد المسدَّد، والشريط يُبقيه
+                ->has('calendarEvents', 0));
     }
 
     public function test_archive_hides_commitment_from_index(): void
