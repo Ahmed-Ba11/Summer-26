@@ -112,7 +112,7 @@
             class="inline-flex min-h-11 w-fit items-center gap-2.5 text-[13px] text-foreground/85"
         >
             <Checkbox id="remember" name="remember" />
-            <span>خلّني مسجّل دخول</span>
+            <span>تذكّرني</span>
         </Label>
 
         <button

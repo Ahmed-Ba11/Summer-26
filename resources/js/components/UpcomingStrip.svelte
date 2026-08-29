@@ -101,11 +101,12 @@
     /**
      * الاسم المختصر — كلمة صادقة لا شظيّة مقصوصة.
      *
-     * الخانة 88px تسع نحو ثلاثة عشر حرفاً عند 11px. ما جاوزها يُختصر إلى
-     * كلمته الأولى («فاتورة الكهرباء» → «فاتورة»)، وما بقيت كلمته الأولى
-     * أطول من الخانة يسقط إلى اسم نوعه. «الـ…» ليست اسماً.
+     * الخانة صارت 64px كخانة التقويم، ومحتواها 52px بعد الحشوة، فتسع نحو
+     * تسعة أحرف عند 11px. ما جاوزها يُختصر إلى كلمته الأولى («فاتورة
+     * الكهرباء» → «فاتورة»)، وما بقيت كلمته الأولى أطول يسقط إلى اسم
+     * نوعه — وكل أسماء الأنواع ستة أحرف فأقل. «الـ…» ليست اسماً.
      */
-    const MAX_CHARS = 13;
+    const MAX_CHARS = 9;
 
     function shortLabel(event: DueEvent): string {
         const name = event.label.trim();
@@ -279,9 +280,16 @@
         </header>
 
         <div class="px-4 pt-2.5 pb-3 md:px-5">
+            <!--
+                المقاسات منسوخة حرفياً من خانة اليوم في /calendar — نفس
+                الارتفاع ونصف القطر والحشوة وأحجام الخط والفجوات، والعرض
+                يساوي الارتفاع فتصير الخانة مربّعة كخانة الشبكة. خانتان
+                لمعنى واحد في شاشتين يجب أن تتطابقا، وإلا قرأهما المستخدم
+                عنصرين مختلفين.
+            -->
             <div
                 bind:this={strip}
-                class="flex gap-1.5 overflow-x-auto pb-1.5"
+                class="flex gap-1 overflow-x-auto pb-1.5 md:gap-2"
                 role="group"
                 aria-label="أيام {data.label}"
             >
@@ -296,23 +304,24 @@
                         onclick={() => selectDay(day.date)}
                         aria-label="{day.weekday} {day.day} — {day.events
                             .length} استحقاق"
-                        class="min-h-11 w-[88px] shrink-0 rounded-[12px] border px-1.5 py-2 text-center transition-colors {day.isToday
+                        class="relative flex min-h-16 w-16 shrink-0 flex-col items-start gap-1 overflow-hidden rounded-xl border p-1.5 text-start transition-colors md:min-h-24 md:w-24 md:p-2 {day.isToday
                             ? 'border-primary bg-accent ring-2 ring-primary/20'
                             : day.isPast
-                              ? 'border-border/60 bg-secondary/30'
-                              : 'border-border bg-secondary hover:border-input'}"
+                              ? 'border-border bg-secondary/50'
+                              : 'border-border bg-card hover:border-input'}"
                     >
                         <span
-                            class="block text-[11px] {day.isPast && !day.isToday
-                                ? 'text-foreground/45'
+                            class="text-[11px] leading-none {day.isPast &&
+                            !day.isToday
+                                ? 'text-foreground/55'
                                 : 'text-muted-foreground'}"
                         >
                             {day.weekday}
                         </span>
                         <span
-                            class="block text-[15px] font-semibold tabular-nums {day.isPast &&
+                            class="text-[11.5px] font-semibold tabular-nums md:text-[13px] {day.isPast &&
                             !day.isToday
-                                ? 'text-foreground/55'
+                                ? 'text-foreground/65'
                                 : ''}"
                         >
                             {day.day}
@@ -324,27 +333,30 @@
                         -->
                         {#if first}
                             <span
-                                class="mt-1 flex items-center justify-center gap-1"
+                                class="text-[11px] leading-tight font-medium whitespace-nowrap"
+                                style="color: {KIND[first.kind].color}"
                             >
-                                {#if overdue}
-                                    <TriangleAlert
-                                        class="size-3 shrink-0 text-destructive"
-                                    />
-                                {/if}
-                                <span
-                                    class="block text-[11px] leading-tight font-medium whitespace-nowrap"
-                                    style="color: {KIND[first.kind].color}"
-                                >
-                                    {shortLabel(first)}
-                                </span>
+                                {shortLabel(first)}
                             </span>
                             {#if day.events.length > 1}
                                 <span
-                                    class="block text-[11px] text-muted-foreground tabular-nums"
+                                    class="text-[11px] text-muted-foreground tabular-nums"
                                 >
                                     +{day.events.length - 1}
                                 </span>
                             {/if}
+                        {/if}
+
+                        <!--
+                            المثلّث في ركن الخانة كما في /calendar، لا في سطر
+                            الاسم: السطر عرضه 52px، والمثلّث فيه يقتطع ثلث
+                            الاسم فيعود مقصوصاً.
+                        -->
+                        {#if overdue}
+                            <TriangleAlert
+                                class="pointer-events-none absolute top-1 size-3 text-destructive md:size-3.5"
+                                style="inset-inline-end: 4px"
+                            />
                         {/if}
                     </button>
                 {/each}

@@ -163,19 +163,22 @@ import Vault from 'lucide-svelte/icons/vault';
     );
 
     /**
-     * التحية — الاسم الأول وحده، وهو البطل بصرياً لا كلمة «أهلًا».
+     * التحية — جملة واحدة لا عنصران.
      *
-     * التحية كلمة تتكرّر كل يوم، والاسم هو ما يجعل اللوحة لوحةَ صاحبها.
-     * لذلك الاسم بخط العرض (ثمانية) وبضعف حجم التحية.
+     * كانت «أهلًا» رمادية صغيرة والاسم أسود عريضاً كبيراً، فقرآ كقطعتين
+     * التقتا مصادفةً لا كجملة. التحية جملة، وكلماتها تتساوى في الخط
+     * والحجم واللون والوزن — فلا تمييز للاسم بأيٍّ منها.
      *
      * والأول وحده لا الاسم الرباعي: «أهلًا محمد عبدالله سعد القحطاني»
-     * يلتفّ سطرين ويقرأ كترويسة مستند رسمي لا كتحية. والاسم يُعرض كما
-     * سجّله صاحبه — الإنجليزي إنجليزياً بلا ترجمة، و`dir="auto"` يتكفّل
-     * باتّجاهه داخل سطر عربي.
+     * يلتفّ سطرين ويقرأ كترويسة مستند رسمي. والاسم يُعرض كما سجّله
+     * صاحبه — الإنجليزي إنجليزياً بلا ترجمة، والنصّ الواحد يجعل محرّك
+     * الاتجاه ثنائيَّ الاتجاه يرتّبه داخل السطر العربي من تلقائه.
      */
     const firstName = $derived(
         (page.props.auth?.user?.name ?? '').trim().split(/\s+/)[0] ?? '',
     );
+
+    const greeting = $derived(firstName ? `أهلًا ${firstName}` : 'أهلًا');
 
     let monthOpen = $state(false);
 
@@ -196,15 +199,11 @@ import Vault from 'lucide-svelte/icons/vault';
     <!-- رأس الصفحة — التحية ثم الاسم -->
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div class="min-w-0">
-            <h1 class="flex min-w-0 items-baseline gap-2">
-                <span class="shrink-0 text-[14px] text-muted-foreground">أهلًا</span>
-                <span
-                    dir="auto"
-                    class="min-w-0 truncate text-[26px] leading-none font-bold tracking-tight md:text-[31px]"
-                    style="font-family: var(--font-display)"
-                >
-                    {firstName}
-                </span>
+            <h1
+                class="truncate text-[26px] leading-tight font-bold tracking-tight md:text-[31px]"
+                style="font-family: var(--font-display)"
+            >
+                {greeting}
             </h1>
             <p class="mt-1.5 hidden text-[13px] text-muted-foreground md:block">
                 {pageTitle} · {periodLine}
