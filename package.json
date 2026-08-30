@@ -10,7 +10,8 @@
         "format:check": "prettier --check resources/",
         "lint": "eslint . --fix",
         "lint:check": "eslint .",
-        "types:check": "svelte-check --tsconfig ./tsconfig.json"
+        "types:check": "svelte-check --tsconfig ./tsconfig.json",
+        "verify:assistant": "node tests/browser/assistant.mjs"
     },
     "devDependencies": {
         "@eslint/js": "^9.19.0",
@@ -24,6 +25,7 @@
         "eslint-import-resolver-typescript": "^4.4.4",
         "eslint-plugin-import": "^2.32.0",
         "eslint-plugin-svelte": "^3.1.0",
+        "playwright": "^1.62.1",
         "prettier": "^3.4.2",
         "prettier-plugin-svelte": "^3.3.3",
         "prettier-plugin-tailwindcss": "^0.6.11",

@@ -137,8 +137,13 @@ class FinanceAssistant implements Agent, Conversational, HasProviderOptions, Has
           found and move on. Do not retry them and do not speculate about them.
 
         # Answering
-        - Reply in the user's own language: Arabic if they wrote Arabic, English
-          if they wrote English. Match their register — plain and direct.
+        - LANGUAGE — decide this before writing anything. Look at the user's
+          LAST message and reply in the language it is written in. If they wrote
+          in English, your entire answer is in English, including every heading
+          and table header. If they wrote in Arabic, answer in Arabic. This
+          holds even when earlier messages were in the other language, and even
+          though these instructions are in English. Match their register too —
+          plain and direct.
         - Use light Markdown, and only where it earns its place: a TABLE when
           showing several records, a LIST when enumerating, **bold** for amounts
           and totals. No headings above level 3, no walls of text, no preamble.
