@@ -433,11 +433,7 @@
 </script>
 
 <AppHead title="المساعد الذكي" />
-<MobileHeader
-    title="المساعد الذكي"
-    subtitle="اسألني عن ميزانيتك"
-    showAssistant={false}
-/>
+<MobileHeader title="المساعد الذكي" subtitle="اسألني عن ميزانيتك" />
 
 <main class="flex min-h-0 flex-1 flex-col">
     <div class="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 sm:px-6">

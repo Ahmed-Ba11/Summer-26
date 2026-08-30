@@ -1,6 +1,7 @@
 <script lang="ts">
     import { page } from '@inertiajs/svelte';
     import type { Snippet } from 'svelte';
+    import AiFab from '@/components/AiFab.svelte';
     import AppContent from '@/components/AppContent.svelte';
     import AppNav from '@/components/AppNav.svelte';
     import AppShell from '@/components/AppShell.svelte';
@@ -29,6 +30,8 @@
     } = $props();
 
     const navStats = $derived(page.props.navStats as NavStats);
+    // المدخل الوحيد العائم إلى المساعد — في كل صفحة إلا صفحته نفسها.
+    const showAiFab = $derived(!(page.url ?? '').startsWith('/assistant'));
     let expanded = $state(page.props.railExpanded === true);
     /** لوح الأربعة إجراءات */
     let quickMenuOpen = $state(false);
@@ -63,5 +66,8 @@
         bind:sheetOpen={quickAddOpen}
         bind:sheetMode={quickAddMode}
     />
+    {#if showAiFab}
+        <AiFab />
+    {/if}
     <Toaster position="top-center" />
 </AppShell>

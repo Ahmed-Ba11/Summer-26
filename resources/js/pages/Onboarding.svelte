@@ -355,7 +355,7 @@
 </script>
 
 <AppHead title="إعداد ميزانيتك" />
-<MobileHeader title="إعداد ميزانيتك" subtitle="ثلاث خطوات بسيطة لترتيب ميزانيتك" showAssistant={false} />
+<MobileHeader title="إعداد ميزانيتك" subtitle="ثلاث خطوات بسيطة لترتيب ميزانيتك" />
 
 <main class="min-h-screen bg-background px-4 py-8 sm:px-6 sm:py-12">
     <section class="mx-auto flex w-full max-w-2xl flex-col gap-6">

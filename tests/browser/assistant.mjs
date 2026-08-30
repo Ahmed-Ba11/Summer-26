@@ -271,6 +271,14 @@ try {
     check('مدخل المساعد ظاهر في الشريط الجانبي', (await sidebarEntry.count()) > 0 && (await sidebarEntry.first().isVisible()));
     check('بطاقة المساعد ظاهرة في الداشبورد', (await dashboardEntry.count()) > 0);
 
+    // الزرّ العائم — المدخل الوحيد الموحَّد، مُركَّب عالمياً في AppSidebarLayout
+    const aiFab = page.locator('[data-test="ai-fab"]');
+    check('الزرّ العائم AiFab ظاهر على الداشبورد', (await aiFab.count()) === 1 && (await aiFab.isVisible()));
+    check('aria-label ثابت «المساعد الذكي»', (await aiFab.getAttribute('aria-label')) === 'المساعد الذكي');
+
+    const fabZIndex = await aiFab.evaluate((el) => Number(getComputedStyle(el).zIndex));
+    check('z-index بين شريط التنقّل السفلي (55) وقاعدة الألواح (60)', fabZIndex > 55 && fabZIndex < 60, `z-index: ${fabZIndex}`);
+
     await page.screenshot({ path: join(SHOTS, '1-dashboard-desktop.png'), fullPage: false });
 
     await dismissOverlays(page);
@@ -294,6 +302,7 @@ try {
 
     const bodyOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     check('لا تمرير أفقي في الصفحة', bodyOverflow <= 1, `${bodyOverflow}px`);
+    check('AiFab لا يظهر في صفحة المساعد نفسها', (await page.locator('[data-test="ai-fab"]').count()) === 0);
 
     await page.screenshot({ path: join(SHOTS, '2-assistant-empty.png') });
 
@@ -530,13 +539,55 @@ try {
     });
     mobilePage.on('pageerror', (e) => mobileProblems.push(`pageerror: ${e.message}`));
 
+    // ══════════════════════════════════════════════════════════════
+    //  توقيت التمدّد/الانكماش: يُقاس من لحظة ظهور AiFab في الـDOM، لا من
+    //  لحظة الملاحة. `dismissOverlays` وحدها قد تستهلك ٦٠٠ملل+ بمهلة
+    //  متغيّرة، فأيّ نقطة مرجعية قبلها تُفسد حساب "بعد كم مللي نقيس".
+    // ══════════════════════════════════════════════════════════════
+    const navStart = Date.now();
     await mobilePage.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
+    await mobilePage.waitForSelector('[data-test="ai-fab"]', { timeout: 10_000 });
+    console.log(`   AiFab ظهر في الـDOM بعد ${Date.now() - navStart}ms من الملاحة`);
+
+    // الأيقونة في رأس الجوال أُزيلت — المدخل الوحيد على الجوال الآن AiFab
+    // العالمي، بجانب بند «المزيد» القائم.
+    const aiFabMobile = mobilePage.locator('[data-test="ai-fab"]');
+    check('الزرّ العائم AiFab ظاهر على الجوال', (await aiFabMobile.count()) === 1 && (await aiFabMobile.isVisible()));
+
+    // مدّة التمدّد الكاملة ~١٢٥٠-٣٨٠٠مللي بعد الملاحة (رُصد فعلياً بقياس
+    // مباشر)؛ هوامش سخية هنا تمتصّ فروق سرعة الآلة.
+    await sleep(1200);
+
+    const expandedBox = await aiFabMobile.boundingBox();
+    check('AiFab يتمدّد تلقائياً بعد التحميل', (expandedBox?.width ?? 0) > 60, `العرض: ${expandedBox?.width ?? '—'}px`);
+
+    await sleep(3200);
+
+    const collapsedBox = await aiFabMobile.boundingBox();
+    check('AiFab ينكمش تلقائياً بعد ٣ ثوانٍ', (collapsedBox?.width ?? 999) <= 42, `العرض: ${collapsedBox?.width ?? '—'}px`);
+
+    // الآن — بعد أن انتهى التوقيت الحسّاس — أغلق أي لوح ظهر أثناء الانتظار
     await dismissOverlays(mobilePage);
 
-    const headerEntry = mobilePage.locator('header a[href$="/assistant"]');
-    check('مدخل المساعد ظاهر في رأس الجوال', (await headerEntry.count()) > 0 && (await headerEntry.first().isVisible()));
+    // ── الطبقة: يجب أن يحجبه لوح مفتوح (z-index أقلّ من SheetShell) ──
+    const topElementIsFab = async (x, y) =>
+        mobilePage.evaluate(([px, py]) => document.elementFromPoint(px, py)?.closest('[data-test="ai-fab"]') !== null, [x, y]);
 
+    const fabBox = await aiFabMobile.boundingBox();
+    const fabCenter = { x: fabBox.x + fabBox.width / 2, y: fabBox.y + fabBox.height / 2 };
+
+    check('AiFab قابل للنقر بلا لوح مفتوح', await topElementIsFab(fabCenter.x, fabCenter.y));
+
+    // الزرّ السفلي المرئي وحده — نظيره في QuickAddFab (`md:grid`) موجود في
+    // الـDOM بنفس التسمية لكنه مخفيّ على الجوال، فيلزم :visible للتفريق.
+    await mobilePage.locator('button[aria-label^="إضافة سريعة"]:visible').click();
+    await sleep(400);
+    check('لوح مفتوح يحجب AiFab (z-index أقلّ من الألواح)', !(await topElementIsFab(fabCenter.x, fabCenter.y)));
+
+    await mobilePage.keyboard.press('Escape');
+    await sleep(300);
     await dismissOverlays(mobilePage);
+
     await mobilePage.locator('button:has-text("المزيد")').click();
     await sleep(350);
     const sheetEntry = mobilePage.locator('a[href$="/assistant"]:visible');
@@ -549,6 +600,7 @@ try {
     await mobilePage.waitForSelector('[role="log"]');
 
     check('النقر من الجوال ينقل إلى المساعد', mobilePage.url().endsWith('/assistant'));
+    check('AiFab لا يظهر في صفحة المساعد على الجوال', (await mobilePage.locator('[data-test="ai-fab"]').count()) === 0);
 
     const mobileOverflow = await mobilePage.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     check('لا تمرير أفقي على الجوال', mobileOverflow <= 1, `${mobileOverflow}px`);

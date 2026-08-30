@@ -2,25 +2,21 @@
     /**
      * رأس الشاشة على الجوال — يظهر تحت 768px فقط.
      *
-     * يحمل عنوان الصفحة وسطر سياق قصير، وزر المساعد الذكي على اليسار.
-     * المساعد هنا لا في الشريط السفلي: يبقى في متناول اليد دائماً بلا
-     * ما يستهلك خانة من الخانات الأربع النادرة.
+     * يحمل عنوان الصفحة وسطر سياق قصير. مدخل المساعد الذكي انتقل إلى
+     * `AiFab` (زرّ عائم واحد في كل الصفحات) — لا أثر له هنا.
      *
      * لاصق في الأعلى (sticky) فيبقى العنوان ظاهراً أثناء التمرير.
      */
     import { Link } from '@inertiajs/svelte';
     import ChartNoAxesColumn from 'lucide-svelte/icons/chart-no-axes-column';
-    import AiAssistantIcon from '@/components/icons/AiAssistantIcon.svelte';
     import ThemeToggle from '@/components/ThemeToggle.svelte';
 
     let {
         title,
         subtitle = '',
-        showAssistant = true,
     }: {
         title: string;
         subtitle?: string;
-        showAssistant?: boolean;
     } = $props();
 </script>
 
@@ -49,16 +45,5 @@
 
         <!-- اختصار المظهر — في رأس كل صفحة لا مدفوناً في الإعدادات -->
         <ThemeToggle />
-
-        {#if showAssistant}
-            <Link
-                href="/assistant"
-                aria-label="المساعد الذكي"
-                class="grid size-11 shrink-0 place-items-center rounded-xl text-white no-underline transition-transform active:scale-95"
-                style="background:linear-gradient(145deg,#2c4a6e,#1baf7a);box-shadow:0 3px 10px rgba(27,175,122,.26)"
-            >
-                <AiAssistantIcon class="size-[18px]" />
-            </Link>
-        {/if}
     </div>
 </header>
