@@ -71,16 +71,19 @@ class User extends Authenticatable implements PasskeyUser
         ];
     }
 
+    /** @return HasMany<Expense, User> */
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
     }
 
+    /** @return HasMany<Income, User> */
     public function incomes(): HasMany
     {
         return $this->hasMany(Income::class);
     }
 
+    /** @return HasMany<Category, User> */
     public function categories(): HasMany
     {
         return $this->hasMany(Category::class);
@@ -126,6 +129,7 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasMany(Bill::class);
     }
 
+    /** @return HasMany<Commitment, User> */
     public function commitments(): HasMany
     {
         return $this->hasMany(Commitment::class);

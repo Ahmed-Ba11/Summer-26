@@ -5,7 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property int $amount مبلغ بالهللات
+ * @property string $source
+ * @property string|null $description
+ * @property Carbon $income_date
+ * @property bool $is_recurring
+ * @property int|null $recurring_transaction_id
+ */
 class Income extends Model
 {
     use SoftDeletes;
@@ -30,11 +41,13 @@ class Income extends Model
         ];
     }
 
+    /** @return BelongsTo<User, Income> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<RecurringTransaction, Income> */
     public function recurringTransaction(): BelongsTo
     {
         return $this->belongsTo(RecurringTransaction::class);

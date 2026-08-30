@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AssistantController;
+use App\Http\Controllers\AssistantStreamController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CommitmentController;
 use App\Http\Controllers\DashboardController;
@@ -13,7 +14,6 @@ use App\Http\Requests\IncomeIndexRequest;
 use App\Models\Bill;
 use App\Models\Budget;
 use App\Models\Category;
-use App\Models\Commitment;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Installment;
@@ -26,6 +26,7 @@ use App\Services\RecurringTransactionService;
 use App\Services\SalaryMonthService;
 use App\Services\SavingsLedger;
 use App\Support\Money;
+use App\Support\TransactionRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -160,27 +161,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'expense_date' => $request->input('expense_date', $request->input('date')),
         ]);
 
-        $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|decimal:0,2',
-            'category_id' => [
-                'required',
-                Rule::exists(Category::class, 'id')->where('user_id', auth()->id()),
-            ],
-            'description' => 'nullable|string|max:500',
-            'expense_date' => 'required|date',
-            'is_recurring' => 'sometimes|boolean',
-            'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
-            'next_due_date' => 'nullable|date',
-            // المصروف المرتبط بالتزام يسدّده — يكتب صفّاً في commitment_payments
-            'commitment_id' => [
-                'nullable',
-                Rule::exists(Commitment::class, 'id')->where('user_id', auth()->id()),
-            ],
-            'funding_source' => 'nullable|in:savings,unlogged_income,overspend',
-            'savings_goal_id' => 'nullable|integer',
-            'income_amount' => 'nullable|integer|min:0',
-            'income_source' => 'nullable|string|max:255',
-        ]);
+        $validated = $request->validate(TransactionRules::expenseStore(auth()->id()));
 
         $user = $request->user();
         $amount = Money::toHalalas($validated['amount']);
@@ -247,18 +228,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             abort(403);
         }
 
-        $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|decimal:0,2',
-            'category_id' => [
-                'required',
-                Rule::exists(Category::class, 'id')->where('user_id', auth()->id()),
-            ],
-            'description' => 'nullable|string|max:500',
-            'expense_date' => 'required|date',
-            'is_recurring' => 'sometimes|boolean',
-            'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
-            'next_due_date' => 'nullable|date',
-        ]);
+        $validated = $request->validate(TransactionRules::expenseUpdate(auth()->id()));
 
         DB::transaction(function () use ($validated, $expense, $recurring): void {
             $expense->update([
@@ -363,15 +333,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('income');
 
     Route::post('/income', function (Request $request, RecurringTransactionService $recurring) {
-        $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|decimal:0,2',
-            'source' => 'required|string|max:500',
-            'description' => 'nullable|string|max:500',
-            'income_date' => 'required|date',
-            'is_recurring' => 'sometimes|boolean',
-            'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
-            'next_due_date' => 'nullable|date',
-        ]);
+        $validated = $request->validate(TransactionRules::incomeStore());
 
         $income = DB::transaction(function () use ($validated, $recurring): Income {
             $income = auth()->user()->incomes()->create([
@@ -408,15 +370,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         if ($income->user_id !== auth()->id()) {
             abort(403);
         }
-        $validated = $request->validate([
-            'amount' => 'required|numeric|min:0.01|decimal:0,2',
-            'source' => 'required|string|max:500',
-            'description' => 'nullable|string|max:500',
-            'income_date' => 'required|date',
-            'is_recurring' => 'sometimes|boolean',
-            'frequency' => 'nullable|in:daily,weekly,monthly,yearly',
-            'next_due_date' => 'nullable|date',
-        ]);
+        $validated = $request->validate(TransactionRules::incomeUpdate());
 
         DB::transaction(function () use ($validated, $income, $recurring): void {
             $income->update([
@@ -1000,8 +954,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Assistant
     Route::get('/assistant', AssistantController::class)->name('assistant');
-    Route::post('/assistant/chat', [AssistantController::class, 'chat'])
-        ->middleware('throttle:30,1')
-        ->name('assistant.chat');
+
+    // البث خارج معالجة Inertia: يرجّع text/event-stream لا استجابة Inertia.
+    // الحدّ الحقيقي (20/ساعة و100/يوم لكل مستخدم) داخل الـcontroller ليصل
+    // التجاوز كرسالة في الشات لا كصفحة 429 خام؛ و`throttle` هنا سقف خشن
+    // ضد الطلبات المتلاحقة وحدها.
+    Route::post('/assistant/stream', AssistantStreamController::class)
+        ->middleware('throttle:60,1')
+        ->name('assistant.stream');
 });
 require __DIR__.'/settings.php';

@@ -22,19 +22,20 @@
     import ArrowLeft from 'lucide-svelte/icons/arrow-left';
     import ChevronDown from 'lucide-svelte/icons/chevron-down';
     import Lock from 'lucide-svelte/icons/lock';
-import Vault from 'lucide-svelte/icons/vault';
     import ReceiptText from 'lucide-svelte/icons/receipt-text';
     import ShoppingCart from 'lucide-svelte/icons/shopping-cart';
     import Sparkles from 'lucide-svelte/icons/sparkles';
     import TrendingUp from 'lucide-svelte/icons/trending-up';
+    import Vault from 'lucide-svelte/icons/vault';
     import Wallet from 'lucide-svelte/icons/wallet';
 
     import AppHead from '@/components/AppHead.svelte';
     import CategoryIcon from '@/components/CategoryIcon.svelte';
     import EmptyState from '@/components/EmptyState.svelte';
-    import SalaryCloseSheet from '@/components/SalaryCloseSheet.svelte';
-    import MoneyStoryCard from '@/components/MoneyStoryCard.svelte';
+    import AiAssistantIcon from '@/components/icons/AiAssistantIcon.svelte';
     import MobileHeader from '@/components/MobileHeader.svelte';
+    import MoneyStoryCard from '@/components/MoneyStoryCard.svelte';
+    import SalaryCloseSheet from '@/components/SalaryCloseSheet.svelte';
     import StatTile from '@/components/StatTile.svelte';
     import Button from '@/components/ui/button/Button.svelte';
     import UpcomingStrip from '@/components/UpcomingStrip.svelte';
@@ -58,7 +59,13 @@ import Vault from 'lucide-svelte/icons/vault';
     interface DueEvent {
         id: number | null;
         date: string;
-        kind: 'salary' | 'bill' | 'rent' | 'installment' | 'subscription' | 'savings';
+        kind:
+            | 'salary'
+            | 'bill'
+            | 'rent'
+            | 'installment'
+            | 'subscription'
+            | 'savings';
         label: string;
         amount: number;
         status?: 'paid' | 'overdue' | 'upcoming';
@@ -137,12 +144,16 @@ import Vault from 'lucide-svelte/icons/vault';
 
     const expenseDelta = $derived(
         stats.prevExpenses > 0
-            ? ((stats.totalExpenses - stats.prevExpenses) / stats.prevExpenses) * 100
+            ? ((stats.totalExpenses - stats.prevExpenses) /
+                  stats.prevExpenses) *
+                  100
             : 0,
     );
 
     const currentMonthLabel = $derived(
-        availableMonths.find((m) => m.value === month)?.label ?? salaryMonth?.label ?? month,
+        availableMonths.find((m) => m.value === month)?.label ??
+            salaryMonth?.label ??
+            month,
     );
 
     /**
@@ -185,7 +196,11 @@ import Vault from 'lucide-svelte/icons/vault';
     // فلتر شهر حقيقي — يعيد الطلب للسيرفر، لا يغيّر متغيّراً محلياً فقط
     function selectMonth(value: string) {
         monthOpen = false;
-        router.get('/dashboard', { month: value }, { preserveScroll: true, preserveState: true });
+        router.get(
+            '/dashboard',
+            { month: value },
+            { preserveScroll: true, preserveState: true },
+        );
     }
 </script>
 
@@ -212,7 +227,12 @@ import Vault from 'lucide-svelte/icons/vault';
 
         <div class="hidden gap-2 md:flex">
             <div class="relative">
-                <Button variant="outline" size="sm" class="gap-1.5" onclick={() => (monthOpen = !monthOpen)}>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="gap-1.5"
+                    onclick={() => (monthOpen = !monthOpen)}
+                >
                     {currentMonthLabel}
                     <ChevronDown class="size-3.5 text-muted-foreground" />
                 </Button>
@@ -224,7 +244,8 @@ import Vault from 'lucide-svelte/icons/vault';
                         {#each availableMonths as m (m.value)}
                             <button
                                 type="button"
-                                class="w-full px-3 py-1.5 text-start text-xs hover:bg-secondary {m.value === month
+                                class="w-full px-3 py-1.5 text-start text-xs hover:bg-secondary {m.value ===
+                                month
                                     ? 'bg-secondary font-medium'
                                     : ''}"
                                 onclick={() => selectMonth(m.value)}
@@ -235,7 +256,8 @@ import Vault from 'lucide-svelte/icons/vault';
                     </div>
                 {/if}
             </div>
-            <Button variant="outline" size="sm" href="/reports">التقارير</Button>
+            <Button variant="outline" size="sm" href="/reports">التقارير</Button
+            >
         </div>
     </div>
 
@@ -258,7 +280,8 @@ import Vault from 'lucide-svelte/icons/vault';
             >
                 <Sparkles class="size-4 shrink-0 text-primary" />
                 <span class="flex-1">
-                    <b class="font-semibold">أكمل إعدادك</b> — باقي خطوات بسيطة عشان تصير أرقامك دقيقة تماماً.
+                    <b class="font-semibold">أكمل إعدادك</b> — باقي خطوات بسيطة عشان
+                    تصير أرقامك دقيقة تماماً.
                 </span>
                 <ArrowLeft class="size-4 text-primary" />
             </a>
@@ -308,47 +331,104 @@ import Vault from 'lucide-svelte/icons/vault';
                 amount={stats.savings}
                 icon={Vault}
                 color="var(--chart-3)"
-                note="{formatPercent(stats.savingsRate)} من دخلك · الهدف {formatPercent(stats.savingsTarget)}"
+                note="{formatPercent(
+                    stats.savingsRate,
+                )} من دخلك · الهدف {formatPercent(stats.savingsTarget)}"
             />
         </div>
 
+        <!-- ٣.٥ · مدخل المساعد — بعد الأرقام مباشرةً: القارئ للتوّ رأى
+             مجاميعه، وأقرب سؤال يخطر له سؤال عنها. -->
+        <a
+            href="/assistant"
+            class="flex min-h-[60px] items-center gap-3 rounded-2xl border border-border bg-card px-4 no-underline shadow-xs transition-colors hover:bg-secondary"
+        >
+            <span
+                class="grid size-10 shrink-0 place-items-center rounded-xl text-white"
+                style="background:linear-gradient(145deg,#2c4a6e,#1baf7a)"
+            >
+                <AiAssistantIcon class="size-5" />
+            </span>
+            <span class="min-w-0 flex-1">
+                <b class="block text-[13.5px] font-semibold"
+                    >اسأل المساعد الذكي</b
+                >
+                <span
+                    class="block truncate text-[11.5px] text-muted-foreground"
+                >
+                    «كم صرفت على المطاعم؟» · «أضف مصروف 50 ريال قهوة أمس»
+                </span>
+            </span>
+            <ArrowLeft class="size-4 shrink-0 text-primary" />
+        </a>
+
         <!-- ٤ · آخر المعاملات -->
         <section class="rounded-2xl border border-border bg-card shadow-xs">
-            <header class="flex items-center justify-between border-b border-border px-5 py-4">
+            <header
+                class="flex items-center justify-between border-b border-border px-5 py-4"
+            >
                 <h2 class="text-[14.5px] font-semibold">آخر المعاملات</h2>
-                <a href="/expenses" class="text-[12.5px] text-primary no-underline">عرض الكل</a>
+                <a
+                    href="/expenses"
+                    class="text-[12.5px] text-primary no-underline">عرض الكل</a
+                >
             </header>
 
             {#if recentTransactions.length}
                 <!-- جدول على الشاشات المتوسطة فأكبر -->
                 <table class="hidden w-full text-[13px] md:table">
                     <thead>
-                        <tr class="border-b border-border text-muted-foreground">
-                            <th class="px-5 py-2.5 text-start text-xs font-medium">الوصف</th>
-                            <th class="px-5 py-2.5 text-start text-xs font-medium">الفئة</th>
-                            <th class="px-5 py-2.5 text-start text-xs font-medium">التاريخ</th>
-                            <th class="px-5 py-2.5 text-end text-xs font-medium">المبلغ</th>
+                        <tr
+                            class="border-b border-border text-muted-foreground"
+                        >
+                            <th
+                                class="px-5 py-2.5 text-start text-xs font-medium"
+                                >الوصف</th
+                            >
+                            <th
+                                class="px-5 py-2.5 text-start text-xs font-medium"
+                                >الفئة</th
+                            >
+                            <th
+                                class="px-5 py-2.5 text-start text-xs font-medium"
+                                >التاريخ</th
+                            >
+                            <th class="px-5 py-2.5 text-end text-xs font-medium"
+                                >المبلغ</th
+                            >
                         </tr>
                     </thead>
                     <tbody>
                         {#each recentTransactions as t (t.id)}
-                            <tr class="border-b border-border transition-colors last:border-0 hover:bg-secondary">
+                            <tr
+                                class="border-b border-border transition-colors last:border-0 hover:bg-secondary"
+                            >
                                 <td class="px-5 py-3">
                                     <span class="flex items-center gap-2.5">
-                                        <CategoryIcon icon={t.icon} color={t.color} size="xs" />
+                                        <CategoryIcon
+                                            icon={t.icon}
+                                            color={t.color}
+                                            size="xs"
+                                        />
                                         {t.desc}
                                     </span>
                                 </td>
-                                <td class="px-5 py-3 text-foreground/80">{t.category}</td>
-                                <td class="px-5 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
+                                <td class="px-5 py-3 text-foreground/80"
+                                    >{t.category}</td
+                                >
+                                <td
+                                    class="px-5 py-3 whitespace-nowrap text-muted-foreground tabular-nums"
+                                >
                                     {formatDate(t.date)}
                                 </td>
                                 <td
-                                    class="px-5 py-3 text-end font-semibold tabular-nums {t.type === 'expense'
+                                    class="px-5 py-3 text-end font-semibold tabular-nums {t.type ===
+                                    'expense'
                                         ? 'text-destructive'
                                         : 'text-success-text'}"
                                 >
-                                    {t.type === 'expense' ? '−' : '+'} {formatAmount(t.amount)} ر.س
+                                    {t.type === 'expense' ? '−' : '+'}
+                                    {formatAmount(t.amount)} ر.س
                                 </td>
                             </tr>
                         {/each}
@@ -359,7 +439,11 @@ import Vault from 'lucide-svelte/icons/vault';
                 <ul class="divide-y divide-border md:hidden">
                     {#each recentTransactions as t (t.id)}
                         <li class="flex items-center gap-3 px-4 py-3">
-                            <CategoryIcon icon={t.icon} color={t.color} size="sm" />
+                            <CategoryIcon
+                                icon={t.icon}
+                                color={t.color}
+                                size="sm"
+                            />
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-[13px]">{t.desc}</p>
                                 <p class="text-[11.5px] text-muted-foreground">
@@ -367,11 +451,13 @@ import Vault from 'lucide-svelte/icons/vault';
                                 </p>
                             </div>
                             <span
-                                class="shrink-0 text-[13px] font-semibold tabular-nums {t.type === 'expense'
+                                class="shrink-0 text-[13px] font-semibold tabular-nums {t.type ===
+                                'expense'
                                     ? 'text-destructive'
                                     : 'text-success-text'}"
                             >
-                                {t.type === 'expense' ? '−' : '+'} {formatAmount(t.amount)}
+                                {t.type === 'expense' ? '−' : '+'}
+                                {formatAmount(t.amount)}
                             </span>
                         </li>
                     {/each}
