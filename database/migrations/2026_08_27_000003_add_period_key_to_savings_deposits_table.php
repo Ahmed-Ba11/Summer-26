@@ -16,7 +16,7 @@ return new class extends Migration
         });
 
         DB::table('savings_deposits')->whereNull('period_key')->update([
-            'period_key' => DB::raw("substr(deposited_at, 1, 7)"),
+            'period_key' => DB::raw("to_char(deposited_at, 'YYYY-MM')"),
         ]);
 
         Schema::table('savings_deposits', function (Blueprint $table) {
