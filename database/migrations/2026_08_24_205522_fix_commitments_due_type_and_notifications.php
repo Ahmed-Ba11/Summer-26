@@ -47,12 +47,30 @@ return new class extends Migration
             ->where('icon', 'home')
             ->update(['icon' => 'house']);
 
-        Schema::table('commitments', function (Blueprint $table): void {
-            $table->enum('due_type', ['salary_day', 'month_day'])
-                ->default('month_day')
-                ->change();
-            $table->dropColumn(['due_date', 'notify_before', 'notify_on_due', 'notify_late']);
-        });
+       DB::statement('
+    ALTER TABLE commitments
+    DROP CONSTRAINT IF EXISTS commitments_due_type_check
+');
+
+DB::statement("
+    ALTER TABLE commitments
+    ALTER COLUMN due_type SET DEFAULT 'month_day'
+");
+
+DB::statement('
+    ALTER TABLE commitments
+    ADD CONSTRAINT commitments_due_type_check
+    CHECK (due_type IN (\'salary_day\', \'month_day\'))
+');
+
+Schema::table('commitments', function (Blueprint $table): void {
+    $table->dropColumn([
+        'due_date',
+        'notify_before',
+        'notify_on_due',
+        'notify_late'
+    ]);
+});
     }
 
     public function down(): void
