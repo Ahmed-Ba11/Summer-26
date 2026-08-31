@@ -18,15 +18,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'ui_locale', 'font_scale']);
+    $middleware->trustProxies(at: '*');
 
-        $middleware->web(append: [
-            HandleAppearance::class,
-            EnsureOnboarded::class,
-            HandleInertiaRequests::class,
-            AddLinkHeadersForPreloadedAssets::class,
-        ]);
-    })
+    $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'ui_locale', 'font_scale']);
+
+    $middleware->web(append: [
+        HandleAppearance::class,
+        EnsureOnboarded::class,
+        HandleInertiaRequests::class,
+        AddLinkHeadersForPreloadedAssets::class,
+    ]);
+})
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
