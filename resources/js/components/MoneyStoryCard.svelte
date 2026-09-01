@@ -59,7 +59,7 @@
     <div class="px-3.5 pt-3.5 pb-3 md:flex md:flex-wrap md:items-end md:gap-x-7 md:gap-y-5 md:px-6 md:pt-5 md:pb-4">
         <!-- الرقم البطل -->
         <div class="md:shrink-0">
-            <p class="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            <p class="heading-extended flex items-center gap-1.5 text-[12px] text-muted-foreground">
                 <Wallet class="size-3.5" />
                 المتبقي لك للصرف
             </p>
@@ -92,7 +92,7 @@
         <div class="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-2.5 md:mt-0 md:flex md:gap-7 md:border-0 md:pt-0">
             {#each figures as f (f.label)}
                 <div class="min-w-0">
-                    <p class="truncate text-[11px] text-muted-foreground">{f.label}</p>
+                    <p class="heading-extended truncate text-[11px] text-muted-foreground">{f.label}</p>
                     <p class="mt-0.5 text-[15px] font-semibold tracking-tight tabular-nums md:text-[18px]">
                         {formatAmount(f.value)}
                     </p>

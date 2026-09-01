@@ -15,6 +15,7 @@
         'Thmanyah Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
+
     --font-display: 'Thmanyah Display', 'Thmanyah Sans', serif;
 
     --radius-lg: var(--radius);
@@ -45,7 +46,6 @@
     --color-destructive: var(--destructive);
     --color-destructive-foreground: var(--destructive-foreground);
 
-    /* ألوان الحالة — محجوزة، لا تُستخدم كسلسلة بيانات */
     --color-success: var(--success);
     --color-success-text: var(--success-text);
     --color-warning: var(--warning);
@@ -84,23 +84,14 @@
 }
 
 /* =========================================================================
-   نظام ألوان «ميزانيتي» — هادئ ومرتّب واحترافي
-   ------------------------------------------------------------------------
-   ١. لون علامة واحد (--primary) للكروم فقط: الأزرار، الروابط، التركيز،
-      وعنصر التنقّل النشط. لا يُستخدم أبداً داخل أي رسم بياني.
-   ٢. ألوان الحالة (success / warning / serious / destructive) محجوزة
-      للمعنى فقط: آمن / اقترب / شاذّ / تجاوز. ممنوع استخدامها للزينة.
-   ٣. البالتة الفئوية (chart-1..7) ترتيبها ثابت ولا يُدوَّر، ومُتحقَّق
-      منها برمجياً ضد عمى الألوان في الوضعين الفاتح والداكن.
+   نظام ألوان «ميزانيتي»
    ========================================================================= */
 
 :root {
     --radius: 0.75rem;
 
-    /* خط العرض — اسم «موفّر» في الترحيب وعناوين التقرير فقط */
     --font-display: 'Thmanyah Display', 'IBM Plex Sans Arabic', serif;
 
-    /* الأسطح والحبر */
     --background: #f5f4f0;
     --foreground: #16171a;
     --card: #ffffff;
@@ -117,20 +108,17 @@
     --input: #d6d3ca;
     --ring: #2c4a6e;
 
-    /* لون العلامة */
     --primary: #2c4a6e;
     --primary-foreground: #ffffff;
 
-    /* ألوان الحالة */
     --destructive: #d03b3b;
     --destructive-foreground: #ffffff;
     --success: #0ca30c;
-    --success-text: #006300; /* أخضر النص على خلفية فاتحة — يحقّق تباين WCAG */
+    --success-text: #006300;
     --warning: #fab219;
     --warning-text: #8a5d00;
     --serious: #ec835a;
 
-    /* البالتة الفئوية */
     --chart-1: #2a78d6;
     --chart-2: #eb6834;
     --chart-3: #1baf7a;
@@ -139,7 +127,6 @@
     --chart-6: #008300;
     --chart-7: #4a3aa7;
 
-    /* الشريط الجانبي */
     --sidebar-background: #ffffff;
     --sidebar-foreground: #55565b;
     --sidebar-primary: #2c4a6e;
@@ -179,7 +166,6 @@
     --warning-text: #fab219;
     --serious: #ec835a;
 
-    /* نفس الدرجات مُعاد ضبطها للسطح الداكن — ليست انعكاساً آلياً */
     --chart-1: #3987e5;
     --chart-2: #d95926;
     --chart-3: #199e70;
@@ -203,14 +189,24 @@
     * {
         @apply border-border outline-ring/50;
     }
+
+    html {
+        touch-action: manipulation;
+    }
+
     body {
         @apply bg-background text-foreground;
         -webkit-font-smoothing: antialiased;
     }
-    /* الأرقام داخل الجداول والأعمدة تتحاذى رأسياً */
+
     th,
     td,
     .tabular {
         font-variant-numeric: tabular-nums;
     }
+}
+
+/* OpenType Stylistic Alternates — للعناوين فقط */
+.heading-extended {
+    font-feature-settings: "salt" 1;
 }

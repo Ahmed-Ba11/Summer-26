@@ -215,7 +215,7 @@
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div class="min-w-0">
             <h1
-                class="truncate text-[26px] leading-tight font-bold tracking-tight md:text-[31px]"
+                class="heading-extended truncate text-[26px] leading-tight font-bold tracking-tight md:text-[31px]"
                 style="font-family: var(--font-display)"
             >
                 {greeting}
@@ -350,7 +350,7 @@
                 <AiAssistantIcon class="size-5" />
             </span>
             <span class="min-w-0 flex-1">
-                <b class="block text-[13.5px] font-semibold"
+                <b class="heading-extended block text-[13.5px] font-semibold"
                     >اسأل المساعد الذكي</b
                 >
                 <span
@@ -367,7 +367,7 @@
             <header
                 class="flex items-center justify-between border-b border-border px-5 py-4"
             >
-                <h2 class="text-[14.5px] font-semibold">آخر المعاملات</h2>
+                <h2 class="heading-extended text-[14.5px] font-semibold">آخر المعاملات</h2>
                 <a
                     href="/expenses"
                     class="text-[12.5px] text-primary no-underline">عرض الكل</a
