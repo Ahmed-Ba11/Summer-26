@@ -15,7 +15,6 @@
     import ChartNoAxesColumn from 'lucide-svelte/icons/chart-no-axes-column';
     import ChevronLeft from 'lucide-svelte/icons/chevron-left';
     import Download from 'lucide-svelte/icons/download';
-    import Fingerprint from 'lucide-svelte/icons/fingerprint';
     import Gauge from 'lucide-svelte/icons/gauge';
     import Globe from 'lucide-svelte/icons/globe';
     import KeyRound from 'lucide-svelte/icons/key-round';
@@ -51,7 +50,6 @@
             locale: string;
             theme: string;
             font_scale: string;
-            biometric_lock: boolean;
             notify_due: boolean;
             notify_budget: boolean;
             notify_salary: boolean;
@@ -69,7 +67,6 @@
     let fontScale = $state(settings.font_scale);
     let notifyDue = $state(settings.notify_due);
     let notifyBudget = $state(settings.notify_budget);
-    let biometricLock = $state(settings.biometric_lock);
 
     let salaryDaySheet = $state(false);
     let deleteSheet = $state(false);
@@ -529,14 +526,6 @@
                     label="تنبيه تجاوز الميزانية عند 80٪"
                     detail="ينبّهك قبل التجاوز لا بعده — وقتها ما زال بالإمكان التعديل."
                     onchange={(value) => save({ notify_budget: value })}
-                />
-                <div class="border-t border-border"></div>
-                <ToggleRow
-                    bind:checked={biometricLock}
-                    icon={Fingerprint}
-                    label="قفل بالبصمة"
-                    detail="أرقامك المالية لا تُفتح إلا ببصمتك."
-                    onchange={(value) => save({ biometric_lock: value })}
                 />
             </div>
         </section>
