@@ -108,22 +108,29 @@
 
     function onKeydown(e: KeyboardEvent) {
         if (!open) return;
+
         // اللوح الأعلى وحده يستجيب — وإلا أغلق Escape الأب والابن معاً.
         if (layer !== openSheets) return;
+
         if (e.key === 'Escape') {
             e.preventDefault();
             open = false;
             onClose?.();
             return;
         }
+
         // حصر التركيز داخل اللوح
         if (e.key !== 'Tab' || !panel) return;
+
         const items = panel.querySelectorAll<HTMLElement>(
             'button:not([disabled]),input,select,textarea,[href],[tabindex]:not([tabindex="-1"])',
         );
+
         if (!items.length) return;
+
         const first = items[0];
         const last = items[items.length - 1];
+
         if (e.shiftKey && document.activeElement === first) {
             e.preventDefault();
             last.focus();
@@ -134,7 +141,9 @@
     }
 
     $effect(() => {
-        if (open) panel?.querySelector<HTMLElement>('button,input')?.focus();
+        if (open) {
+            panel?.querySelector<HTMLElement>('button,input')?.focus();
+        }
     });
 </script>
 
@@ -161,19 +170,29 @@
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            class="relative flex max-h-[92vh] max-h-[92dvh] w-full flex-col rounded-t-3xl bg-card shadow-lg md:max-h-[86vh] md:max-h-[86dvh] md:max-w-md md:rounded-3xl"
+            class="relative flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-card shadow-lg md:h-[86dvh] md:max-w-md md:rounded-3xl"
         >
             <!-- مقبض السحب — جوال فقط -->
-            <div class="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border md:hidden"></div>
+            <div
+                class="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border md:hidden"
+            ></div>
 
             <!-- الرأس الثابت -->
-            <header class="flex shrink-0 items-start gap-2.5 px-4 pt-3 pb-2.5">
+            <header
+                class="flex shrink-0 items-start gap-2.5 px-4 pt-3 pb-2.5"
+            >
                 <div class="min-w-0 flex-1">
-                    <h2 class="truncate text-[15px] font-semibold">{title}</h2>
+                    <h2 class="truncate text-[15px] font-semibold">
+                        {title}
+                    </h2>
+
                     {#if subtitle}
-                        <p class="truncate text-[11px] text-muted-foreground">{subtitle}</p>
+                        <p class="truncate text-[11px] text-muted-foreground">
+                            {subtitle}
+                        </p>
                     {/if}
                 </div>
+
                 <button
                     type="button"
                     onclick={close}
@@ -189,11 +208,20 @@
             </header>
 
             {#if steps > 1}
-                <div class="flex shrink-0 items-center gap-1.5 px-4 pb-2 text-[11px] text-muted-foreground">
+                <div
+                    class="flex shrink-0 items-center gap-1.5 px-4 pb-2 text-[11px] text-muted-foreground"
+                >
                     {#each Array(steps) as _, i (i)}
-                        <span class="h-[3px] w-4 rounded-full {i < currentStep ? 'bg-primary' : 'bg-border'}"></span>
+                        <span
+                            class="h-[3px] w-4 rounded-full {i < currentStep
+                                ? 'bg-primary'
+                                : 'bg-border'}"
+                        ></span>
                     {/each}
-                    {#if stepLabel}<span class="ms-1">{stepLabel}</span>{/if}
+
+                    {#if stepLabel}
+                        <span class="ms-1">{stepLabel}</span>
+                    {/if}
                 </div>
             {/if}
 
