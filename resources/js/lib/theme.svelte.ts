@@ -13,7 +13,7 @@ export type ThemeState = {
     updateAppearance: (value: Appearance) => void;
 };
 
-const appearance = $state<{ value: Appearance }>({ value: 'system' });
+const appearance = $state<{ value: Appearance }>({ value: 'light' });
 
 let themeChangeMediaQuery: MediaQueryList | null = null;
 
@@ -61,14 +61,14 @@ const applyTheme = (value: Appearance): void => {
 
 const getStoredAppearance = (): Appearance => {
     if (typeof window === 'undefined') {
-        return 'system';
+        return 'light';
     }
 
     const stored = localStorage.getItem('appearance');
 
     return stored === 'light' || stored === 'dark' || stored === 'system'
         ? stored
-        : 'system';
+        : 'light';
 };
 
 const handleSystemThemeChange = (): void => {
@@ -120,11 +120,13 @@ export function initializeTheme(): () => void {
     }
 
     appearance.value = serverAppearance() ?? getStoredAppearance();
+
     localStorage.setItem('appearance', appearance.value);
     setCookie('appearance', appearance.value);
     applyTheme(appearance.value);
 
     detachThemeChangeListener();
+
     themeChangeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     themeChangeMediaQuery.addEventListener('change', handleSystemThemeChange);
 
@@ -146,6 +148,7 @@ export function updateAppearance(value: Appearance): void {
 export function cycleAppearance(): Appearance {
     const order: Appearance[] = ['light', 'dark', 'system'];
     const next = order[(order.indexOf(appearance.value) + 1) % order.length];
+
     updateAppearance(next);
 
     return next;
@@ -159,6 +162,7 @@ export function applyFontScale(scale: FontScale): void {
 
     document.documentElement.style.fontSize =
         FONT_SIZES[scale] ?? FONT_SIZES.md;
+
     setCookie('font_scale', scale);
 }
 
@@ -170,6 +174,7 @@ export function applyLocale(locale: UiLocale): void {
 
     document.documentElement.lang = locale;
     document.documentElement.dir = locale === 'en' ? 'ltr' : 'rtl';
+
     setCookie('ui_locale', locale);
 }
 
