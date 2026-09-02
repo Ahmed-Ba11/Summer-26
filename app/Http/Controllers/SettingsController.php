@@ -37,9 +37,8 @@ class SettingsController extends Controller
                 'salary_day' => (int) ($user->salary_day ?? 27),
                 'monthly_savings_target' => (int) $user->monthly_savings_target,
                 'locale' => $user->locale ?: 'ar',
-                'theme' => $user->theme ?: 'system',
+                'theme' => $user->theme ?: 'light',
                 'font_scale' => $user->font_scale ?: 'md',
-                'biometric_lock' => (bool) $user->biometric_lock,
                 'notify_due' => (bool) $user->notify_due,
                 'notify_budget' => (bool) $user->notify_budget,
                 'notify_salary' => (bool) $user->notify_salary,
@@ -65,7 +64,6 @@ class SettingsController extends Controller
             'locale' => ['sometimes', Rule::in(['ar', 'en'])],
             'theme' => ['sometimes', Rule::in(['light', 'dark', 'system'])],
             'font_scale' => ['sometimes', Rule::in(['sm', 'md', 'lg'])],
-            'biometric_lock' => ['sometimes', 'boolean'],
             'notify_due' => ['sometimes', 'boolean'],
             'notify_budget' => ['sometimes', 'boolean'],
             'notify_salary' => ['sometimes', 'boolean'],
@@ -149,8 +147,6 @@ class SettingsController extends Controller
             $user->budgets()->delete();
             $user->assistantMessages()->delete();
 
-            // «حذف كل البيانات» يعني الحذف فعلاً — الحذف الناعم يترك الصفوف
-            // في الجدول، فيرجع المستخدم لواجهة فاضية وقاعدة بيانات ممتلئة.
             $user->expenses()->withTrashed()->forceDelete();
             $user->incomes()->withTrashed()->forceDelete();
             $user->recurringTransactions()->withTrashed()->forceDelete();

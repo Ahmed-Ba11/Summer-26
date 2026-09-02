@@ -21,7 +21,7 @@ class HandleAppearance
     {
         $user = $request->user();
 
-        $appearance = $user?->theme ?: ($request->cookie('appearance') ?? 'system');
+        $appearance = $user?->theme ?: ($request->cookie('appearance') ?? 'light');
 
         View::share('appearance', $appearance);
         View::share('uiLocale', $user?->locale ?: ($request->cookie('ui_locale') ?? 'ar'));

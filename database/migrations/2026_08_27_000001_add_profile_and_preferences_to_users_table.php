@@ -14,7 +14,7 @@ return new class extends Migration
             $table->bigInteger('monthly_savings_target')->default(0)->after('monthly_income');
             $table->string('currency', 3)->default('SAR')->after('monthly_savings_target');
             $table->string('locale', 5)->default('ar')->after('currency');
-            $table->enum('theme', ['light', 'dark', 'system'])->default('system')->after('locale');
+            $table->enum('theme', ['light', 'dark', 'system'])->default('light')->after('locale');
             $table->enum('font_scale', ['sm', 'md', 'lg'])->default('md')->after('theme');
             $table->boolean('biometric_lock')->default(false)->after('font_scale');
             $table->boolean('notify_due')->default(true)->after('biometric_lock');
