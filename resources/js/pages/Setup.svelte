@@ -20,7 +20,6 @@
     import ArrowRight from 'lucide-svelte/icons/arrow-right';
     import Bell from 'lucide-svelte/icons/bell';
     import Check from 'lucide-svelte/icons/check';
-    import Fingerprint from 'lucide-svelte/icons/fingerprint';
     import Plus from 'lucide-svelte/icons/plus';
     import Repeat from 'lucide-svelte/icons/repeat';
     import Wallet from 'lucide-svelte/icons/wallet';
@@ -62,7 +61,6 @@
             salaryDay: number;
             savingsTarget: number;
             notifyDue: boolean;
-            biometricLock: boolean;
             commitmentsTotal: number;
             commitmentNames: string[];
             budgetsTotal: number;
@@ -92,11 +90,22 @@
     // ── الخطوة 2 ──────────────────────────────────────────────────────
     /** المختار من البطاقات الجاهزة: المفتاح → المبلغ بالهللات */
     let picked = $state<Record<string, number>>({});
+
+    /** يوم الاستحقاق لكل التزام — 0 يعني لم يحدده المستخدم بعد. */
+    let dueDays = $state<Record<string, number>>({});
+
     let installmentMonths = $state(12);
 
     const commitmentsTotal = $derived(
         Object.values(picked).reduce((sum, amount) => sum + amount, 0) ||
             saved.commitmentsTotal,
+    );
+
+    /** لا نسمح بمتابعة الخطوة 2 قبل اختيار يوم استحقاق لكل التزام مضاف. */
+    const allCommitmentDatesChosen = $derived(
+        Object.entries(picked)
+            .filter(([, amount]) => amount > 0)
+            .every(([key]) => (dueDays[key] ?? 0) >= 1),
     );
 
     /**
@@ -107,6 +116,7 @@
         saved.commitmentNames.includes(preset.name);
 
     const health = $derived(obligationHealth(commitmentsTotal, salary));
+
     const healthColor = $derived(
         health.level === 'bad'
             ? 'var(--destructive)'
@@ -124,14 +134,17 @@
     ];
 
     let savingsPct = $state(10);
+
     /** المبلغ بالهللات لكل فئة */
     let budgets = $state<Record<number, number>>({});
     let budgetsTouched = $state(false);
 
     const income = $derived(salary + extraAmount);
+
     const savingsTarget = $derived(
         Math.round((income * savingsPct) / 100 / 100) * 100,
     );
+
     const spendable = $derived(
         Math.max(0, income - commitmentsTotal - savingsTarget),
     );
@@ -175,11 +188,11 @@
     const allocated = $derived(
         Object.values(budgets).reduce((sum, amount) => sum + amount, 0),
     );
+
     const unallocated = $derived(Math.max(0, spendable - allocated));
 
     // ── الخطوة 4 ──────────────────────────────────────────────────────
     let notifyDue = $state(saved.notifyDue);
-    let biometricLock = $state(saved.biometricLock);
 
     const dailySafe = $derived(
         Math.floor(spendable / Math.max(1, salaryMonth.totalDays) / 100) * 100,
@@ -253,6 +266,8 @@
     }
 
     function saveCommitments() {
+        if (!allCommitmentDatesChosen) return;
+
         const rows = Object.entries(picked)
             .filter(([, amount]) => amount > 0)
             .map(([key, amount]) => {
@@ -262,6 +277,7 @@
                     key,
                     name: preset?.name ?? key,
                     amount,
+                    due_day: dueDays[key],
                     months_count:
                         preset?.kind === 'installment'
                             ? installmentMonths
@@ -290,10 +306,15 @@
 
     function finish() {
         submitting = true;
+
         router.post(
             '/setup/finish',
-            { notify_due: notifyDue, biometric_lock: biometricLock },
-            { onFinish: () => (submitting = false) },
+            { notify_due: notifyDue },
+            {
+                onFinish: () => {
+                    submitting = false;
+                },
+            },
         );
     }
 
@@ -309,7 +330,13 @@
         }
     }
 
-    const canContinue = $derived(step !== 1 || salary > 0);
+    const canContinue = $derived(
+        step === 1
+            ? salary > 0
+            : step === 2
+              ? allCommitmentDatesChosen
+              : true,
+    );
 </script>
 
 <AppHead title="الإعداد" />
@@ -343,15 +370,17 @@
 
             <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between gap-2">
-                    <b class="truncate text-[14px] font-semibold"
-                        >{STEP_TITLES[step - 1]}</b
-                    >
+                    <b class="truncate text-[14px] font-semibold">
+                        {STEP_TITLES[step - 1]}
+                    </b>
+
                     <span
                         class="shrink-0 text-[11.5px] text-muted-foreground tabular-nums"
                     >
                         الخطوة {step} من {TOTAL_STEPS}
                     </span>
                 </div>
+
                 <div class="mt-2 flex gap-1.5">
                     {#each Array(TOTAL_STEPS) as _, i (i)}
                         <span
@@ -398,10 +427,12 @@
                         >
                             {formatAmount(salary)}
                         </span>
+
                         <span
                             class="pb-1 text-[15px] font-medium text-muted-foreground"
-                            >ر.س</span
                         >
+                            ر.س
+                        </span>
                     </button>
 
                     <div class="mt-3 border-t border-border pt-1">
@@ -420,6 +451,7 @@
                     <p class="mb-2 text-[14px] font-semibold">
                         أي يوم ينزل راتبك؟
                     </p>
+
                     <DayOfMonthPicker
                         bind:value={salaryDay}
                         showLastDay={false}
@@ -449,8 +481,10 @@
                             >
                                 <span
                                     class="text-[11.5px] text-muted-foreground"
-                                    >المبلغ</span
                                 >
+                                    المبلغ
+                                </span>
+
                                 <span
                                     class="text-[14px] font-semibold tabular-nums"
                                 >
@@ -461,8 +495,10 @@
                             <label class="flex flex-col gap-1.5">
                                 <span
                                     class="text-[11.5px] text-muted-foreground"
-                                    >مصدره</span
                                 >
+                                    مصدره
+                                </span>
+
                                 <input
                                     type="text"
                                     bind:value={extraSource}
@@ -496,6 +532,7 @@
                         {@const saved_ = isSaved(preset)}
                         {@const amount = picked[preset.key] ?? 0}
                         {@const active = amount > 0 || saved_}
+
                         <button
                             type="button"
                             aria-pressed={active}
@@ -512,8 +549,13 @@
                                     apply: (halalas) => {
                                         if (halalas > 0) {
                                             picked[preset.key] = halalas;
+
+                                            if (!(preset.key in dueDays)) {
+                                                dueDays[preset.key] = 0;
+                                            }
                                         } else {
                                             delete picked[preset.key];
+                                            delete dueDays[preset.key];
                                         }
                                     },
                                 })}
@@ -528,9 +570,11 @@
                             >
                                 <Icon class="size-5" stroke-width="1.9" />
                             </span>
-                            <b class="text-[14px] font-semibold"
-                                >{preset.name}</b
-                            >
+
+                            <b class="text-[14px] font-semibold">
+                                {preset.name}
+                            </b>
+
                             <span
                                 class="text-[11.5px] tabular-nums {active
                                     ? 'text-primary'
@@ -548,6 +592,58 @@
                     {/each}
                 </div>
 
+                {#if Object.values(picked).some((amount) => amount > 0)}
+                    <section
+                        class="rounded-2xl border border-border bg-card p-3 shadow-xs md:p-6"
+                    >
+                        <p class="text-[14px] font-semibold">
+                            متى تستحق التزاماتك؟
+                        </p>
+
+                        <p class="mt-0.5 text-[11.5px] text-muted-foreground">
+                            حدّد يوم الاستحقاق الشهري لكل التزام قبل المتابعة.
+                        </p>
+
+                        <div class="mt-3 flex flex-col gap-3">
+                            {#each presets.filter((preset) => (picked[preset.key] ?? 0) > 0) as preset (preset.key)}
+                                <label
+                                    class="flex items-center justify-between gap-3"
+                                >
+                                    <span
+                                        class="min-w-0 flex-1 truncate text-[13.5px] font-medium"
+                                    >
+                                        {preset.name}
+                                    </span>
+
+                                    <select
+                                        bind:value={dueDays[preset.key]}
+                                        aria-label={`يوم استحقاق ${preset.name}`}
+                                        class="min-h-11 w-36 rounded-xl border bg-background px-3 text-[13px] outline-none focus:ring-2 focus:ring-ring {(dueDays[preset.key] ?? 0) === 0
+                                            ? 'border-destructive/60 text-muted-foreground'
+                                            : 'border-input text-foreground'}"
+                                    >
+                                        <option value={0} disabled>
+                                            اختر اليوم
+                                        </option>
+
+                                        {#each Array.from({ length: 31 }, (_, i) => i + 1) as day (day)}
+                                            <option value={day}>
+                                                يوم {day}
+                                            </option>
+                                        {/each}
+                                    </select>
+                                </label>
+                            {/each}
+                        </div>
+
+                        {#if !allCommitmentDatesChosen}
+                            <p class="mt-2 text-[11.5px] text-destructive">
+                                اختر يوم الاستحقاق لكل التزاماتك للمتابعة.
+                            </p>
+                        {/if}
+                    </section>
+                {/if}
+
                 {#if picked.installment}
                     <section
                         class="rounded-2xl border border-border bg-card p-3 shadow-xs md:p-6"
@@ -555,12 +651,14 @@
                         <p class="mb-2 text-[14px] font-semibold">
                             كم شهراً باقٍ على القسط؟
                         </p>
+
                         <div class="flex flex-wrap gap-1.5">
                             {#each [6, 12, 24, 36, 48, 60] as months (months)}
                                 <button
                                     type="button"
                                     aria-pressed={installmentMonths === months}
-                                    onclick={() => (installmentMonths = months)}
+                                    onclick={() =>
+                                        (installmentMonths = months)}
                                     class="inline-flex min-h-11 min-w-12 items-center justify-center rounded-xl border px-3 text-[13px] tabular-nums transition-colors {installmentMonths ===
                                     months
                                         ? 'border-primary bg-primary/8 font-semibold text-primary'
@@ -581,6 +679,7 @@
                         <span class="text-[14px] font-semibold">
                             مجموع التزاماتك {formatAmount(commitmentsTotal)} ر.س
                         </span>
+
                         <span
                             class="shrink-0 text-[14px] font-semibold tabular-nums"
                             style="color: {healthColor}"
@@ -624,6 +723,7 @@
                     <p class="text-[14px] font-semibold">
                         كم تبي تدّخر من راتبك؟
                     </p>
+
                     <p class="mt-0.5 text-[11.5px] text-muted-foreground">
                         المقترح 10٪ — يُحجز أول الشهر لا آخره.
                     </p>
@@ -651,9 +751,10 @@
                         <p
                             class="mt-2.5 rounded-xl bg-secondary px-3 py-2 text-[11.5px] text-foreground/85"
                         >
-                            يعني <b class="font-semibold tabular-nums"
-                                >{formatAmount(savingsTarget)} ر.س</b
-                            > كل شهر.
+                            يعني <b class="font-semibold tabular-nums">
+                                {formatAmount(savingsTarget)} ر.س
+                            </b>
+                            كل شهر.
                         </p>
                     {/if}
                 </section>
@@ -665,12 +766,14 @@
                         <p class="text-[14px] font-semibold">
                             توزيع الباقي على فئاتك
                         </p>
+
                         <span
                             class="shrink-0 text-[11.5px] text-muted-foreground tabular-nums"
                         >
                             {formatAmount(spendable)} ر.س
                         </span>
                     </div>
+
                     <p class="mt-0.5 text-[11.5px] text-muted-foreground">
                         اقتراح للبداية — عدّل أي رقم بضغطة.
                     </p>
@@ -678,6 +781,7 @@
                     <ul class="mt-2 flex flex-col">
                         {#each suggestedRows as row (row.category.id)}
                             {@const amount = budgets[row.category.id] ?? 0}
+
                             <li class="border-b border-border last:border-b-0">
                                 <button
                                     type="button"
@@ -700,19 +804,23 @@
                                         color={row.category.color}
                                         size="lg"
                                     />
+
                                     <span
                                         class="min-w-0 flex-1 truncate text-[14px] font-medium"
                                     >
                                         {row.category.name}
                                     </span>
+
                                     <span
                                         class="shrink-0 text-[14px] font-semibold tabular-nums"
                                     >
                                         {formatAmount(amount)}
+
                                         <span
                                             class="text-[11.5px] font-normal text-muted-foreground"
-                                            >ر.س</span
                                         >
+                                            ر.س
+                                        </span>
                                     </span>
                                 </button>
                             </li>
@@ -725,8 +833,11 @@
                     >
                         <span
                             class="text-[11.5px] font-medium"
-                            style="color: var(--success-text)">غير مخصّص</span
+                            style="color: var(--success-text)"
                         >
+                            غير مخصّص
+                        </span>
+
                         <b
                             class="text-[14px] font-semibold tabular-nums"
                             style="color: var(--success-text)"
@@ -750,18 +861,24 @@
                     <p class="mt-3 text-[11.5px] text-muted-foreground">
                         يصفى لك للصرف
                     </p>
+
                     <p
                         class="mt-0.5 text-[36px] leading-none font-semibold tracking-[-0.04em] tabular-nums"
                     >
-                        {formatAmount(spendable)}<span
+                        {formatAmount(spendable)}
+
+                        <span
                             class="ms-1.5 text-[15px] font-medium text-muted-foreground"
-                            >ر.س</span
                         >
+                            ر.س
+                        </span>
                     </p>
+
                     <p class="mt-2 text-[11.5px] text-foreground/85">
-                        يعني <b class="font-semibold tabular-nums"
-                            >{formatAmount(dailySafe)} ر.س</b
-                        >
+                        يعني
+                        <b class="font-semibold tabular-nums">
+                            {formatAmount(dailySafe)} ر.س
+                        </b>
                         في اليوم بأمان على مدى {salaryMonth.totalDays} يوماً.
                     </p>
                 </section>
@@ -773,38 +890,47 @@
                         <li
                             class="flex min-h-11 items-center justify-between gap-2 border-b border-border"
                         >
-                            <span class="text-muted-foreground"
-                                >الراتب والدخل</span
-                            >
-                            <b class="font-semibold tabular-nums"
-                                >{formatAmount(income)} ر.س</b
-                            >
+                            <span class="text-muted-foreground">
+                                الراتب والدخل
+                            </span>
+
+                            <b class="font-semibold tabular-nums">
+                                {formatAmount(income)} ر.س
+                            </b>
                         </li>
+
                         <li
                             class="flex min-h-11 items-center justify-between gap-2 border-b border-border"
                         >
-                            <span class="text-muted-foreground"
-                                >− الالتزامات</span
-                            >
-                            <b class="font-semibold tabular-nums"
-                                >{formatAmount(commitmentsTotal)} ر.س</b
-                            >
+                            <span class="text-muted-foreground">
+                                − الالتزامات
+                            </span>
+
+                            <b class="font-semibold tabular-nums">
+                                {formatAmount(commitmentsTotal)} ر.س
+                            </b>
                         </li>
+
                         <li
                             class="flex min-h-11 items-center justify-between gap-2 border-b border-border"
                         >
-                            <span class="text-muted-foreground">− الادخار</span>
-                            <b class="font-semibold tabular-nums"
-                                >{formatAmount(savingsTarget)} ر.س</b
-                            >
+                            <span class="text-muted-foreground">
+                                − الادخار
+                            </span>
+
+                            <b class="font-semibold tabular-nums">
+                                {formatAmount(savingsTarget)} ر.س
+                            </b>
                         </li>
+
                         <li
                             class="flex min-h-11 items-center justify-between gap-2"
                         >
                             <span class="font-medium">= يصفى لك</span>
-                            <b class="font-semibold text-primary tabular-nums"
-                                >{formatAmount(spendable)} ر.س</b
-                            >
+
+                            <b class="font-semibold text-primary tabular-nums">
+                                {formatAmount(spendable)} ر.س
+                            </b>
                         </li>
                     </ul>
                 </section>
@@ -817,13 +943,6 @@
                         icon={Bell}
                         label="ذكّرني بالالتزامات"
                         detail="تنبيه قبل الاستحقاق بثلاثة أيام."
-                    />
-                    <div class="border-t border-border"></div>
-                    <ToggleRow
-                        bind:checked={biometricLock}
-                        icon={Fingerprint}
-                        label="اقفل التطبيق ببصمتك"
-                        detail="أرقامك المالية لا تُفتح إلا ببصمتك."
                     />
                 </section>
             {/if}
