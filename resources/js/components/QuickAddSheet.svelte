@@ -440,43 +440,60 @@
         </div>
 
         <!-- الفئات -->
-        {#if mode === 'expense'}
-            <div
-                class="grid grid-cols-4 gap-1.5 {categoryError
-                    ? 'rounded-2xl outline-2 outline-offset-4 outline-destructive'
-                    : ''}"
-                role="group"
-                aria-label="فئة المصروف"
-                aria-invalid={categoryError}
+{#if mode === 'expense'}
+    <div
+        class="grid grid-cols-5 gap-1 {categoryError
+            ? 'rounded-xl outline-2 outline-offset-3 outline-destructive'
+            : ''}"
+        role="group"
+        aria-label="فئة المصروف"
+        aria-invalid={categoryError}
+    >
+        {#each categories.filter(
+            (c) => !['تعليم', 'التعليم'].includes(c.name.trim()),
+        ) as c (c.id)}
+            <button
+                type="button"
+                aria-pressed={categoryId === c.id}
+                onclick={() => {
+                    categoryId = c.id;
+                    confirmed = false;
+                }}
+                class="flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 py-1.5 transition-colors {categoryId === c.id
+                    ? 'border-current'
+                    : 'border-border'}"
+                style={categoryId === c.id
+                    ? `color:${c.color};background:color-mix(in srgb,${c.color} 7%,transparent)`
+                    : ''}
             >
-                {#each categories as c (c.id)}
-                    <button
-                        type="button"
-                        aria-pressed={categoryId === c.id}
-                        onclick={() => { categoryId = c.id; confirmed = false; }}
-                        class="flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border px-1.5 pt-2.5 pb-2 transition-colors {categoryId === c.id
-                            ? 'border-current'
-                            : 'border-border'}"
-                        style={categoryId === c.id ? `color:${c.color};background:color-mix(in srgb,${c.color} 7%,transparent)` : ''}
-                    >
-                        <CategoryIcon icon={c.icon} color={c.color} size="sm" />
-                        <span class="max-w-full truncate text-[11px] {categoryId === c.id ? 'font-semibold text-foreground' : 'text-foreground/70'}">
-                            {c.name}
-                        </span>
-                    </button>
-                {/each}
-            </div>
+                <CategoryIcon
+                    icon={c.icon}
+                    color={c.color}
+                    size="xs"
+                />
 
-            {#if categoryError}
-                <p
-                    class="-mt-1 flex items-start gap-2 text-[11.5px] font-semibold text-destructive"
-                    role="alert"
+                <span
+                    class="max-w-full truncate text-[11px] leading-tight {categoryId ===
+                    c.id
+                        ? 'font-semibold text-foreground'
+                        : 'text-foreground/70'}"
                 >
-                    <TriangleAlert class="mt-px size-4 shrink-0" />
-                    اختر فئة للمصروف — أو «أخرى» إن ما كانت من الفئات.
-                </p>
-            {/if}
-        {/if}
+                    {c.name}
+                </span>
+            </button>
+        {/each}
+    </div>
+
+    {#if categoryError}
+        <p
+            class="-mt-1 flex items-start gap-2 text-[11.5px] font-semibold text-destructive"
+            role="alert"
+        >
+            <TriangleAlert class="mt-px size-4 shrink-0" />
+            اختر فئة للمصروف — أو «أخرى» إن ما كانت من الفئات.
+        </p>
+    {/if}
+{/if}
 
         <!-- خطأ ردّه الخادم -->
         {#if serverError}
