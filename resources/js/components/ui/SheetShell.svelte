@@ -18,19 +18,7 @@
     /**
      * الهيكل الموحّد لكل لوح في التطبيق.
      *
-     * ثلاث طبقات ثابتة:
-     *   رأس ثابت  →  جسم يتمرّر  →  تذييل ثابت
-     *
-     * لماذا مكوّن واحد بدل تكرار البنية في كل صفحة:
-     *
-     *   • **زر الإغلاق كان يتداخل مع العنوان** في عدّة صفحات. هنا العنوان
-     *     داخل حاوية `min-w-0` تقصّ نصّها، والزر `shrink-0` بمسافة ثابتة —
-     *     التداخل مستحيل هندسياً، ويُصلَح مرة واحدة للجميع.
-     *
-     *   • **زر الحفظ كان يختفي** أسفل نموذج طويل. هنا التذييل خارج منطقة
-     *     التمرير، فيبقى تحت الإبهام مهما طال المحتوى.
-     *
-     *   • لوح سفلي على الجوال، ومركزي على الديسكتوب — بنفس المكوّن.
+     * رأس ثابت → جسم قابل للتمرير → تذييل ثابت.
      */
     import X from 'lucide-svelte/icons/x';
     import ArrowRight from 'lucide-svelte/icons/arrow-right';
@@ -40,9 +28,7 @@
         open = $bindable(false),
         title,
         subtitle = '',
-        /** يعرض سهم رجوع بدل زر الإغلاق — للألواح متعدّدة الخطوات */
         showBack = false,
-        /** مثال: «الخطوة 2 من 2» */
         stepLabel = '',
         steps = 0,
         currentStep = 0,
@@ -66,7 +52,7 @@
 
     let panel = $state<HTMLElement | null>(null);
 
-    /** ترتيب هذا اللوح في مكدّس الألواح المفتوحة — 1 للأول، 2 للمتداخل فيه… */
+    /** ترتيب هذا اللوح في مكدّس الألواح المفتوحة. */
     let layer = $state(0);
 
     $effect(() => {
@@ -81,12 +67,7 @@
     });
 
     /**
-     * ينقل اللوح إلى `document.body`.
-     *
-     * `position: fixed` ينسب نفسه لأقرب سلف فيه `transform` أو `filter` أو
-     * `contain` لا للنافذة — وهذا يجعل اللوح المفتوح من داخل صفحة أو لوح آخر
-     * يُقصّ داخل حاوية التمرير الخاصة بها. النقل إلى جذر المستند يقطع هذا
-     * الاحتمال من أصله بدل مطاردته صفحةً صفحة.
+     * ينقل اللوح إلى document.body حتى لا يُقص داخل أي حاوية أب.
      */
     function portal(node: HTMLElement) {
         document.body.appendChild(node);
@@ -99,8 +80,9 @@
     }
 
     function close() {
-        if (showBack) onBack?.();
-        else {
+        if (showBack) {
+            onBack?.();
+        } else {
             open = false;
             onClose?.();
         }
@@ -109,7 +91,7 @@
     function onKeydown(e: KeyboardEvent) {
         if (!open) return;
 
-        // اللوح الأعلى وحده يستجيب — وإلا أغلق Escape الأب والابن معاً.
+        // اللوح الأعلى وحده يستجيب.
         if (layer !== openSheets) return;
 
         if (e.key === 'Escape') {
@@ -119,7 +101,7 @@
             return;
         }
 
-        // حصر التركيز داخل اللوح
+        // حصر التركيز داخل اللوح.
         if (e.key !== 'Tab' || !panel) return;
 
         const items = panel.querySelectorAll<HTMLElement>(
@@ -170,14 +152,14 @@
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            class="relative flex h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-card shadow-lg md:h-[86dvh] md:max-w-md md:rounded-3xl"
+            class="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-card shadow-lg md:max-h-[86dvh] md:max-w-md md:rounded-3xl"
         >
             <!-- مقبض السحب — جوال فقط -->
             <div
                 class="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-border md:hidden"
             ></div>
 
-            <!-- الرأس الثابت -->
+            <!-- الرأس -->
             <header
                 class="flex shrink-0 items-start gap-2.5 px-4 pt-3 pb-2.5"
             >
@@ -187,7 +169,9 @@
                     </h2>
 
                     {#if subtitle}
-                        <p class="truncate text-[11px] text-muted-foreground">
+                        <p
+                            class="truncate text-[11px] text-muted-foreground"
+                        >
                             {subtitle}
                         </p>
                     {/if}
@@ -225,12 +209,14 @@
                 </div>
             {/if}
 
-            <!-- الجسم القابل للتمرير -->
-            <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
+            <!-- الجسم -->
+            <div
+                class="min-h-0 overflow-y-auto px-4 pb-3"
+            >
                 {@render children()}
             </div>
 
-            <!-- التذييل الثابت -->
+            <!-- التذييل -->
             {#if footer}
                 <div
                     class="flex shrink-0 items-center gap-2 border-t border-border bg-card px-4 pt-3 pb-[calc(0.85rem+env(safe-area-inset-bottom))] md:pb-3"
